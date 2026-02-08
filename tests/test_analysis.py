@@ -8,7 +8,13 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from analysis import compute_iqr_errors, weighted_r2
+from analysis import (
+    compute_iqr_errors,
+    weighted_r2,
+    fit_slope_area,
+    ks_local_from_SA,
+    ks_from_loglog_fixed_theta,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -81,3 +87,70 @@ class TestComputeIqrErrors:
         lo, hi = compute_iqr_errors(dbg)
         assert np.all(lo >= 0)
         assert np.all(hi >= 0)
+
+
+# ---------------------------------------------------------------------------
+# Tests: fit_slope_area
+# ---------------------------------------------------------------------------
+
+class TestFitSlopeArea:
+
+    def test_fixed_theta_returns_correct_keys(self):
+        A = np.logspace(3, 6, 50)
+        S = 0.05 * A ** -0.4
+        result = fit_slope_area(A, S, theta_fixed=0.4)
+        assert "ks" in result
+        assert "theta" in result
+        assert "r2" in result
+        assert np.isfinite(result["ks"])
+        assert result["ks"] > 0
+
+    def test_free_theta_recovers_known(self):
+        theta_true = 0.45
+        ks_true = 100.0
+        A = np.logspace(3, 7, 100)
+        S = ks_true * A ** -theta_true
+        result = fit_slope_area(A, S, theta_fixed=None)
+        np.testing.assert_allclose(result["theta"], theta_true, atol=0.01)
+        np.testing.assert_allclose(result["ks"], ks_true, rtol=0.05)
+
+    def test_insufficient_data(self):
+        A = np.array([100.0, 200.0])
+        S = np.array([0.1, 0.05])
+        result = fit_slope_area(A, S, min_points=5)
+        assert np.isnan(result["ks"])
+        assert result["n_good"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Tests: ks_local_from_SA
+# ---------------------------------------------------------------------------
+
+class TestKsLocalFromSA:
+
+    def test_returns_correct_structure(self):
+        A = np.logspace(3, 6, 20)
+        S = 0.1 * A ** -0.4
+        ks_local, mask, n_good, med, q25, q75 = ks_local_from_SA(A, S, m=0.4)
+        assert len(ks_local) == len(A)
+        assert isinstance(n_good, int)
+        assert n_good > 0
+        assert np.isfinite(med)
+        assert q25 <= med <= q75
+
+
+# ---------------------------------------------------------------------------
+# Tests: ks_from_loglog_fixed_theta
+# ---------------------------------------------------------------------------
+
+class TestKsFromLoglogFixedTheta:
+
+    def test_recovers_known_ks(self):
+        ks_true = 50.0
+        theta = 0.45
+        A = np.logspace(4, 7, 200)
+        S = ks_true * A ** -theta
+        Ks_est, theta_out, r2 = ks_from_loglog_fixed_theta(A, S, theta_fixed=theta)
+        np.testing.assert_allclose(Ks_est, ks_true, rtol=0.01)
+        assert abs(theta_out - theta) < 1e-10
+        assert r2 > 0.99

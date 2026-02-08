@@ -429,3 +429,232 @@ def A_top_for_target_inlet_area(
     cellA = dx * dy
     left_right = 2.0 * ci * cellA
     return max(A_inlet_target - left_right, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# No-flux boundary variant solver
+# ---------------------------------------------------------------------------
+
+def solve_advection_diffusion_planform_noflux(
+    U: float,
+    K: float,
+    m: float,
+    D: float,
+    Nx: int,
+    Ny: int,
+    Lx: float,
+    Ly: float,
+    A_top: float = 0.0,
+) -> tuple[np.ndarray, np.ndarray, float, float]:
+    """Solve steady-state advection-diffusion with explicit no-flux boundaries.
+
+    Like :func:`solve_advection_diffusion_planform` but enforces no-flux BCs
+    on the top, left, and right boundaries as explicit ``z_boundary = z_adjacent``
+    rows, and applies the PDE (including diffusion) at the top-centre inlet cell.
+
+    Parameters
+    ----------
+    U, K, m, D : float
+        Uplift, erodibility, area exponent, diffusivity.
+    Nx, Ny : int
+        Grid dimensions (*Nx* must be odd, both >= 5).
+    Lx, Ly : float
+        Domain dimensions in metres.
+    A_top : float
+        Extra upstream area at top of centre column (default 0).
+
+    Returns
+    -------
+    Z : np.ndarray
+        ``(Ny, Nx)`` steady-state elevation.
+    A : np.ndarray
+        ``(Ny, Nx)`` drainage area grid.
+    dx, dy : float
+        Cell spacing.
+    """
+    if Nx % 2 == 0:
+        raise ValueError("Nx must be odd.")
+    if Nx < 5 or Ny < 5:
+        raise ValueError("Use Nx, Ny >= 5.")
+
+    dx = Lx / (Nx - 1)
+    dy = Ly / (Ny - 1)
+    center_i = (Nx - 1) // 2
+
+    A = compute_area_planform(Nx, Ny, dx, dy, A_top=A_top)
+
+    def idx(i: int, j: int) -> int:
+        return i + Nx * j
+
+    Ntot = Nx * Ny
+    M = lil_matrix((Ntot, Ntot), dtype=float)
+    b = np.zeros(Ntot, dtype=float)
+
+    # --- Boundary rows (no-flux) ---
+    # Top boundary j=0
+    for i in range(Nx):
+        r = idx(i, 0)
+        M[r, r] = 1.0
+        if Ny > 1:
+            M[r, idx(i, 1)] = -1.0
+        b[r] = 0.0
+
+    # Left boundary i=0
+    for j in range(1, Ny):
+        r = idx(0, j)
+        M[r, r] = 1.0
+        M[r, idx(1, j)] = -1.0
+        b[r] = 0.0
+
+    # Right boundary i=Nx-1
+    for j in range(1, Ny):
+        r = idx(Nx - 1, j)
+        M[r, r] = 1.0
+        M[r, idx(Nx - 2, j)] = -1.0
+        b[r] = 0.0
+
+    # Bottom-centre Dirichlet
+    r_bc = idx(center_i, Ny - 1)
+    M[r_bc, r_bc] = 1.0
+    b[r_bc] = 0.0
+
+    inv_dx2 = 1.0 / (dx * dx)
+    inv_dy2 = 1.0 / (dy * dy)
+
+    def _add_laplacian(row: int, i: int, j: int) -> None:
+        M[row, row] += -2.0 * D * (inv_dx2 + inv_dy2)
+        if i + 1 < Nx:
+            M[row, idx(i + 1, j)] += D * inv_dx2
+        if i - 1 >= 0:
+            M[row, idx(i - 1, j)] += D * inv_dx2
+        if j + 1 < Ny:
+            M[row, idx(i, j + 1)] += D * inv_dy2
+        if j - 1 >= 0:
+            M[row, idx(i, j - 1)] += D * inv_dy2
+
+    def _downstream(i: int, j: int):
+        if i < center_i:
+            return (i + 1, j, dx)
+        elif i > center_i:
+            return (i - 1, j, dx)
+        else:
+            if j < Ny - 1:
+                return (i, j + 1, dy)
+            return None
+
+    # --- PDE rows (overwrite where applicable) ---
+    for j in range(Ny):
+        for i in range(Nx):
+            if i == center_i and j == Ny - 1:
+                continue  # Dirichlet outlet
+            if j == 0 and i != center_i:
+                continue  # keep no-flux
+            if i == 0 or i == Nx - 1:
+                continue  # keep no-flux
+
+            r = idx(i, j)
+            # Clear any previous boundary row
+            M[r, :] = 0.0
+            b[r] = 0.0
+
+            _add_laplacian(r, i, j)
+
+            ds = _downstream(i, j)
+            if ds is not None:
+                i_dn, j_dn, dL = ds
+                coeff = -K * (A[j, i] ** m) / dL
+                M[r, r] += coeff
+                M[r, idx(i_dn, j_dn)] -= coeff
+
+            b[r] = -U
+
+    Z_flat = spsolve(M.tocsr(), b)
+    Z = Z_flat.reshape((Ny, Nx))
+    return Z, A, dx, dy
+
+
+# ---------------------------------------------------------------------------
+# Finite-difference Laplacian diagnostic
+# ---------------------------------------------------------------------------
+
+def laplacian_2d(
+    Z: np.ndarray,
+    dx: float,
+    dy: float,
+) -> np.ndarray:
+    """Compute the 2-D Laplacian via second-order finite differences.
+
+    Interior cells use central differences; boundary cells are set to NaN.
+
+    Parameters
+    ----------
+    Z : np.ndarray
+        2-D elevation grid.
+    dx, dy : float
+        Cell spacing.
+
+    Returns
+    -------
+    np.ndarray
+        2-D Laplacian array (same shape as *Z*).
+    """
+    inv_dx2 = 1.0 / (dx * dx)
+    inv_dy2 = 1.0 / (dy * dy)
+    out = np.full_like(Z, np.nan, dtype=float)
+    out[1:-1, 1:-1] = (
+        (Z[1:-1, 2:] - 2 * Z[1:-1, 1:-1] + Z[1:-1, :-2]) * inv_dx2
+        + (Z[2:, 1:-1] - 2 * Z[1:-1, 1:-1] + Z[:-2, 1:-1]) * inv_dy2
+    )
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Interior trimming helpers
+# ---------------------------------------------------------------------------
+
+def interior_slice(
+    Ny: int,
+    frac_trim: float,
+) -> slice:
+    """Return a slice that trims *frac_trim* from top and bottom of *Ny* rows.
+
+    Parameters
+    ----------
+    Ny : int
+        Number of rows.
+    frac_trim : float
+        Fraction to trim from each end (e.g. 0.2 trims 20% top and bottom).
+
+    Returns
+    -------
+    slice
+    """
+    j0 = int(np.floor(frac_trim * Ny))
+    j1 = int(np.ceil((1.0 - frac_trim) * Ny))
+    if j1 <= j0:
+        raise ValueError("Trim too aggressive for Ny.")
+    return slice(j0, j1)
+
+
+def interior_slice_indices(
+    Ny: int,
+    frac_trim: float,
+) -> tuple[int, int]:
+    """Return ``(j0, j1)`` indices that trim *frac_trim* from top and bottom.
+
+    Parameters
+    ----------
+    Ny : int
+        Number of rows.
+    frac_trim : float
+        Fraction to trim from each end.
+
+    Returns
+    -------
+    tuple[int, int]
+    """
+    j0 = int(np.floor(frac_trim * Ny))
+    j1 = int(np.ceil((1.0 - frac_trim) * Ny))
+    if j1 <= j0:
+        raise ValueError("Trim too aggressive for Ny.")
+    return j0, j1

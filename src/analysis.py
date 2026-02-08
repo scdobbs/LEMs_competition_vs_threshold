@@ -9,6 +9,7 @@ elevation, drainage area, and flow direction data.
 from __future__ import annotations
 
 import numpy as np
+from scipy.stats import linregress
 
 
 def slope_area_regression_binned(
@@ -251,3 +252,297 @@ def weighted_r2(
     if SS_tot == 0:
         return float("nan")
     return float(1 - SS_res / SS_tot)
+
+
+# ---------------------------------------------------------------------------
+# Slope-area regression (fixed or free theta)
+# ---------------------------------------------------------------------------
+
+def fit_slope_area(
+    A_1d: np.ndarray,
+    S_1d: np.ndarray,
+    theta_fixed: float | None = None,
+    min_points: int = 5,
+) -> dict:
+    r"""Log-log slope-area regression with fixed or free concavity.
+
+    Parameters
+    ----------
+    A_1d, S_1d : np.ndarray
+        1-D arrays of drainage area and slope.
+    theta_fixed : float or None
+        If given, fix concavity to this value; otherwise fit freely.
+    min_points : int
+        Minimum valid points required for regression.
+
+    Returns
+    -------
+    dict
+        Keys: ``ks``, ``theta``, ``r2``, ``n_good``, ``logA``, ``logS``,
+        ``logS_pred``, ``intercept``, ``slope``, ``used_mask``.
+    """
+    used_mask = (
+        np.isfinite(A_1d) & np.isfinite(S_1d) & (A_1d > 0) & (S_1d > 0)
+    )
+    n_good = int(used_mask.sum())
+
+    out: dict = {
+        "ks": np.nan, "theta": np.nan, "r2": np.nan, "n_good": n_good,
+        "logA": None, "logS": None, "logS_pred": None,
+        "intercept": np.nan, "slope": np.nan,
+        "used_mask": used_mask,
+    }
+
+    if n_good < min_points:
+        return out
+
+    logA = np.log10(A_1d[used_mask])
+    logS = np.log10(S_1d[used_mask])
+
+    if theta_fixed is not None:
+        c = -float(theta_fixed)
+        b = float(np.mean(logS - c * logA))
+        logS_pred = b + c * logA
+
+        ss_res = float(np.sum((logS - logS_pred) ** 2))
+        ss_tot = float(np.sum((logS - np.mean(logS)) ** 2))
+        r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else np.nan
+
+        out.update({
+            "ks": float(10 ** b),
+            "theta": float(theta_fixed),
+            "r2": float(r2),
+            "logA": logA, "logS": logS, "logS_pred": logS_pred,
+            "intercept": float(b), "slope": float(c),
+        })
+        return out
+
+    # free-theta regression
+    slope_val, intercept_val, r_value, _, _ = linregress(logA, logS)
+    logS_pred = intercept_val + slope_val * logA
+
+    out.update({
+        "ks": float(10 ** intercept_val),
+        "theta": float(-slope_val),
+        "r2": float(r_value ** 2),
+        "logA": logA, "logS": logS, "logS_pred": logS_pred,
+        "intercept": float(intercept_val), "slope": float(slope_val),
+    })
+    return out
+
+
+def ks_local_from_SA(
+    A_1d: np.ndarray,
+    S_1d: np.ndarray,
+    m: float,
+    min_points: int = 5,
+) -> tuple[np.ndarray, np.ndarray, int, float, float, float]:
+    r"""Local steepness proxy :math:`k_s = S \, A^m` along a channel.
+
+    Parameters
+    ----------
+    A_1d, S_1d : np.ndarray
+        1-D arrays of drainage area and slope.
+    m : float
+        Area exponent (= fixed concavity).
+    min_points : int
+        Minimum valid points for summary statistics.
+
+    Returns
+    -------
+    ks_local : np.ndarray
+        Per-pixel steepness array.
+    mask : np.ndarray
+        Boolean mask of valid entries.
+    n_good : int
+        Number of valid points.
+    median, q25, q75 : float
+        Summary statistics (NaN if fewer than *min_points*).
+    """
+    ks_local = S_1d * (A_1d ** m)
+
+    mask = (
+        np.isfinite(ks_local) & np.isfinite(A_1d) & np.isfinite(S_1d)
+        & (A_1d > 0) & (S_1d > 0) & (ks_local > 0)
+    )
+    n_good = int(mask.sum())
+
+    if n_good < min_points:
+        return ks_local, mask, n_good, np.nan, np.nan, np.nan
+
+    vals = ks_local[mask]
+    med = float(np.nanmedian(vals))
+    q25 = float(np.nanpercentile(vals, 25))
+    q75 = float(np.nanpercentile(vals, 75))
+    return ks_local, mask, n_good, med, q25, q75
+
+
+# ---------------------------------------------------------------------------
+# Ks estimation with fixed theta (log-space intercept)
+# ---------------------------------------------------------------------------
+
+def ks_from_loglog_fixed_theta(
+    A: np.ndarray,
+    S: np.ndarray,
+    theta_fixed: float,
+) -> tuple[float, float, float]:
+    r"""Estimate :math:`K_s` with fixed concavity via mean log-space intercept.
+
+    Parameters
+    ----------
+    A, S : np.ndarray
+        Drainage area and slope arrays (1-D, positive, finite).
+    theta_fixed : float
+        Fixed concavity index.
+
+    Returns
+    -------
+    Ks : float
+        Channel steepness.
+    theta : float
+        Echo of *theta_fixed*.
+    r2 : float
+        Coefficient of determination.
+    """
+    logA = np.log10(A)
+    logS = np.log10(S)
+
+    theta = float(theta_fixed)
+    y = logS + theta * logA
+    logKs = float(np.nanmean(y))
+    Ks = 10.0 ** logKs
+
+    yhat = logKs - theta * logA
+    ss_res = float(np.sum((logS - yhat) ** 2))
+    ss_tot = float(np.sum((logS - np.mean(logS)) ** 2))
+    r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else np.nan
+    return float(Ks), float(theta), float(r2)
+
+
+def slope_area_arrays_from_elevation(
+    elev_obj,
+    area_obj,
+    fd_obj,
+    min_area: float = 1e5,
+    vertical_interval: int = 10,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Extract paired (A, S) arrays from TopoAnalysis raster objects.
+
+    Parameters
+    ----------
+    elev_obj, area_obj, fd_obj : raster-like
+        Elevation, area, and flow-direction objects.
+    min_area : float
+        Minimum drainage area for channel pixels.
+    vertical_interval : int
+        Vertical interval for slope smoothing.
+
+    Returns
+    -------
+    A, S : np.ndarray
+        1-D arrays of area and slope for valid channel pixels.
+    """
+    import TopoAnalysis.dem as d
+
+    slope_obj = d.ChannelSlopeWithSmoothing(
+        elevation=elev_obj,
+        area=area_obj,
+        flow_direction=fd_obj,
+        vertical_interval=vertical_interval,
+        min_area=min_area,
+    )
+    S = slope_obj._griddata
+    A = area_obj._griddata
+    m = np.isfinite(S) & np.isfinite(A) & (S > 0) & (A >= float(min_area))
+    return A[m].astype(float), S[m].astype(float)
+
+
+def ks_obs_from_observed(
+    filled_obs,
+    area,
+    fd,
+    theta: float,
+    min_area: float = 1e5,
+    vertical_interval: int = 10,
+) -> tuple[float, float, int, float]:
+    """Compute Ks from observed elevation at a given resolution.
+
+    Parameters
+    ----------
+    filled_obs : elevation-like
+        Observed (filled) elevation object.
+    area, fd : raster-like
+        Area and flow direction objects.
+    theta : float
+        Fixed concavity.
+    min_area : float
+        Minimum drainage area.
+    vertical_interval : int
+        Vertical interval for slope smoothing.
+
+    Returns
+    -------
+    Ks, r2 : float
+        Steepness and R².
+    n_pts : int
+        Number of valid points.
+    A_max : float
+        Maximum drainage area of valid points.
+    """
+    A_obs, S_obs = slope_area_arrays_from_elevation(
+        filled_obs, area, fd, min_area=min_area,
+        vertical_interval=vertical_interval,
+    )
+    if A_obs.size == 0:
+        return np.nan, np.nan, 0, np.nan
+    Ks, _, r2 = ks_from_loglog_fixed_theta(A_obs, S_obs, theta_fixed=theta)
+    return float(Ks), float(r2), int(A_obs.size), float(np.nanmax(A_obs))
+
+
+def ks_mod_from_modeled(
+    Z_model: np.ndarray,
+    georef_template_dem,
+    area,
+    fd,
+    theta: float,
+    min_area: float = 1e5,
+    vertical_interval: int = 10,
+) -> tuple[float, float, int, float]:
+    """Compute Ks from a modelled elevation array.
+
+    Parameters
+    ----------
+    Z_model : np.ndarray
+        2-D modelled elevation.
+    georef_template_dem : raster-like
+        Template DEM providing ``._georef_info``.
+    area, fd : raster-like
+        Area and flow direction objects.
+    theta : float
+        Fixed concavity.
+    min_area : float
+        Minimum drainage area.
+    vertical_interval : int
+        Vertical interval for slope smoothing.
+
+    Returns
+    -------
+    Ks, r2 : float
+    n_pts : int
+    A_max : float
+    """
+    import TopoAnalysis.dem as d
+
+    dem_model = d.Elevation()
+    dem_model._griddata = np.asarray(Z_model, dtype=float)
+    dem_model._georef_info = georef_template_dem._georef_info
+    dem_model._nodata_value = np.nan
+
+    A_mod, S_mod = slope_area_arrays_from_elevation(
+        dem_model, area, fd, min_area=min_area,
+        vertical_interval=vertical_interval,
+    )
+    if A_mod.size == 0:
+        return np.nan, np.nan, 0, np.nan
+    Ks, _, r2 = ks_from_loglog_fixed_theta(A_mod, S_mod, theta_fixed=theta)
+    return float(Ks), float(r2), int(A_mod.size), float(np.nanmax(A_mod))

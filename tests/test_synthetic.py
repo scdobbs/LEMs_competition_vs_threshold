@@ -12,11 +12,15 @@ from synthetic import (
     compute_area_planform,
     downstream_link,
     solve_advection_diffusion_planform,
+    solve_advection_diffusion_planform_noflux,
     inlet_area_from_Pe,
     channel_slope_centerline,
     A_top_for_target_inlet_area,
     D_from_Pe,
     Pe_from_D_Ain,
+    laplacian_2d,
+    interior_slice,
+    interior_slice_indices,
 )
 
 
@@ -184,3 +188,79 @@ class TestAtopForTargetInletArea:
         # If target is smaller than left+right contrib, A_top should be 0
         A_top = A_top_for_target_inlet_area(11, 7, 100.0, 60.0, A_inlet_target=0.0)
         assert A_top == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Tests: solve_advection_diffusion_planform_noflux
+# ---------------------------------------------------------------------------
+
+class TestSolveNoflux:
+
+    def test_runs_and_correct_shape(self):
+        Z, A, dx, dy = solve_advection_diffusion_planform_noflux(
+            U=1e-4, K=1e-4, m=0.35, D=1e-3,
+            Nx=11, Ny=7, Lx=100.0, Ly=60.0,
+        )
+        assert Z.shape == (7, 11)
+        assert A.shape == (7, 11)
+
+    def test_outlet_elevation_zero(self):
+        Z, _, _, _ = solve_advection_diffusion_planform_noflux(
+            U=1e-4, K=1e-4, m=0.35, D=1e-3,
+            Nx=11, Ny=7, Lx=100.0, Ly=60.0,
+        )
+        ci = (11 - 1) // 2
+        assert abs(Z[6, ci]) < 1e-10
+
+
+# ---------------------------------------------------------------------------
+# Tests: laplacian_2d
+# ---------------------------------------------------------------------------
+
+class TestLaplacian2d:
+
+    def test_flat_surface_zero(self):
+        Z = np.ones((10, 10)) * 50.0
+        lap = laplacian_2d(Z, 1.0, 1.0)
+        # Interior should be zero
+        np.testing.assert_allclose(lap[1:-1, 1:-1], 0.0, atol=1e-10)
+
+    def test_shape_matches_input(self):
+        Z = np.random.RandomState(0).rand(15, 20)
+        lap = laplacian_2d(Z, 2.0, 3.0)
+        assert lap.shape == Z.shape
+
+    def test_boundaries_nan(self):
+        Z = np.random.RandomState(0).rand(10, 10)
+        lap = laplacian_2d(Z, 1.0, 1.0)
+        assert np.all(np.isnan(lap[0, :]))
+        assert np.all(np.isnan(lap[-1, :]))
+        assert np.all(np.isnan(lap[:, 0]))
+        assert np.all(np.isnan(lap[:, -1]))
+
+
+# ---------------------------------------------------------------------------
+# Tests: interior_slice / interior_slice_indices
+# ---------------------------------------------------------------------------
+
+class TestInteriorSlice:
+
+    def test_correct_bounds(self):
+        sl = interior_slice(100, 0.2)
+        assert sl.start == 20
+        assert sl.stop == 80
+
+    def test_no_trim(self):
+        sl = interior_slice(50, 0.0)
+        assert sl.start == 0
+        assert sl.stop == 50
+
+    def test_indices_match_slice(self):
+        j0, j1 = interior_slice_indices(100, 0.2)
+        sl = interior_slice(100, 0.2)
+        assert j0 == sl.start
+        assert j1 == sl.stop
+
+    def test_aggressive_trim_raises(self):
+        with pytest.raises(ValueError, match="Trim"):
+            interior_slice(4, 0.5)

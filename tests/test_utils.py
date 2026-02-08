@@ -147,3 +147,79 @@ class TestFindProjectRoot:
         (tmp_path / "my_marker").mkdir()
         root = find_project_root(start=str(tmp_path), marker_dir="my_marker")
         assert root == tmp_path
+
+
+# ---------------------------------------------------------------------------
+# Tests: _nanaware_zoom
+# ---------------------------------------------------------------------------
+
+class TestNanawareZoom:
+
+    def test_shape_changes_with_zoom(self):
+        from utils import _nanaware_zoom
+        grid = np.random.RandomState(0).rand(100, 100)
+        out = _nanaware_zoom(grid, (0.5, 0.5), order=1)
+        assert out.shape[0] == 50
+        assert out.shape[1] == 50
+
+    def test_nan_handling(self):
+        from utils import _nanaware_zoom
+        grid = np.ones((20, 20))
+        grid[5:10, 5:10] = np.nan
+        out = _nanaware_zoom(grid, (0.5, 0.5), order=1)
+        # Output should still have NaN in approximately the right region
+        assert np.any(np.isnan(out))
+        # But also have valid values elsewhere
+        assert np.any(np.isfinite(out))
+
+
+# ---------------------------------------------------------------------------
+# Tests: _infer_dx_from_georef
+# ---------------------------------------------------------------------------
+
+class TestInferDxFromGeoref:
+
+    def test_from_geotransform(self):
+        from utils import _infer_dx_from_georef
+
+        class MockGI:
+            geoTransform = (0.0, 5.0, 0.0, 100.0, 0.0, -5.0)
+
+        dx, dy = _infer_dx_from_georef(MockGI())
+        assert dx == 5.0
+        assert dy == 5.0
+
+    def test_from_dx_attribute(self):
+        from utils import _infer_dx_from_georef
+
+        class MockGI:
+            geoTransform = 0
+            dx = 3.0
+
+        dx, dy = _infer_dx_from_georef(MockGI())
+        assert dx == 3.0
+        assert dy == 3.0
+
+
+# ---------------------------------------------------------------------------
+# Tests: resample_from_1m
+# ---------------------------------------------------------------------------
+
+class TestResampleFrom1m:
+
+    def test_shape_changes(self):
+        from utils import resample_from_1m
+
+        class MockGI:
+            geoTransform = (0.0, 1.0, 0.0, 100.0, 0.0, -1.0)
+            dx = 1.0
+            nx = 100
+            ny = 100
+
+        class MockDEM:
+            _griddata = np.random.RandomState(0).rand(100, 100)
+            _georef_info = MockGI()
+
+        result = resample_from_1m(MockDEM(), dx_target=5.0, order=1)
+        assert result._griddata.shape[0] == 20
+        assert result._griddata.shape[1] == 20

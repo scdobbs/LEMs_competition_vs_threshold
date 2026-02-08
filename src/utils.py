@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from scipy.ndimage import zoom
 
 logger = logging.getLogger(__name__)
 
@@ -236,3 +237,142 @@ def compute_slope_magnitude(
         S[~mask] = np.nan
 
     return S
+
+
+# ---------------------------------------------------------------------------
+# DEM resampling utilities
+# ---------------------------------------------------------------------------
+
+def _infer_dx_from_georef(gi) -> tuple[float, float]:
+    """Extract pixel size (dx, dy) from a georef info object.
+
+    Tries ``geoTransform`` first, then falls back to a ``dx`` attribute.
+
+    Parameters
+    ----------
+    gi : georef-info-like
+        Object with ``geoTransform`` or ``dx`` attributes.
+
+    Returns
+    -------
+    dx, dy : float
+        Pixel spacing (NaN if not determinable).
+    """
+    dx = np.nan
+    dy = np.nan
+    gt = getattr(gi, "geoTransform", None)
+
+    if gt is not None and gt not in (0, "0"):
+        try:
+            gt = tuple(gt)
+            if len(gt) >= 6:
+                dx = float(gt[1])
+                dy = abs(float(gt[5]))
+        except Exception:
+            pass
+
+    if not np.isfinite(dx):
+        try:
+            dx_attr = float(getattr(gi, "dx", np.nan))
+            if np.isfinite(dx_attr) and dx_attr > 0:
+                dx = dx_attr
+        except Exception:
+            pass
+
+    if np.isfinite(dx) and (not np.isfinite(dy)):
+        dy = dx
+
+    return dx, dy
+
+
+def _nanaware_zoom(
+    grid: np.ndarray,
+    zoom_yx: tuple[float, float],
+    order: int = 1,
+) -> np.ndarray:
+    """Resample a 2-D grid with NaN-aware interpolation.
+
+    Replaces NaN with 0 before zooming, tracks valid-pixel weights, and
+    restores NaN where coverage is insufficient.
+
+    Parameters
+    ----------
+    grid : np.ndarray
+        2-D input array (may contain NaN).
+    zoom_yx : tuple[float, float]
+        Zoom factors ``(y_factor, x_factor)``.
+    order : int
+        Interpolation order (default 1 = bilinear).
+
+    Returns
+    -------
+    np.ndarray
+        Resampled grid.
+    """
+    grid = np.asarray(grid, dtype=float)
+    w = np.isfinite(grid).astype(float)
+    v = np.where(np.isfinite(grid), grid, 0.0)
+
+    v2 = zoom(v, zoom=zoom_yx, order=order, mode="nearest",
+              prefilter=(order > 1))
+    w2 = zoom(w, zoom=zoom_yx, order=1, mode="nearest")
+
+    out = v2 / np.where(w2 > 0, w2, np.nan)
+    out[w2 < 0.5] = np.nan
+    return out
+
+
+def resample_from_1m(
+    dem_1m_filled,
+    dx_target: float,
+    order: int = 1,
+):
+    """Downsample a 1-m DEM to a target resolution.
+
+    Parameters
+    ----------
+    dem_1m_filled : elevation-like
+        Source DEM at 1 m (must have ``._griddata`` and ``._georef_info``).
+    dx_target : float
+        Target pixel size in metres.
+    order : int
+        Interpolation order (default 1 = bilinear).
+
+    Returns
+    -------
+    new_obj
+        Deep copy of input with resampled grid and updated georef.
+    """
+    gi = dem_1m_filled._georef_info
+    old_dx, old_dy = _infer_dx_from_georef(gi)
+    if not np.isfinite(old_dx) or old_dx <= 0:
+        old_dx = 1.0
+    if not np.isfinite(old_dy) or old_dy <= 0:
+        old_dy = old_dx
+
+    zx = old_dx / float(dx_target)
+    zy = old_dy / float(dx_target)
+
+    new_grid = _nanaware_zoom(dem_1m_filled._griddata, (zy, zx), order=order)
+
+    new_obj = copy.deepcopy(dem_1m_filled)
+    new_obj._griddata = new_grid
+
+    gi2 = copy.deepcopy(gi)
+    gi2.dx = float(dx_target)
+    gi2.nx = int(new_grid.shape[1])
+    gi2.ny = int(new_grid.shape[0])
+
+    gt = getattr(gi2, "geoTransform", None)
+    try:
+        if gt is not None and gt not in (0, "0"):
+            gt = list(tuple(gt))
+            if len(gt) >= 6:
+                gt[1] = float(dx_target)
+                gt[5] = -float(dx_target)
+                gi2.geoTransform = tuple(gt)
+    except Exception:
+        pass
+
+    new_obj._georef_info = gi2
+    return new_obj
