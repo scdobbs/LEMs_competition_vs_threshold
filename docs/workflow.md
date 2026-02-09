@@ -237,6 +237,43 @@ The workflow:
 
 Key functions from `synthetic.py`: `compute_area_planform`, `downstream_link`, `solve_advection_diffusion_planform_noflux`, `inlet_area_from_Pe`, `D_from_Pe`, `Pe_from_D_Ain`, `channel_slope_centerline`, `A_top_for_target_inlet_area`, `laplacian_2d`, `interior_slice`, `interior_slice_indices`.
 
+### D8 vs D-infinity Comparison (d8_vs_dinf_comparison.ipynb)
+
+This notebook provides a side-by-side comparison of steady-state landscapes produced by D8 and D-infinity flow routing to determine whether non-convergent model behavior is intrinsic to the physics or an artifact of D8's discrete flow directions.
+
+**Motivation:** D8 routes all flow to one of 8 neighbors (45-degree increments). D-infinity (Tarboton 1997) computes a continuous flow angle from 8 triangular facets, distributing flow to two receivers proportionally. If D8 quantization significantly affects model predictions, the D-inf results should differ systematically.
+
+**The workflow (for each of AP tile 1 and GM tile 1):**
+
+1. Load the DEM, D8 area, and D8 flow direction.
+2. Compute D-inf routing using `compute_dinf_from_dem(dem, fd)`, which passes the D8 flow direction for flat-cell fallback.
+3. Run D8 AD model: `advection_diffusion_model(dem, area, fd, m)` -> `solver(U, K, D)`.
+4. Run D-inf AD model: `advection_diffusion_model_dinf(dem, area, fd, m, angles, r_facet, facet_idx, A_dinf)` -> `solver(U, K, D)`.
+5. Run partitioned threshold models with both routing schemes.
+6. Compare: 4-panel elevation maps, area scatter plots, slope-area overlays, and MSE summary tables.
+
+**Same parameters for both:** Pre-optimized K, D, U, m from the D8 model-run notebooks are used directly -- no re-optimization. This isolates the effect of flow routing from parameter calibration.
+
+Key functions from `dinf.py`: `compute_dinf_from_dem`, `compute_dinf_flow_direction`, `compute_dinf_area`. Key functions from `models_dinf.py`: `advection_diffusion_model_dinf`, `partitioned_threshold_model_dinf`.
+
+---
+
+### Resolution Study with D-infinity (resolution_study_dinf.ipynb)
+
+This notebook mirrors `supp_fig6.ipynb` but runs both D8 and D-inf AD models at each resolution, plotting their Ks_mod/Ks_obs ratio curves on the same axes for direct comparison of scaling behavior.
+
+**The workflow (for each location, tile, and dx in 5-100 m):**
+
+1. Resample the 1m DEM to target dx using `resample_from_1m()`.
+2. Recompute D8 hydrology (FilledElevation -> FlowDirectionD8 -> Area).
+3. Compute D-inf routing from the resampled DEM using `compute_dinf_flow_direction(Z, dx, FD_d8=fd._griddata)` + `compute_dinf_area()`.
+4. Run D8 AD model with pre-optimized K, D.
+5. Run D-inf AD model with the same K, D.
+6. Compute Ks_obs, Ks_mod_d8, and Ks_mod_dinf using `ks_obs_from_observed()` and `ks_mod_from_modeled()`.
+7. Plot Ks_mod/Ks_obs ratio vs. dx with D8 (solid lines) and D-inf (dashed lines), separate colors per location, median +/- IQR across tiles.
+
+---
+
 ### Resolution Study (supp_fig6.ipynb)
 
 This notebook examines how DEM resolution affects channel steepness (ks) estimation.
@@ -260,6 +297,8 @@ Key functions from `utils.py`: `resample_from_1m`, `_nanaware_zoom`, `_infer_dx_
 | `fig_slope_area.ipynb` | Main-text slope-area regression figures | `slope_area_regression_binned`, `compute_iqr_errors`, `weighted_r2`, `fit_slope_area` |
 | `supp_fig5.ipynb` | Peclet-number sensitivity (Supplementary Figure 5) | `solve_advection_diffusion_planform_noflux`, `channel_slope_centerline`, `laplacian_2d`, Peclet utilities |
 | `supp_fig6.ipynb` | Resolution dependence of ks (Supplementary Figure 6) | `resample_from_1m`, `ks_obs_from_observed`, `ks_mod_from_modeled` |
+| `d8_vs_dinf_comparison.ipynb` | D8 vs D-inf side-by-side comparison | `compute_dinf_from_dem`, `advection_diffusion_model_dinf`, `partitioned_threshold_model_dinf` |
+| `resolution_study_dinf.ipynb` | Resolution study with D8 and D-inf on same axes | `compute_dinf_flow_direction`, `compute_dinf_area`, `advection_diffusion_model_dinf` |
 | Model-run notebooks | Per-tile elevation and slope-area comparison plots | `plot_maps_area_slope`, `plot_maps_and_channel_mask`, `set_nature_style` |
 
 All publication figures use `set_nature_style()` from `plotting.py` for consistent formatting (300 dpi, Helvetica, 8 pt).

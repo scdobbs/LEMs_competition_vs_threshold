@@ -70,6 +70,149 @@ Build a partitioned threshold model with nonlinear (slope-dependent) hillslope d
 
 ---
 
+## `dinf.py` -- D-infinity Flow Routing
+
+D-infinity (Tarboton 1997) flow routing. Computes continuous flow angles from 8 triangular facets and distributes drainage area to two receivers proportionally.
+
+### Constants
+
+**`FACETS`** -- List of 8 tuples `(e1_di, e1_dj, e2_di, e2_dj, base_angle)` defining the triangular facets, numbered counterclockwise from east.
+
+**`D8_CODE_TO_DINF`** -- Dict mapping D8 flow direction codes to `(angle, facet_idx, r_facet)` tuples for flat-cell fallback.
+
+### `compute_dinf_flow_direction`
+
+```python
+compute_dinf_flow_direction(
+    Z: np.ndarray, dx: float, FD_d8: np.ndarray | None = None
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]
+```
+
+Compute D-infinity flow direction from an elevation grid. For each interior cell, evaluates all 8 triangular facets and selects the one with maximum downhill slope.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| `Z` | `np.ndarray` | 2-D elevation array (Ny x Nx). NaN marks invalid cells |
+| `dx` | `float` | Cell spacing (square grid assumed) |
+| `FD_d8` | `np.ndarray` or `None` | Optional D8 flow-direction grid for flat-cell fallback |
+
+**Returns:** `(angles, r_facet, facet_idx)` -- absolute flow angles in [0, 2pi), within-facet angles in [0, pi/4], and selected facet indices (0-7). NaN/-1 for invalid cells.
+
+---
+
+### `get_receivers`
+
+```python
+get_receivers(
+    j: int, i: int, fac_idx: int, r: float
+) -> tuple[int, int, int, int, float, float]
+```
+
+Get the two receiver cells and proportional weights for a D-inf cell.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| `j`, `i` | `int` | Row and column of the source cell |
+| `fac_idx` | `int` | Facet index (0-7) |
+| `r` | `float` | Within-facet angle in [0, pi/4] |
+
+**Returns:** `(j1, i1, j2, i2, p1, p2)` -- receiver coordinates and proportional weights (p1 + p2 = 1).
+
+---
+
+### `compute_dinf_area`
+
+```python
+compute_dinf_area(
+    Z: np.ndarray, dx: float,
+    angles: np.ndarray, r_facet: np.ndarray, facet_idx: np.ndarray
+) -> np.ndarray
+```
+
+Compute D-infinity drainage area by proportional distribution. Processes cells from highest to lowest elevation.
+
+**Returns:** 2-D drainage area array.
+
+---
+
+### `compute_dinf_from_dem`
+
+```python
+compute_dinf_from_dem(dem_obj, fd_obj=None) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+```
+
+Convenience wrapper: compute D-inf routing from raster objects.
+
+**Returns:** `(angles, r_facet, facet_idx, A_dinf)`.
+
+---
+
+## `models_dinf.py` -- D-infinity Model Factories
+
+Mirrors the three model factories in `models.py` but uses D-infinity flow routing. Imports shared helpers (`_extract_grid_data`, `_make_boundary_mask`, `_solve_hillslope_diffusion`, `_find_boundary_value`) from `models.py`.
+
+### `advection_diffusion_model_dinf`
+
+```python
+advection_diffusion_model_dinf(
+    dem, area_d8, flow_direction, m: float,
+    angles: np.ndarray, r_facet: np.ndarray,
+    facet_idx: np.ndarray, A_dinf: np.ndarray
+) -> Callable[[float, float, float], np.ndarray]
+```
+
+Build a solver for the coupled AD PDE using D-infinity flow routing. The advection stencil distributes the incision term to two receivers proportionally based on the D-inf flow angle. The diffusion stencil (5-point Laplacian) is identical to D8.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| `dem` | Elevation-like | Raster with `._griddata` and `._georef_info.dx` |
+| `area_d8` | Area-like | D8 drainage area (used only for grid extraction) |
+| `flow_direction` | FlowDirectionD8-like | D8 flow direction (used only for grid extraction) |
+| `m` | `float` | Area exponent |
+| `angles` | `np.ndarray` | D-inf flow angles from `compute_dinf_flow_direction` |
+| `r_facet` | `np.ndarray` | Within-facet angles |
+| `facet_idx` | `np.ndarray` | Facet indices |
+| `A_dinf` | `np.ndarray` | D-inf drainage area |
+
+**Returns:** `Callable[[float, float, float], np.ndarray]` -- closure `output_function(U, K, D)` returning 2-D steady-state elevation.
+
+---
+
+### `partitioned_threshold_model_dinf`
+
+```python
+partitioned_threshold_model_dinf(
+    dem, area_d8, flow_direction, m: float, U: float, K: float,
+    angles: np.ndarray, r_facet_arr: np.ndarray,
+    facet_idx_arr: np.ndarray, A_dinf: np.ndarray
+) -> Callable[..., tuple[np.ndarray, np.ndarray]]
+```
+
+Build a partitioned threshold model with D-inf channel integration and linear hillslope diffusion.
+
+**Returns:** `Callable` -- closure `f(A_crit, D, debug=False) -> (Z_ss, channel_mask)`.
+
+---
+
+### `partitioned_threshold_model_nonlinear_dinf`
+
+```python
+partitioned_threshold_model_nonlinear_dinf(
+    dem, area_d8, flow_direction, m: float, U: float, K: float,
+    angles: np.ndarray, r_facet_arr: np.ndarray,
+    facet_idx_arr: np.ndarray, A_dinf: np.ndarray
+) -> Callable[..., tuple[np.ndarray, np.ndarray]]
+```
+
+Build a partitioned threshold model with nonlinear diffusion and D-inf channel integration.
+
+**Returns:** `Callable` -- closure `f(A_crit, D_linear, S_c, max_iter=50, tol=1e-6) -> (Z_ss, channel_mask)`.
+
+---
+
 ## `optimization.py` -- Optimization Wrappers
 
 Each function wraps `scipy.optimize.minimize` with log-space parameterization, LRU caching of forward solves, and MSE misfit computation against observed elevations.

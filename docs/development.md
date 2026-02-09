@@ -42,8 +42,12 @@ Notebooks see only `optimize_advection_diffusion(solver, dem._griddata, U, K0, D
 ```
 notebooks
 ├── optimization.py
-│   ├── models.py          (model factories)
+│   ├── models.py          (D8 model factories)
 │   └── (scipy.optimize)
+├── models_dinf.py         (D-inf model factories)
+│   ├── dinf.py            (D-inf flow routing)
+│   └── models.py          (shared helpers: _extract_grid_data, etc.)
+├── dinf.py                (standalone D-inf flow routing)
 ├── analysis.py            (slope-area regression, ks estimation)
 │   └── TopoAnalysis       (ChannelSlopeWithSmoothing)
 ├── utils.py               (I/O, crop, slope, resampling)
@@ -57,6 +61,8 @@ notebooks
 Key observations:
 
 - `models.py` has no dependency on TopoAnalysis (it works with raw arrays extracted from raster objects).
+- `models_dinf.py` imports shared private helpers from `models.py` (`_extract_grid_data`, `_make_boundary_mask`, `_solve_hillslope_diffusion`, `_find_boundary_value`) and flow routing from `dinf.py`. It does not duplicate any D8 logic.
+- `dinf.py` is standalone (NumPy only) -- no dependency on TopoAnalysis or models.py.
 - `synthetic.py` is fully standalone -- it builds its own grids and has no external dependencies beyond NumPy and SciPy.
 - `plotting.py`, `analysis.py`, and `utils.py` import TopoAnalysis at call time (lazy imports), so tests can run without it.
 
@@ -147,6 +153,8 @@ These mocks support testing `crop()`, `compute_slope_magnitude()`, `resample_fro
 | Test File | Module | Key Checks |
 |-----------|--------|------------|
 | `test_models.py` | `models.py` | Factory return types, boundary conditions, solver convergence |
+| `test_models_dinf.py` | `models_dinf.py` | Output shape/type, boundary conditions, determinism, cardinal-grid D8 equivalence |
+| `test_dinf.py` | `dinf.py` | Tilted plane angles, area conservation, symmetry, angle ranges, flat-cell D8 fallback, receiver proportions, no-NaN guarantee |
 | `test_optimization.py` | `optimization.py` | Known-minimum recovery, log-space transform correctness |
 | `test_analysis.py` | `analysis.py` | Power-law recovery, edge cases (empty arrays, insufficient bins) |
 | `test_synthetic.py` | `synthetic.py` | Flat/tilted solutions, area grid symmetry, grid dimension validation |
