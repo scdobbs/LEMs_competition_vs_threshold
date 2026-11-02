@@ -11,7 +11,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from width_analysis.config import CONFIG  # noqa: E402
-from width_analysis.widths import measure_cross_section, width_at_stage, find_thalweg  # noqa: E402
+from width_analysis.widths import measure_cross_section, width_at_stage, find_thalweg, confinement  # noqa: E402
 from width_analysis.transect import flow_line_direction  # noqa: E402
 from width_analysis.network import receiver_grids, FlowGraph  # noqa: E402
 from width_analysis.tiles import Tile  # noqa: E402
@@ -92,9 +92,33 @@ def test_narrow_channel_is_censored():
 
 def test_width_at_stage_interpolates_crossing():
     z = v_shape(0.5)
-    w, sl, sr, hit = width_at_stage(S, z, find_thalweg(S, z, 3.0), 0.37)
+    w, sl, sr, hit, cut = width_at_stage(S, z, find_thalweg(S, z, 3.0), 0.37)
     assert w == pytest.approx(2 * 0.37 / 0.5, abs=1e-9)
-    assert not hit
+    assert not hit and not cut
+
+
+def test_span_stops_at_crest_before_neighbouring_channel():
+    # two parallel V channels 12 m apart with a 0.6 m crest between them
+    z = np.minimum(0.1 * np.abs(S), 0.6)                      # gentle main channel, crest at |s| >= 6
+    z = np.where(S < -6, 0.6 - 0.5 * (-6 - S), z)              # second channel descending left of the crest
+    i_t = find_thalweg(S, z, 3.0)
+    w, sl, sr, hit, cut = width_at_stage(S, z, i_t, 1.0, crest_drop=0.3)
+    assert cut
+    assert sl == pytest.approx(-6.0, abs=STEP)                 # left end sits on the crest, not in the next hollow
+    assert sr == pytest.approx(25.0, abs=STEP) or hit          # right side never exceeds 1.0 m -> transect end
+    w2, sl2, *_ = width_at_stage(S, z, i_t, 1.0)               # without the crest rule the span runs on
+    assert sl2 < -6.0
+
+
+def test_confinement_rejects_planar_slope_and_accepts_channel():
+    planar = 0.5 * S + 3.0                                     # monotonic: a D8 line across a hillslope
+    i_t = find_thalweg(S, planar, 3.0)
+    ok, rl, rr = confinement(S, planar, i_t, 5.0, 0.1)
+    assert not ok and rl <= 0.0
+    ok2, rl2, rr2 = confinement(S, v_shape(0.5), find_thalweg(S, v_shape(0.5), 3.0), 5.0, 0.1)
+    assert ok2 and rl2 == pytest.approx(2.5) and rr2 == pytest.approx(2.5)
+    m = measure_cross_section(S, planar, PIX, CONFIG)
+    assert m["confined"] is False and "not_confined" in m["qc_flags"]
 
 
 def test_censor_bound_scales_with_pixel_size():
@@ -139,3 +163,20 @@ def test_flow_graph_on_synthetic_tile():
     assert g.local_slope(30, 30, 0.1) == pytest.approx(0.01, rel=1e-6)
     assert g.edge_distance(30, 10) == 10.0
     assert not g.confluence.any()
+    assert g.local_slope_horizontal(30, 30, 10.0) == pytest.approx(0.01, rel=1e-6)
+    s, method = g.slope_with_fallback(30, 30, 10.0, 10.0)
+    assert method == "horizontal_fallback" and s == pytest.approx(0.01, rel=1e-6)
+
+
+def test_confluence_requires_significant_tributary():
+    t = _synthetic_tile()
+    n = t.shape[0]
+    # tributary from the north joining the channel at column 40: give column 40 of the north half area >= 100
+    t.area[: n // 2, 40] = np.arange(1, n // 2 + 1) * 10.0     # 10 ... 300 m^2 arriving from the north
+    t.area[n // 2, 40:] += 300.0
+    g_abs = FlowGraph(t, a_min=100.0, confluence_min_fraction=0.0)
+    assert g_abs.confluence[n // 2, 40]                        # 300 >= a_min: counts under the absolute rule
+    g_rel = FlowGraph(t, a_min=100.0, confluence_min_fraction=0.5)
+    assert not g_rel.confluence[n // 2, 40]                    # 300 < 0.5 x (41*60+300): not a jump in A
+    assert g_rel.distance_to_confluence(n // 2, 35, 15.0) == np.inf
+    assert g_abs.distance_to_confluence(n // 2, 35, 15.0) == pytest.approx(5.0)

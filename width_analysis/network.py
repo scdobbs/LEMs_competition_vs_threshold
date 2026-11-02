@@ -39,7 +39,7 @@ def receiver_grids(fd: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 class FlowGraph:
     """Receiver / main-stem-donor links plus the channel-confluence mask for one tile."""
 
-    def __init__(self, tile: Tile, a_min: float):
+    def __init__(self, tile: Tile, a_min: float, confluence_min_fraction: float = 0.0):
         self.tile = tile
         self.a_min = float(a_min)
         self.de = tile.pixel_size
@@ -64,7 +64,14 @@ class FlowGraph:
         n_chan = np.zeros(tile.shape, dtype=int)
         np.add.at(n_chan, (dst_i, dst_j), (a_src >= self.a_min).astype(int))
         self.n_channel_donors = n_chan
-        self.confluence = n_chan >= 2
+        # confluence: the second-largest donor is a channel AND a significant
+        # fraction of the receiver's area (a jump in A along the main stem)
+        second = np.zeros(tile.shape)
+        nm = ~is_main
+        np.maximum.at(second, (dst_i[nm], dst_j[nm]), a_src[nm])
+        self.second_donor_area = second
+        thresh = np.maximum(self.a_min, float(confluence_min_fraction) * tile.area)
+        self.confluence = (n_chan >= 2) & (second >= thresh)
         self.channel = tile.area >= self.a_min
 
     # -- geometry helpers ---------------------------------------------------
@@ -140,13 +147,33 @@ class FlowGraph:
             delta = z[ui, uj] - z[di, dj]
         return float(delta / length)
 
-    def reach_median_slope(self, i, j, half_length: float, vertical_interval: float) -> tuple[float, int]:
+    def local_slope_horizontal(self, i, j, half_length: float) -> float:
+        """Slope over the main-stem path +/- half_length around the pixel (fallback for low-gradient trunks)."""
+        up = self.walk(i, j, half_length, "up")
+        down = self.walk(i, j, half_length, "down")
+        if len(up) < 2 or len(down) < 2:
+            return np.nan
+        (ui, uj, du) = up[-1]
+        (di, dj, dd) = down[-1]
+        return float((self.tile.z[ui, uj] - self.tile.z[di, dj]) / (du + dd))
+
+    def slope_with_fallback(self, i, j, vertical_interval: float, horizontal_fallback: float) -> tuple[float, str]:
+        """Vertical-interval slope, or the horizontal-interval slope where the drop cannot be reached."""
+        s = self.local_slope(i, j, vertical_interval)
+        if np.isfinite(s):
+            return s, "vertical_interval"
+        return self.local_slope_horizontal(i, j, horizontal_fallback), "horizontal_fallback"
+
+    def reach_median_slope(self, i, j, half_length: float, vertical_interval: float,
+                           horizontal_fallback: float = 0.0) -> tuple[float, int]:
         """Median local slope over channel pixels within +/- half_length along the path (excluding (i, j))."""
         vals = []
         for direction in ("down", "up"):
             for (a, b, d) in self.walk(i, j, half_length, direction)[1:]:
                 if self.channel[a, b]:
                     s = self.local_slope(a, b, vertical_interval)
+                    if not np.isfinite(s) and horizontal_fallback > 0:
+                        s = self.local_slope_horizontal(a, b, horizontal_fallback)
                     if np.isfinite(s):
                         vals.append(s)
         if not vals:

@@ -13,11 +13,16 @@ CONFIG: dict = {
     "pilot_points_per_site": 10,
     "full_points_per_bin": 6,       # directive: 5-8 per bin per site
     "min_separation_m": 50.0,       # no two sample points closer than this (straight line)
-    "confluence_exclusion_m": 15.0, # along-path distance to a junction of two channel pixels
+    "confluence_exclusion_m": 15.0, # along-path distance to a confluence
+    "confluence_min_fraction": 0.05, # a junction counts when the 2nd-largest donor has A >= max(a_min, frac x A_receiver)
     "edge_exclusion_m": 30.0,       # distance from tile edge
     "knickpoint_factor": 3.0,       # local slope > factor x reach median -> knickpoint
     "reach_half_length_m": 100.0,   # reach for the knickpoint median: +/- this along the path
     "vertical_interval_m": 10.0,    # repo's ChannelSlopeWithSmoothing vertical interval
+    "horizontal_interval_fallback_m": 50.0,  # used (and flagged) where the 10 m drop cannot be reached inside the tile
+    "flat_fill_slope_max": 0.002,   # along-trace slope below this = filled depression proxy -> excluded
+    "confinement_half_window_m": 5.0,   # profile must rise >= confinement_min_relief_m on both sides within this
+    "confinement_min_relief_m": 0.1,
     "random_seed": 20261102,
     # --- transect geometry ------------------------------------------------
     "trace_half_length_m": 10.0,    # channel trace used to fit the local flow line
@@ -30,6 +35,7 @@ CONFIG: dict = {
     "h_step_m": 0.05,
     "fixed_stages_m": [0.25, 0.5, 1.0],
     "bankfull_method": "min_W_over_h",  # alternative recorded: "max_d2W_dh2"
+    "crest_drop_m": 0.3,                # a stage span stops at a crest if the profile then drops by more than this
     # --- bank-break width -------------------------------------------------
     "bankbreak_smooth_sigma_m": 0.5,    # Gaussian smoothing of z(s) before curvature
     "bankbreak_min_convexity_1_per_m": 0.05,  # -d2z/ds2 must exceed this at the break

@@ -20,18 +20,24 @@ class Transect:
     direction: np.ndarray   # unit vector of the local flow line (downstream)
     normal: np.ndarray      # unit vector of the transect (left bank looking downstream is +s)
     trace_xy: np.ndarray    # (n, 2) channel-trace coordinates used for the line fit
+    trace_rc: list          # [(row, col), ...] of the trace, upstream first
+    trace_length_m: float   # path length of the trace
     azimuth_deg: float      # azimuth of the flow line, degrees clockwise from north
 
 
-def channel_trace(graph: FlowGraph, row: int, col: int, half_length: float) -> np.ndarray:
-    """Main-stem trace through the pixel: ``half_length`` m upstream and downstream, ordered downstream."""
-    up = graph.walk(row, col, half_length, "up")[1:]
+def channel_trace(graph: FlowGraph, row: int, col: int, half_length: float):
+    """Main-stem trace through the pixel: ``half_length`` m upstream and downstream, ordered downstream.
+
+    Returns (xy array (n, 2), list of (row, col), path length in m).
+    """
+    up = graph.walk(row, col, half_length, "up")
     down = graph.walk(row, col, half_length, "down")
-    pts = [(i, j) for (i, j, _) in reversed(up)] + [(i, j) for (i, j, _) in down]
+    pts = [(i, j) for (i, j, _) in reversed(up[1:])] + [(i, j) for (i, j, _) in down]
+    length = (up[-1][2] if up else 0.0) + (down[-1][2] if down else 0.0)
     rr = np.array([p[0] for p in pts])
     cc = np.array([p[1] for p in pts])
     x, y = graph.tile.rc_to_xy(rr, cc)
-    return np.column_stack([x, y])
+    return np.column_stack([x, y]), pts, float(length)
 
 
 def flow_line_direction(trace_xy: np.ndarray) -> np.ndarray:
@@ -59,7 +65,7 @@ def sample_bilinear(tile: Tile, x: np.ndarray, y: np.ndarray) -> np.ndarray:
 
 
 def make_transect(tile: Tile, graph: FlowGraph, row: int, col: int, cfg: dict) -> Transect:
-    trace = channel_trace(graph, row, col, cfg["trace_half_length_m"])
+    trace, trace_rc, trace_len = channel_trace(graph, row, col, cfg["trace_half_length_m"])
     d = flow_line_direction(trace)
     n = np.array([-d[1], d[0]])             # +90 deg: left bank when looking downstream
     half = cfg["transect_half_length_m"]
@@ -70,4 +76,5 @@ def make_transect(tile: Tile, graph: FlowGraph, row: int, col: int, cfg: dict) -
     y = yc + s * n[1]
     z = sample_bilinear(tile, x, y)
     az = float(np.degrees(np.arctan2(d[0], d[1])) % 360.0)
-    return Transect(s=s, z=z, x=x, y=y, direction=d, normal=n, trace_xy=trace, azimuth_deg=az)
+    return Transect(s=s, z=z, x=x, y=y, direction=d, normal=n, trace_xy=trace, trace_rc=trace_rc,
+                    trace_length_m=trace_len, azimuth_deg=az)

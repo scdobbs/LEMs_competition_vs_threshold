@@ -58,7 +58,7 @@ def run(sites: list[str], mode: str, out_dir: Path, cfg: dict = CONFIG, make_qc:
         rng = np.random.default_rng([cfg["random_seed"], si])
         print(f"[{site}] loading tiles", flush=True)
         tiles = {t: load_tile(site, t) for t in TILES}
-        graphs = {t: FlowGraph(tiles[t], cfg["a_min_sample_m2"]) for t in TILES}
+        graphs = {t: FlowGraph(tiles[t], cfg["a_min_sample_m2"], cfg["confluence_min_fraction"]) for t in TILES}
         print(f"[{site}] drawing sample ({mode})", flush=True)
         accepted, excl, edges = draw_site_sample(site, tiles, graphs, cfg, mode, rng)
         excluded.extend(excl)
@@ -69,11 +69,12 @@ def run(sites: list[str], mode: str, out_dir: Path, cfg: dict = CONFIG, make_qc:
         for k, c in enumerate(accepted):
             tile = tiles[c.tile]
             pid = f"{site}{c.tile}_{k:03d}"
-            tr = make_transect(tile, graphs[c.tile], c.row, c.col, cfg)
+            tr = c.transect if c.transect is not None else make_transect(tile, graphs[c.tile], c.row, c.col, cfg)
             m = measure_cross_section(tr.s, tr.z, tile.pixel_size, cfg)
             rec = dict(point_id=pid, site=site, tile=c.tile, row=c.row, col=c.col, x=c.x, y=c.y, crs=tile.crs,
                        area_m2=c.area_m2, bin_index=c.bin_index, local_slope=c.local_slope,
-                       reach_median_slope=c.reach_median_slope, a_crit_tile_m2=A_CRIT_M2[(site, c.tile)],
+                       reach_median_slope=c.reach_median_slope, slope_method=c.slope_method,
+                       trace_slope=c.extra.get("trace_slope", np.nan), a_crit_tile_m2=A_CRIT_M2[(site, c.tile)],
                        pixel_size_m=tile.pixel_size, flow_azimuth_deg=tr.azimuth_deg)
             rec.update({kk: vv for kk, vv in m.items() if kk not in ("hand_h", "hand_W")})
             points.append(rec)

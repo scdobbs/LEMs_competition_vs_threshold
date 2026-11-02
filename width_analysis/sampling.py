@@ -8,6 +8,8 @@ import numpy as np
 
 from .network import FlowGraph
 from .tiles import Tile
+from .transect import make_transect
+from .widths import confinement, find_thalweg
 
 
 @dataclass
@@ -22,6 +24,8 @@ class Candidate:
     bin_index: int
     local_slope: float = np.nan
     reach_median_slope: float = np.nan
+    slope_method: str = ""
+    transect: object = None
     extra: dict = field(default_factory=dict)
 
 
@@ -56,7 +60,9 @@ def draw_site_sample(
     tiles. Candidates are tested in random order within each bin; every tested
     and rejected candidate is logged with its reason. Exclusion tests run
     cheapest first: tile edge, confluence, separation from accepted points,
-    knickpoint (local slope > factor x reach median).
+    knickpoint (local slope > factor x reach median), filled-depression proxy
+    (no fall along the trace), confinement (no rise on both sides of the
+    thalweg within the window).
     """
     a_min = float(cfg["a_min_sample_m2"])
     n_bins = int(cfg["n_area_bins"])
@@ -105,20 +111,38 @@ def draw_site_sample(
                 if dmin < cfg["min_separation_m"]:
                     log(c, "too_close_to_sample", distance_m=float(dmin))
                     continue
-            s0 = g.local_slope(c.row, c.col, cfg["vertical_interval_m"])
+            s0, method = g.slope_with_fallback(c.row, c.col, cfg["vertical_interval_m"],
+                                               cfg["horizontal_interval_fallback_m"])
             if not np.isfinite(s0):
                 log(c, "slope_undefined")
                 continue
-            smed, nreach = g.reach_median_slope(c.row, c.col, cfg["reach_half_length_m"], cfg["vertical_interval_m"])
+            smed, nreach = g.reach_median_slope(c.row, c.col, cfg["reach_half_length_m"],
+                                                cfg["vertical_interval_m"], cfg["horizontal_interval_fallback_m"])
             if not np.isfinite(smed):
                 log(c, "reach_slope_undefined", local_slope=s0)
                 continue
             if s0 > cfg["knickpoint_factor"] * smed:
                 log(c, "knickpoint", local_slope=s0, reach_median_slope=smed)
                 continue
+            tr = make_transect(tiles[c.tile], g, c.row, c.col, cfg)
+            # filled-depression proxy: no fall along the +/-10 m trace (epsilon fill)
+            zt = tiles[c.tile].z
+            tr_rc = tr.trace_rc
+            trace_drop = float(zt[tr_rc[0][0], tr_rc[0][1]] - zt[tr_rc[-1][0], tr_rc[-1][1]])
+            if tr.trace_length_m > 0 and trace_drop / tr.trace_length_m < cfg["flat_fill_slope_max"]:
+                log(c, "flat_fill_proxy", trace_slope=trace_drop / tr.trace_length_m, local_slope=s0)
+                continue
+            i_t = find_thalweg(tr.s, tr.z, cfg["thalweg_search_m"])
+            ok, rl, rr = confinement(tr.s, tr.z, i_t, cfg["confinement_half_window_m"], cfg["confinement_min_relief_m"])
+            if not ok:
+                log(c, "no_incision", relief_left_m=rl, relief_right_m=rr, local_slope=s0)
+                continue
             c.local_slope = s0
+            c.slope_method = method
             c.reach_median_slope = smed
+            c.transect = tr
             c.extra["n_reach_slopes"] = nreach
+            c.extra["trace_slope"] = trace_drop / tr.trace_length_m
             accepted.append(c)
             got += 1
         if got < quotas[b]:
