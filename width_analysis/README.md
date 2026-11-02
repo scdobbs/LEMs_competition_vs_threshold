@@ -42,10 +42,12 @@ this order:
 | reason | rule |
 |---|---|
 | `tile_edge` | closer than `edge_exclusion_m` (30 m) to the grid edge |
-| `confluence` | a pixel with two or more channel donors (A >= floor) lies within `confluence_exclusion_m` (15 m) along the main stem upstream or downstream (equivalent to a jump in A along the path) |
+| `confluence` | a confluence lies within `confluence_exclusion_m` (15 m) along the main stem upstream or downstream. A confluence is a pixel whose second-largest donor is a channel with A >= max(floor, `confluence_min_fraction` (0.05) x A of the receiver), i.e. a jump in A along the path; with an absolute floor alone every 10^3 m² swale joining a trunk counted and emptied the trunk bin |
 | `too_close_to_sample` | closer than `min_separation_m` (50 m) to an accepted point on the same tile |
-| `slope_undefined` / `reach_slope_undefined` | the vertical-interval path cannot be built (near the outlet or a divide) |
+| `slope_undefined` / `reach_slope_undefined` | neither the vertical-interval path nor the horizontal fallback can be built (at the outlet or a divide) |
 | `knickpoint` | local slope > `knickpoint_factor` (3) x the median local slope of channel pixels within `reach_half_length_m` (100 m) along the path |
+| `flat_fill_proxy` | the fall along the +/-10 m channel trace is below `flat_fill_slope_max` (0.002): the proxy for a filled depression, since no unfilled DEM is available |
+| `no_incision` | the cross-section does not rise by `confinement_min_relief_m` (0.1 m) on both sides of the thalweg within `confinement_half_window_m` (5 m): straight D8 flow lines across planar hillslopes (the parallel-flow artifact) and thalwegs on monotonic slopes are not channels |
 | `bin_exhausted` | the bin ran out of candidates before its quota (a bookkeeping row, not a point) |
 
 The fill-depth exclusion of the directive is not applied (see Data).
@@ -56,7 +58,10 @@ k_s routine (`TopoAnalysis.ChannelSlopeWithSmoothing`, `vertical_interval` =
 down the receiver alternately until the end-to-end drop reaches 10 m; slope is
 that drop over the geometric path length. The TopoAnalysis implementation sums
 one extra pixel length into the denominator; this version uses the exact path
-length, a difference of one pixel in several tens.
+length, a difference of one pixel in several tens. Where the 10 m drop cannot
+be reached inside the tile (low-gradient trunks), the slope over the main-stem
+path +/- `horizontal_interval_fallback_m` (50 m) is used instead and
+`slope_method` records `horizontal_fallback`.
 
 **Cross-sections.** The local flow direction is the first principal axis of the
 main-stem trace within `trace_half_length_m` (10 m) up- and downstream of the
@@ -65,13 +70,17 @@ perpendicular to it, `transect_half_length_m` (25 m) each way, sampled every
 `transect_step_m` (0.25 m) by bilinear interpolation of the filled DEM.
 Positive distance is the left bank looking downstream. The thalweg is the lowest
 sample within `thalweg_search_m` (3 m) of the centreline; where several samples
-tie, the middle one is used.
+tie, the middle one is used. `confined`, `relief_left_m` and `relief_right_m`
+record the confinement test on every accepted point as well.
 
 **Width measures (all recorded).**
 
 - *Height-above-thalweg width W(h)*: for h from 0.05 to 2.0 m in 0.05 m steps,
   the width of the contiguous span around the thalweg with z - z_thalweg <= h,
-  with linearly interpolated crossings. Widths are also stored at fixed stages
+  with linearly interpolated crossings. A span also stops at a crest when the
+  profile beyond it drops by more than `crest_drop_m` (0.3 m), so that a width
+  never runs across a divide into the neighbouring channel (flag
+  `..._cut_at_crest`). Widths are also stored at fixed stages
   h = 0.25, 0.5, 1.0 m. The bankfull stage is the h that minimises W/h
   (`bankfull_method = "min_W_over_h"`), which is the stage just before the banks
   are overtopped; the stage maximising d2W/dh2 is stored alongside
