@@ -176,3 +176,57 @@ break), a 4 m flat bed with 1 m banks (bankfull at h = 1.0, W = 6 m, bank-break
 that must come back censored with the value retained, the censor bound at the
 AP pixel size, the continuous flow-line direction on a staircase trace, and the
 flow graph on a synthetic tile.
+
+## Constrained re-run (A >= 10^5 m²)
+
+`reports/directives/channel_width_constrained_directive.md` adds a second,
+config-controlled measurement that leaves the Phase 3 run untouched. Settings
+are in `CONSTRAINED` in `config.py`; outputs go to `outputs/widths_constrained/`.
+
+```bash
+python -m width_analysis.run_constrained --stage checkpoint   # 2 per bin = 10 per site, QC frames, stop
+python -m width_analysis.run_constrained --stage full         # 10 per bin per site, sensitivity, exceedance, fits, figures
+```
+
+- **Sample.** Channel pixels with A >= `a_min_sample_m2` (10^5 m²), 5
+  log-spaced bins to the site maximum, 10 per bin; the same exclusion rules
+  and seed as before. The checkpoint takes the first 2 accepted points of
+  every bin (the sampler fills bins in order, so "the first 10" would all be
+  the lowest bin).
+- **Five transects** at along-stream offsets of -10, -5, 0, +5, +10 m along
+  the main stem (negative = upstream), each with its own thalweg within
+  +/-3 m. Every measure is taken per transect; the point carries the median,
+  the count of valid transects and the spread (max - min).
+- **Constrained bank pick.** Candidates are the convex breaks of Phase 3
+  (convexity >= 0.05 m^-1, mean slope from the thalweg >= 0.10). Searching
+  outward, the first candidate with relief in [`bank_min_relief_m`,
+  `bank_max_relief_m`] = [0.3, 1.5] m and offset <= `bank_max_offset_m` = 6 m
+  is the bank. A side is `none_within_window` when a candidate in the relief
+  window exists only beyond the offset limit, `no_break` when none exists.
+- **Point class** (majority over the transects; ties are `ambiguous`):
+  `inner_channel` (both banks; W_bank = distance between picks),
+  `wide_or_terrace` (one or both sides `none_within_window`, none `no_break`;
+  right-censored at 2 x offset limit), `unresolved_narrow` (both `no_break`
+  and V-shaped; left-censored at 2 delta), `ambiguous` (no width).
+  `inconsistent_along_stream` when fewer than 3 transects agree on whether an
+  inner channel exists (only possible when transects are missing);
+  `asymmetric_banks` when the median relief at the two picks differs by more
+  than a factor of 2 (benches, terraces).
+- **Consistency width.** `W_stage_bank` is the height-above-thalweg width at
+  the mean relief of the two picks; `ratio_bank_over_stage` should be within
+  about 25 % of 1 for a real channel.
+- **Exceedance.** A point is shown to exceed T when it is `inner_channel` with
+  W_bank > T, or `wide_or_terrace` with T <= 2 x offset limit.
+  `unresolved_narrow` and `ambiguous` points are never shown to exceed.
+  Fractions per A bin and site carry Clopper-Pearson 95 % intervals.
+- **Window sensitivity.** Every point is re-classified over offset {4, 6, 8} m
+  x relief {1.0, 1.5, 2.0} m from the stored transects. The window is called
+  binding when more than 20 % of W_bank lie within 1 m of 2 x offset, or the
+  `wide_or_terrace` fraction moves by more than 0.15 between offset 4 and 8 m.
+- **Fit.** Tobit with left- and right-censored points at their bounds, 1000
+  bootstrap samples, at the default window and the two extremes. Regime
+  outputs are written only if the 95 % CI on b lies within [0, 1] and the
+  window is not binding; `regime_outputs_note.txt` says why otherwise.
+- **Validation export.** `validation_points.gpkg` / `.csv`: every
+  `inner_channel` and `wide_or_terrace` point with W_bank, W_stage_bank,
+  class, flags, and empty `W_imagery_m`, `imagery_source` columns.
