@@ -1,0 +1,226 @@
+{
+  "AP": {
+    "default": {
+      "label": "default window",
+      "n": 23,
+      "n_inner": 22,
+      "n_right": 1,
+      "n_left": 0,
+      "tobit": {
+        "a": 0.10867212732218404,
+        "b": 0.11559726965658645,
+        "sigma": 0.07668058479607921,
+        "c": 1.284316692873685,
+        "converged": true,
+        "n": 23,
+        "n_censored": 0,
+        "n_censored_right": 1,
+        "nll": -23.9467635577257
+      },
+      "bootstrap_n_ok": 1000,
+      "c_ci": [
+        0.5427013518984838,
+        4.940311854590428
+      ],
+      "b_ci": [
+        0.010268028048865702,
+        0.18321320216392492
+      ],
+      "qualifies": false,
+      "qualify_note": "window binding: wide_or_terrace fraction moves from 0.22 at offset 4 m to 0.01 at 8 m"
+    },
+    "offset4_relief1.5": {
+      "label": "offset 4 m, relief 1.5 m",
+      "n": 7,
+      "n_inner": 7,
+      "n_right": 0,
+      "n_left": 0,
+      "tobit": {
+        "a": 0.2458679721597163,
+        "b": 0.06963818665602327,
+        "sigma": 0.0573305736971956,
+        "c": 1.7614404777020325,
+        "converged": true,
+        "n": 7,
+        "n_censored": 0,
+        "n_censored_right": 0,
+        "nll": -10.079878843853061
+      },
+      "bootstrap_n_ok": 1000,
+      "c_ci": [
+        0.34918495034189856,
+        52.881381159936154
+      ],
+      "b_ci": [
+        -0.18768946824947252,
+        0.19865932195977848
+      ],
+      "qualifies": false,
+      "qualify_note": "95 % CI on b not within [0, 1]; window binding: wide_or_terrace fraction moves from 0.22 at offset 4 m to 0.01 at 8 m"
+    },
+    "offset8_relief4": {
+      "label": "offset 8 m, relief 4 m",
+      "n": 27,
+      "n_inner": 27,
+      "n_right": 0,
+      "n_left": 0,
+      "tobit": {
+        "a": 0.14304391961669885,
+        "b": 0.11248359897144627,
+        "sigma": 0.08497508322690354,
+        "c": 1.3900932023608115,
+        "converged": true,
+        "n": 27,
+        "n_censored": 0,
+        "n_censored_right": 0,
+        "nll": -28.2543841107267
+      },
+      "bootstrap_n_ok": 1000,
+      "c_ci": [
+        0.7160631297100863,
+        3.7897143351794957
+      ],
+      "b_ci": [
+        0.03532986520704155,
+        0.16351068457927592
+      ],
+      "qualifies": false,
+      "qualify_note": "window binding: wide_or_terrace fraction moves from 0.22 at offset 4 m to 0.01 at 8 m"
+    },
+    "class_counts": {
+      "one_bank": 12,
+      "ambiguous": 12,
+      "inner_channel": 10,
+      "wide_or_terrace": 1
+    },
+    "n_asymmetric_banks": 7,
+    "n_inconsistent_along_stream": 0,
+    "n_wall_bounded": 12,
+    "ratio_trench_over_stage": {
+      "median": 0.8720911511359852,
+      "frac_within_25pct": 0.6,
+      "n": 10
+    },
+    "resolved": {
+      "n": 22,
+      "median_W_trench": 5.616895941484248,
+      "median_W_bed": 2.5771024438762935,
+      "median_trench_depth_m": 1.646605739347109
+    }
+  },
+  "GM": {
+    "default": {
+      "label": "default window",
+      "n": 32,
+      "n_inner": 29,
+      "n_right": 3,
+      "n_left": 0,
+      "tobit": {
+        "a": 0.2718201801332655,
+        "b": 0.09345983928336303,
+        "sigma": 0.11023823097636926,
+        "c": 1.8699077437376064,
+        "converged": true,
+        "n": 32,
+        "n_censored": 0,
+        "n_censored_right": 3,
+        "nll": -18.53152748142955
+      },
+      "bootstrap_n_ok": 1000,
+      "c_ci": [
+        0.5502421957300743,
+        9.388295500507134
+      ],
+      "b_ci": [
+        -0.016571525993302715,
+        0.17744532489426068
+      ],
+      "qualifies": false,
+      "qualify_note": "95 % CI on b not within [0, 1]; window binding: wide_or_terrace fraction moves from 0.22 at offset 4 m to 0.01 at 8 m"
+    },
+    "offset4_relief1.5": {
+      "label": "offset 4 m, relief 1.5 m",
+      "n": 14,
+      "n_inner": 13,
+      "n_right": 1,
+      "n_left": 0,
+      "tobit": {
+        "a": 0.47856103893356916,
+        "b": 0.047214381549149934,
+        "sigma": 0.06177827355025685,
+        "c": 3.0099621813195245,
+        "converged": true,
+        "n": 14,
+        "n_censored": 0,
+        "n_censored_right": 1,
+        "nll": -16.310995041073078
+      },
+      "bootstrap_n_ok": 1000,
+      "c_ci": [
+        0.8277572584680746,
+        7.921684379286774
+      ],
+      "b_ci": [
+        -0.02622276665276649,
+        0.14678542622626134
+      ],
+      "qualifies": false,
+      "qualify_note": "95 % CI on b not within [0, 1]; window binding: wide_or_terrace fraction moves from 0.22 at offset 4 m to 0.01 at 8 m"
+    },
+    "offset8_relief4": {
+      "label": "offset 8 m, relief 4 m",
+      "n": 32,
+      "n_inner": 31,
+      "n_right": 1,
+      "n_left": 0,
+      "tobit": {
+        "a": 0.12256241562805885,
+        "b": 0.11717299985663242,
+        "sigma": 0.1030637029573677,
+        "c": 1.3260576814892298,
+        "converged": true,
+        "n": 32,
+        "n_censored": 0,
+        "n_censored_right": 1,
+        "nll": -24.723513968624182
+      },
+      "bootstrap_n_ok": 1000,
+      "c_ci": [
+        0.5052785461527552,
+        2.8751317955547893
+      ],
+      "b_ci": [
+        0.06055344477975491,
+        0.18349201464258807
+      ],
+      "qualifies": false,
+      "qualify_note": "window binding: wide_or_terrace fraction moves from 0.22 at offset 4 m to 0.01 at 8 m"
+    },
+    "class_counts": {
+      "inner_channel": 29,
+      "ambiguous": 9,
+      "unresolved_wide": 9,
+      "wide_or_terrace": 3
+    },
+    "n_asymmetric_banks": 1,
+    "n_inconsistent_along_stream": 0,
+    "n_wall_bounded": 0,
+    "ratio_trench_over_stage": {
+      "median": 0.9689923470507803,
+      "frac_within_25pct": 0.9310344827586207,
+      "n": 29
+    },
+    "resolved": {
+      "n": 29,
+      "median_W_trench": 6.5,
+      "median_W_bed": 3.441052159256224,
+      "median_trench_depth_m": 1.3736693779227238
+    }
+  },
+  "window_binding": {
+    "binding": true,
+    "reasons": [
+      "wide_or_terrace fraction moves from 0.22 at offset 4 m to 0.01 at 8 m"
+    ]
+  }
+}

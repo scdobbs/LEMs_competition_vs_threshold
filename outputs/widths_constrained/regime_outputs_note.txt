@@ -1,0 +1,3 @@
+regime outputs written for: no site
+AP: window binding: wide_or_terrace fraction moves from 0.22 at offset 4 m to 0.01 at 8 m
+GM: 95 % CI on b not within [0, 1]; window binding: wide_or_terrace fraction moves from 0.22 at offset 4 m to 0.01 at 8 m
