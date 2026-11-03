@@ -154,7 +154,8 @@ def fig_channelized_fraction(points, fits, edges_by_site, out_png):
             ax.plot(grid, p, color=col, lw=1.6, label="logistic fit")
         if np.isfinite(lf["A50"]):
             ax.axvline(lf["A50"], color=col, ls="--", lw=1.2, label=f"A50 = {lf['A50']:.2g} m² [{lf['A50_ci'][0]:.2g}, {lf['A50_ci'][1]:.2g}]")
-            ax.axvspan(lf["A50_ci"][0], lf["A50_ci"][1], color=col, alpha=0.12, lw=0)
+            ax.axvspan(max(lf["A50_ci"][0], edges[0] / 10), min(lf["A50_ci"][1], edges[-1] * 10), color=col, alpha=0.12, lw=0)
+        ax.set_xlim(edges[0] / 3, edges[-1] * 3)
         ax.axhline(0.5, color=C_MUTED, lw=0.8, ls=":")
         ax.set_xscale("log")
         ax.set_xlabel("drainage area A (m²)")
@@ -261,7 +262,7 @@ def fig_regime_fraction(table, out_png):
 # ---------------------------------------------------------------------------
 
 def fig_wd_maps(map_data, fits, out_png):
-    fig, axes = plt.subplots(2, 5, figsize=(16, 6.8))
+    fig, axes = plt.subplots(2, 5, figsize=(16, 7.6))
     cmap = plt.get_cmap("Blues")
     for r, site in enumerate(SITES):
         t = fits[site]["all"]["tobit"]
@@ -277,7 +278,7 @@ def fig_wd_maps(map_data, fits, out_png):
                 sc = ax.scatter(ch["cols"][~below], ch["rows"][~below], s=0.6, c=ratio[~below], cmap=cmap,
                                 norm=LogNorm(vmin=1, vmax=max(2, np.nanmax(ratio))), marker=".", lw=0)
                 frac = ch["length"][~below].sum() / ch["length"].sum()
-                ax.set_title(f"{site} tile {tile}: A_crit {md['chan']['a_crit']:.2g} m², {100 * frac:.0f} % of channel length W/δ > 1",
+                ax.set_title(f"{site} tile {tile}: A_crit {md['chan']['a_crit']:.2g} m²\n{100 * frac:.0f} % of channel length W/δ > 1",
                              fontsize=7.5, loc="left")
             else:
                 ax.scatter(ch["cols"], ch["rows"], s=0.4, c="#9a9995", marker=".", lw=0)
