@@ -205,7 +205,7 @@ optimum.
 | 7943 | 3105 | 3995 |
 | 10000 | 3758 | 3488 |
 | 31623 | 8640 | 2470 |
-| 100000 | 18800 | 2000 (approx.) |
+| 100000 | 18794 | 1835 |
 
 The minimum is sharp and sits exactly at the notebook optimum (289.6 m²). Moving
 A_crit to the AP median of 7.6 x 10^3 m² raises the misfit about ten-fold; to
