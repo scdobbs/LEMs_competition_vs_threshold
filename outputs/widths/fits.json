@@ -1,0 +1,174 @@
+{
+  "AP": {
+    "all": {
+      "label": "all",
+      "n_channelized": 36,
+      "n_censored": 0,
+      "width_measure": "W_inner_bankbreak",
+      "censor_rule": "W < censor_multiple x pixel size",
+      "tobit": {
+        "a": 1.0878588696227245,
+        "b": -0.020939393911641013,
+        "sigma": 0.21043531447805852,
+        "c": 12.242183068797004,
+        "converged": true,
+        "n": 36,
+        "n_censored": 0,
+        "nll": -5.026983642747131
+      },
+      "bootstrap_n_ok": 1000,
+      "c_ci": [
+        6.44518102045939,
+        23.738537562171924
+      ],
+      "b_ci": [
+        -0.0789731935896122,
+        0.03110562882177079
+      ],
+      "ols_uncensored": {
+        "a": 1.0878588696227245,
+        "b": -0.020939393911641013,
+        "c": 12.242183068797004,
+        "n": 36,
+        "label": "OLS on uncensored points only (biased)"
+      }
+    },
+    "no_steep": {
+      "label": "no_steep",
+      "n_channelized": 27,
+      "n_censored": 0,
+      "width_measure": "W_inner_bankbreak",
+      "censor_rule": "W < censor_multiple x pixel size",
+      "tobit": {
+        "a": 0.9493201933230258,
+        "b": 0.002398186794222153,
+        "sigma": 0.21978193598480372,
+        "c": 8.898569430068937,
+        "converged": true,
+        "n": 27,
+        "n_censored": 0,
+        "nll": -2.596884058561069
+      },
+      "bootstrap_n_ok": 1000,
+      "c_ci": [
+        2.3863600910912575,
+        38.09969926550766
+      ],
+      "b_ci": [
+        -0.10625700993663292,
+        0.09594604409527469
+      ],
+      "ols_uncensored": {
+        "a": 0.9493201933230258,
+        "b": 0.002398186794222153,
+        "c": 8.898569430068937,
+        "n": 27,
+        "label": "OLS on uncensored points only (biased)"
+      }
+    },
+    "channelized_logistic": {
+      "b0": -0.8785434049394822,
+      "b1": 0.4226076399524981,
+      "logA50": 2.0788630443080303,
+      "A50": 119.91210981205391,
+      "n": 47,
+      "n_pos": 36,
+      "bootstrap_n_ok": 937,
+      "A50_ci": [
+        2.597556609682613e-28,
+        8660.387801491563
+      ]
+    },
+    "n_points": 47,
+    "n_channelized": 36,
+    "n_steep": 13,
+    "resolved_fraction": 0.851063829787234,
+    "flat_bed_fraction": 0.40425531914893614
+  },
+  "GM": {
+    "all": {
+      "label": "all",
+      "n_channelized": 31,
+      "n_censored": 0,
+      "width_measure": "W_inner_bankbreak",
+      "censor_rule": "W < censor_multiple x pixel size",
+      "tobit": {
+        "a": 1.4616770884560848,
+        "b": -0.09885952673404572,
+        "sigma": 0.21421501922147423,
+        "c": 28.95190122719172,
+        "converged": true,
+        "n": 31,
+        "n_censored": 0,
+        "nll": -3.776930646713788
+      },
+      "bootstrap_n_ok": 1000,
+      "c_ci": [
+        8.889046629694054,
+        73.86916171686914
+      ],
+      "b_ci": [
+        -0.1713528809390431,
+        -0.012790964627406446
+      ],
+      "ols_uncensored": {
+        "a": 1.4616770884560848,
+        "b": -0.09885952673404572,
+        "c": 28.95190122719172,
+        "n": 31,
+        "label": "OLS on uncensored points only (biased)"
+      }
+    },
+    "no_steep": {
+      "label": "no_steep",
+      "n_channelized": 29,
+      "n_censored": 0,
+      "width_measure": "W_inner_bankbreak",
+      "censor_rule": "W < censor_multiple x pixel size",
+      "tobit": {
+        "a": 1.5127099451276642,
+        "b": -0.10805238636227121,
+        "sigma": 0.20773231394537717,
+        "c": 32.56191551362029,
+        "converged": true,
+        "n": 29,
+        "n_censored": 0,
+        "nll": -4.424426965783628
+      },
+      "bootstrap_n_ok": 1000,
+      "c_ci": [
+        7.814013226187786,
+        94.3584496094689
+      ],
+      "b_ci": [
+        -0.1917622913471054,
+        -0.005733728755771977
+      ],
+      "ols_uncensored": {
+        "a": 1.5127099451276642,
+        "b": -0.10805238636227121,
+        "c": 32.56191551362029,
+        "n": 29,
+        "label": "OLS on uncensored points only (biased)"
+      }
+    },
+    "channelized_logistic": {
+      "b0": -1.770845992205252,
+      "b1": 0.4865427961316703,
+      "logA50": 3.639651036423974,
+      "A50": 4361.652246471082,
+      "n": 48,
+      "n_pos": 31,
+      "bootstrap_n_ok": 967,
+      "A50_ci": [
+        4.185347570665044e-05,
+        62122.44558010555
+      ]
+    },
+    "n_points": 48,
+    "n_channelized": 31,
+    "n_steep": 2,
+    "resolved_fraction": 0.7708333333333334,
+    "flat_bed_fraction": 0.4583333333333333
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "mode": "full",
+  "sites": [
+    "AP",
+    "GM"
+  ],
+  "git": "12fda6b",
+  "python": "3.11.18 (main, Oct 26 2026, 11:35:17) [GCC 15.3.0]",
+  "platform": "Linux-3.10.0-1160.156.1.el7.tuxcare.els4.x86_64-x86_64-with-glibc2.17",
+  "started": "2026-11-02 16:22:48",
+  "config": {
+    "a_min_sample_m2": 1000.0,
+    "n_area_bins": 8,
+    "pilot_points_per_site": 10,
+    "full_points_per_bin": 6,
+    "min_separation_m": 50.0,
+    "confluence_exclusion_m": 15.0,
+    "confluence_min_fraction": 0.05,
+    "edge_exclusion_m": 30.0,
+    "knickpoint_factor": 3.0,
+    "reach_half_length_m": 100.0,
+    "vertical_interval_m": 10.0,
+    "horizontal_interval_fallback_m": 50.0,
+    "flat_fill_slope_max": 0.002,
+    "confinement_half_window_m": 5.0,
+    "confinement_min_relief_m": 0.1,
+    "steep_slope_flag": 0.5,
+    "random_seed": 20261102,
+    "trace_half_length_m": 10.0,
+    "transect_half_length_m": 25.0,
+    "transect_step_m": 0.25,
+    "thalweg_search_m": 3.0,
+    "fixed_stages_m": [
+      0.25,
+      0.5,
+      1.0
+    ],
+    "crest_drop_m": 0.3,
+    "bankbreak_smooth_sigma_m": 0.5,
+    "bankbreak_min_convexity_1_per_m": 0.05,
+    "bankbreak_min_bank_slope": 0.1,
+    "channelized_min_relief_m": 0.3,
+    "valley_slope_threshold": 0.05,
+    "valley_smooth_sigma_m": 0.0,
+    "censor_multiple": 2.0,
+    "flat_bed_tol_m": 0.1,
+    "flat_bed_min_width_m": 2.0,
+    "bootstrap_n": 1000,
+    "ci_percentiles": [
+      2.5,
+      97.5
+    ],
+    "validation_min_area_m2": 100000.0,
+    "validation_extra_per_site": 10,
+    "qc_gallery_per_site": 20,
+    "inset_half_size_m": 60.0,
+    "hillshade_azimuth_deg": 315.0,
+    "hillshade_altitude_deg": 45.0
+  },
+  "fixed_stage_columns": [
+    "W_stage_0.25",
+    "W_stage_0.5",
+    "W_stage_1.0"
+  ],
+  "elapsed_s": 147.3
+}
