@@ -8,7 +8,8 @@ Run everything with one command:
 
 ```bash
 python -m width_analysis.run --site all --mode pilot   # 10 points per site, then stop
-python -m width_analysis.run --site all --mode full    # stratified sample, fits, figures
+python -m width_analysis.run --site all --mode full    # stratified sample, fits, figures, regime outputs
+python -m width_analysis.acrit_profile --site AP --tile 5  # MSE vs A_crit at optimized K, D
 python -m pytest tests/test_width_analysis.py           # synthetic cross-section tests
 ```
 
@@ -73,56 +74,98 @@ sample within `thalweg_search_m` (3 m) of the centreline; where several samples
 tie, the middle one is used. `confined`, `relief_left_m` and `relief_right_m`
 record the confinement test on every accepted point as well.
 
-**Width measures (all recorded).**
+**Width measures (all recorded, never conflated).**
 
-- *Height-above-thalweg width W(h)*: for h from 0.05 to 2.0 m in 0.05 m steps,
-  the width of the contiguous span around the thalweg with z - z_thalweg <= h,
-  with linearly interpolated crossings. A span also stops at a crest when the
-  profile beyond it drops by more than `crest_drop_m` (0.3 m), so that a width
-  never runs across a divide into the neighbouring channel (flag
-  `..._cut_at_crest`). Widths are also stored at fixed stages
-  h = 0.25, 0.5, 1.0 m. The bankfull stage is the h that minimises W/h
-  (`bankfull_method = "min_W_over_h"`), which is the stage just before the banks
-  are overtopped; the stage maximising d2W/dh2 is stored alongside
-  (`h_bankfull_alt_d2W`). Stages whose span reaches the transect end are
-  ineligible. If W/h varies by less than 10 % over the stage range (a pure
-  V-shape) the pick is arbitrary and the point carries the flag `W_over_h_flat`.
-- *Bank-break width*: z(s) is smoothed with a Gaussian of
-  `bankbreak_smooth_sigma_m` (0.5 m); convexity is -d2z/ds2 by central
-  differences. On each side of the thalweg the first local maximum of
-  convexity that exceeds `bankbreak_min_convexity_1_per_m` (0.05 m^-1) and whose
-  mean slope from the thalweg exceeds `bankbreak_min_bank_slope` (0.10) is the
-  bank top; the width is the distance between the two picks, NaN if either side
-  has none (flag `no_bank_break`).
-- *Valley-floor width*: the contiguous span around the thalweg where the
-  cross-section slope |dz/ds| is below `valley_slope_threshold` (0.05), measured
-  on the unsmoothed bilinear profile.
+- *Inner-channel (bank-break) width* `W_inner_bankbreak`: z(s) is smoothed
+  with a Gaussian of `bankbreak_smooth_sigma_m` (0.5 m); convexity is -d2z/ds2
+  by central differences. On each side of the thalweg the first local maximum
+  of convexity that exceeds `bankbreak_min_convexity_1_per_m` (0.05 m^-1) and
+  whose mean slope from the thalweg exceeds `bankbreak_min_bank_slope` (0.10)
+  is the bank top; the width is the distance between the two picks, NaN if
+  either side has none (flag `no_bank_break`). `inner_relief_m` is the height
+  of the lower bank top above the thalweg.
+- *Valley-floor width* `W_valley_floor`: the contiguous span around the
+  thalweg where the cross-section slope |dz/ds| is below
+  `valley_slope_threshold` (0.05), on the unsmoothed bilinear profile.
+- *Fixed-stage widths* `W_stage_0.25`, `W_stage_0.5`, `W_stage_1.0`: the
+  contiguous span with z - z_thalweg <= h, linearly interpolated crossings; a
+  span stops at a crest when the profile beyond it drops by more than
+  `crest_drop_m` (0.3 m) so it never runs into the neighbouring channel. These
+  are diagnostics only. On a V-shaped section the stage width is 2h divided
+  by the side slope: it measures the valley side slope, not a channel width,
+  and it grows without limit as the section flattens. It is therefore never
+  used as the channel width. `W_stage_0.5` is kept as the secondary
+  diagnostic and `W_stage_0.25` is compared against the bank-break width in
+  figure 7.
 
-**Resolution limit and censoring.** A grid of spacing delta cannot resolve a
-channel narrower than about 2 delta. Any width below `censor_multiple` (2) x
-pixel size is an upper bound: `censored = True` and `censor_bound` = 2 delta
-(1.95 m on AP, 2.00 m on GM). The measured value is kept in every case.
-`censored` refers to the bankfull HAND width; each other measure carries its
-own `<name>_censored` column.
+**Primary width and censoring.** `W_primary` is the bank-break width where
+both banks exist (`W_primary_source = bankbreak`), the valley-floor width
+where `shape_class = flat_bed` (`valley_floor`), and otherwise unresolved
+(`unresolved`, `W_primary = NaN`). A grid of spacing delta cannot resolve a
+channel narrower than about 2 delta, so `censored = True` when the primary
+width is unresolved or below `censor_multiple` (2) x pixel size, and
+`censor_bound` = 2 delta (1.95 m on AP, 2.00 m on GM). Every measured value is
+kept; each measure also carries its own `<name>_censored` column.
+
+**Channelized flag.** `channelized = True` when both bank breaks exist and
+`inner_relief_m` >= `channelized_min_relief_m` (0.3 m). The W = cA^b fits use
+channelized points only; hollows and swales enter the shape-class and
+channelized-fraction figures instead.
+
+**Model-free statistic.** `resolved_width = True` when the point has a
+resolved inner channel (both bank breaks, `W_inner_bankbreak` > 2 delta) or a
+flat bed wider than 2 delta (`shape_class = flat_bed` and `W_valley_floor` >
+2 delta). Figure 2 reports its fraction per A bin and site.
 
 **Valley-bottom shape class.** `flat_bed` if the samples within
 `flat_bed_tol_m` (0.1 m) of the thalweg elevation form a contiguous span of at
 least `flat_bed_min_width_m` (2 m); otherwise `v_shape`. The span length is
 stored as `flat_span_m`.
 
-**QC gallery.** One PNG per point in `outputs/widths/<mode>/qc/`: the profile
-with the thalweg, the fixed-stage spans, the bankfull span, the bank-break
-picks, the valley-floor span and the censoring statement, plus a 120 m hillshade
-inset with the channel pixels, the fitted trace and the transect.
+**Steep rills.** Points with local slope above `steep_slope_flag` (0.5) carry
+`steep_rill_flag` (the AP tile 5 parallel rills). They stay in the sample;
+every fit is reported with (`all`) and without (`no_steep`) them.
+
+**Fits (`fits.json`).** Per site and variant, log10 W = a + b log10 A is fit
+to the channelized points by censored maximum likelihood (Tobit: normal
+residuals, points with `W_inner_bankbreak` below 2 delta contribute the
+probability mass below the bound; `scipy.optimize.minimize`, Nelder-Mead).
+A 1000-sample pairs bootstrap gives percentile intervals on c = 10^a and b.
+An OLS fit on uncensored points only is reported alongside and labelled
+biased. The channelized fraction is fit by logistic regression on log10 A;
+`A50` is the area where the fitted probability crosses 0.5, with a bootstrap
+interval.
+
+**Regime outputs.** `regime_fraction_vs_dx.csv`: for delta = 1 m and each of
+the 25 sweep spacings, the fraction of channel length (pixels with A >= the
+tile's A_crit, pooled per site, each weighted by its D8 step length) whose
+fitted W(A) exceeds delta, with a bootstrap band. `regime_boundary.csv`:
+c, b and A* = (delta / c)^(1/b) per site, variant and delta, with bootstrap
+intervals. Figure 3 maps W(A)/delta at delta = pixel size on every tile.
+
+**A_crit misfit profile.** `python -m width_analysis.acrit_profile --site AP
+--tile 5` evaluates the repo's partitioned model (src/models.py) at the
+jointly optimized K and D of that tile for 31 log-spaced A_crit between 1e2
+and 1e5 m² plus the notebook optimum, and writes MSE(A_crit) to
+`outputs/widths/acrit_profile/`.
+
+**QC gallery.** One PNG per point: the profile with the thalweg, the stage
+spans, the bank-break picks with the inner-channel span, the valley-floor span
+and the censoring statement, plus a 120 m hillshade inset with the channel
+pixels, the fitted trace and the transect. The full run writes every point to
+`qc_all/` and a random `qc_gallery_per_site` (20) per site to `qc/`.
 
 ## Outputs
 
-`points.csv` (one row per point; the directive's columns first, then the
-auxiliary ones: span end-points, alternative picks, per-measure censoring,
-`flat_span_m`, reach-median slope, pixel size, flow azimuth), `excluded.csv`,
-`transects.csv` (every sampled s, z, x, y for re-plotting or manual checking),
-`points.gpkg` (one layer per site, in that site's UTM CRS), `bins.json`,
-`run_info.json` (git hash, interpreter, elapsed time, the full config).
+`points.csv` (one row per point; primary width and source, censoring,
+inner-channel, valley-floor and stage widths, channelized and resolved flags,
+shape class, then span end-points, slopes, pixel size, flow azimuth),
+`excluded.csv`, `transects.csv` (every sampled s, z, x, y), `points.gpkg`
+(one layer per site in its UTM CRS), `validation_points.gpkg` and `.csv`
+(channelized points with A >= 1e5 m², priority 1, plus 10 random others per
+site, priority 2, with stage and bank-break widths as attributes),
+`fits.json`, `regime_fraction_vs_dx.csv`, `regime_boundary.csv`,
+`figures/fig1..fig7`, `qc/`, `qc_all/`, `bins.json`, `run_info.json`.
 
 ## Tests
 
