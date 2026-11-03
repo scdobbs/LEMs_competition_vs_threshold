@@ -23,23 +23,21 @@ CONFIG: dict = {
     "flat_fill_slope_max": 0.002,   # along-trace slope below this = filled depression proxy -> excluded
     "confinement_half_window_m": 5.0,   # profile must rise >= confinement_min_relief_m on both sides within this
     "confinement_min_relief_m": 0.1,
+    "steep_slope_flag": 0.5,        # local slope above this is flagged steep_rill_flag (AP tile 5 rills)
     "random_seed": 20261102,
     # --- transect geometry ------------------------------------------------
     "trace_half_length_m": 10.0,    # channel trace used to fit the local flow line
     "transect_half_length_m": 25.0,
     "transect_step_m": 0.25,
     "thalweg_search_m": 3.0,        # thalweg = min z within +/- this of the centreline
-    # --- height-above-thalweg widths --------------------------------------
-    "h_min_m": 0.05,
-    "h_max_m": 2.0,
-    "h_step_m": 0.05,
+    # --- fixed-stage (height-above-thalweg) widths: diagnostic only -------
     "fixed_stages_m": [0.25, 0.5, 1.0],
-    "bankfull_method": "min_W_over_h",  # alternative recorded: "max_d2W_dh2"
-    "crest_drop_m": 0.3,                # a stage span stops at a crest if the profile then drops by more than this
-    # --- bank-break width -------------------------------------------------
+    "crest_drop_m": 0.3,            # a stage span stops at a crest if the profile then drops by more than this
+    # --- inner-channel (bank-break) width ---------------------------------
     "bankbreak_smooth_sigma_m": 0.5,    # Gaussian smoothing of z(s) before curvature
     "bankbreak_min_convexity_1_per_m": 0.05,  # -d2z/ds2 must exceed this at the break
     "bankbreak_min_bank_slope": 0.10,   # mean slope thalweg -> break must exceed this
+    "channelized_min_relief_m": 0.3,    # channelized = both breaks present and inner relief >= this
     # --- valley-floor width -----------------------------------------------
     "valley_slope_threshold": 0.05,
     "valley_smooth_sigma_m": 0.0,       # 0 = no smoothing: bilinear samples of a 1 m grid are already piecewise linear
@@ -48,6 +46,13 @@ CONFIG: dict = {
     # --- valley-bottom shape class ----------------------------------------
     "flat_bed_tol_m": 0.1,
     "flat_bed_min_width_m": 2.0,
+    # --- fits -------------------------------------------------------------
+    "bootstrap_n": 1000,
+    "ci_percentiles": [2.5, 97.5],
+    # --- outputs ----------------------------------------------------------
+    "validation_min_area_m2": 1.0e5,    # GeoPackage validation layer is weighted to channelized points above this
+    "validation_extra_per_site": 10,    # plus this many random other points per site
+    "qc_gallery_per_site": 20,
     # --- QC figures -------------------------------------------------------
     "inset_half_size_m": 60.0,
     "hillshade_azimuth_deg": 315.0,
@@ -62,6 +67,13 @@ A_CRIT_M2: dict = {
     ("AP", 4): 7.7979e3, ("AP", 5): 1.8870e3,
     ("GM", 1): 8.0924e3, ("GM", 2): 2.9600e3, ("GM", 3): 6.5263e3,
     ("GM", 4): 7.3962e3, ("GM", 5): 2.2471e3,
+}
+
+# Jointly optimized (K, D) and the tile constants of the partitioned model,
+# from the final stage of notebooks/model_runs/*_complete.ipynb (used by the
+# A_crit misfit profile).
+PARTITIONED_PARAMS: dict = {
+    ("AP", 5): dict(U=5.5e-5, m=0.400, K=3.4402e-06, D=3.6291e-03, A_crit=1.8870e3, MSE=2.8962e2),
 }
 
 # Grid spacings of the existing 5-100 m resolution sweep

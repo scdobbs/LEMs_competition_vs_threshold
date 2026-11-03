@@ -1,5 +1,20 @@
 """Width measures on a single cross-section z(s).
 
+Three widths are measured and never conflated:
+
+* ``W_inner_bankbreak``: the inner-channel width between the convex bank
+  breaks flanking the thalweg (the channel the stream-power proxy assumes);
+* ``W_valley_floor``: the contiguous low-slope span around the thalweg
+  (valley bottom or colluvial hollow floor);
+* ``W_stage_<h>``: the height-above-thalweg span at a fixed stage h
+  (diagnostic only: on a V-shaped section it measures 2h / side slope, not a
+  channel width).
+
+The primary width is the bank-break width where both banks exist, the
+valley-floor width where the bed is flat, and otherwise unresolved (an upper
+bound of 2 pixels). ``channelized`` requires both bank breaks and an inner
+relief of at least ``channelized_min_relief_m``.
+
 All functions take the transect distance ``s`` (m, monotonic, uniform step),
 elevation ``z`` (m) and the thalweg index. Nothing here touches rasters.
 """
@@ -106,7 +121,7 @@ def _span_bounds_interp(s, z, i0: int, level: float, crest_drop: float):
 
 
 # ---------------------------------------------------------------------------
-# a. height-above-thalweg widths
+# fixed-stage widths (diagnostic)
 # ---------------------------------------------------------------------------
 
 def stage_label(h: float) -> str:
@@ -125,47 +140,8 @@ def width_at_stage(s, z, i_thal: int, h: float, crest_drop: float = np.inf):
     return sr - sl, sl, sr, hits, cut
 
 
-def hand_curve(s, z, i_thal: int, cfg: dict):
-    """W(h) for h = h_min .. h_max step h_step. Returns (h, W, hits_end, cut_at_crest)."""
-    h = np.arange(cfg["h_min_m"], cfg["h_max_m"] + 0.5 * cfg["h_step_m"], cfg["h_step_m"])
-    W = np.empty_like(h)
-    hits = np.zeros(len(h), dtype=bool)
-    cuts = np.zeros(len(h), dtype=bool)
-    for k, hk in enumerate(h):
-        W[k], _, _, hits[k], cuts[k] = width_at_stage(s, z, i_thal, hk, cfg["crest_drop_m"])
-    return h, W, hits, cuts
-
-
-def bankfull_pick(h: np.ndarray, W: np.ndarray, hits: np.ndarray) -> dict:
-    """Stage where widening accelerates.
-
-    Primary: the stage minimizing W/h (the hydraulic-depth proxy is smallest
-    just before the banks are overtopped). Alternative recorded: stage
-    maximizing d2W/dh2. Stages whose span reaches the transect end are not
-    eligible. For a pure V-shape W/h is constant and the pick is arbitrary;
-    that is reported through ``ratio_range`` (max/min of W/h) so that flat
-    curves can be recognised downstream.
-    """
-    ok = ~hits & np.isfinite(W) & (W > 0)
-    out = dict(h_bankfull=np.nan, W_bankfull=np.nan, h_bankfull_alt=np.nan, W_bankfull_alt=np.nan,
-               ratio_range=np.nan, method="min_W_over_h")
-    if ok.sum() < 3:
-        return out
-    ratio = np.where(ok, W / h, np.inf)
-    k = int(np.argmin(ratio))
-    out["h_bankfull"] = float(h[k])
-    out["W_bankfull"] = float(W[k])
-    out["ratio_range"] = float(np.max(ratio[ok]) / np.min(ratio[ok]))
-    d2 = np.gradient(np.gradient(W, h), h)
-    d2 = np.where(ok, d2, -np.inf)
-    k2 = int(np.argmax(d2))
-    out["h_bankfull_alt"] = float(h[k2])
-    out["W_bankfull_alt"] = float(W[k2])
-    return out
-
-
 # ---------------------------------------------------------------------------
-# b. bank-break width
+# inner-channel (bank-break) width
 # ---------------------------------------------------------------------------
 
 def bank_break_width(s, z, i_thal: int, cfg: dict) -> dict:
@@ -178,13 +154,14 @@ def bank_break_width(s, z, i_thal: int, cfg: dict) -> dict:
       * convexity >= bankbreak_min_convexity_1_per_m
       * mean slope from the thalweg to the candidate >= bankbreak_min_bank_slope
     Candidates within 3 sigma + 1 sample of the transect ends are ignored
-    (edge effects of the smoothing filter).
+    (edge effects of the smoothing filter). ``inner_relief_m`` is the height of
+    the lower of the two bank tops above the thalweg (raw profile).
     """
     step = s[1] - s[0]
     zs = gaussian_filter1d(z, cfg["bankbreak_smooth_sigma_m"] / step, mode="nearest")
     conv = -np.gradient(np.gradient(zs, step), step)
     n = len(s)
-    pad = int(np.ceil(3.0 * cfg["bankbreak_smooth_sigma_m"] / step)) + 1   # ignore filter edge effects
+    pad = int(np.ceil(3.0 * cfg["bankbreak_smooth_sigma_m"] / step)) + 1
     picks = {}
     for side, rng in (("left", range(i_thal - 1, pad - 1, -1)), ("right", range(i_thal + 1, n - pad))):
         picks[side] = np.nan
@@ -194,12 +171,14 @@ def bank_break_width(s, z, i_thal: int, cfg: dict) -> dict:
                 if ds > 0 and (zs[k] - zs[i_thal]) / ds >= cfg["bankbreak_min_bank_slope"]:
                     picks[side] = float(s[k])
                     break
-    W = picks["right"] - picks["left"] if np.isfinite(picks["left"]) and np.isfinite(picks["right"]) else np.nan
-    return dict(W_bankbreak=W, s_bank_left=picks["left"], s_bank_right=picks["right"])
+    both = np.isfinite(picks["left"]) and np.isfinite(picks["right"])
+    W = picks["right"] - picks["left"] if both else np.nan
+    relief = float(min(np.interp(picks["left"], s, z), np.interp(picks["right"], s, z)) - z[i_thal]) if both else np.nan
+    return dict(W_inner_bankbreak=W, s_bank_left=picks["left"], s_bank_right=picks["right"], inner_relief_m=relief)
 
 
 # ---------------------------------------------------------------------------
-# c. valley-floor width
+# valley-floor width
 # ---------------------------------------------------------------------------
 
 def valley_floor_width(s, z, i_thal: int, cfg: dict) -> dict:
@@ -211,7 +190,7 @@ def valley_floor_width(s, z, i_thal: int, cfg: dict) -> dict:
     inside = slope < cfg["valley_slope_threshold"]
     inside[i_thal] = True
     sl, sr, hl, hr = _span_bounds(s, inside, i_thal)
-    return dict(W_valley=sr - sl, s_valley_left=sl, s_valley_right=sr, valley_hits_end=(hl or hr))
+    return dict(W_valley_floor=sr - sl, s_valley_left=sl, s_valley_right=sr, valley_hits_end=(hl or hr))
 
 
 # ---------------------------------------------------------------------------
@@ -246,57 +225,59 @@ def measure_cross_section(s: np.ndarray, z: np.ndarray, pixel_size: float, cfg: 
     out["relief_right_m"] = rr
     if not conf:
         flags.append("not_confined")
+    bound = cfg["censor_multiple"] * pixel_size
 
-    h, W, hits, cuts = hand_curve(s, z, i_t, cfg)
-    out["hand_h"] = h
-    out["hand_W"] = W
-    bf = bankfull_pick(h, W, hits)
-    out["W_hand_bankfull"] = bf["W_bankfull"]
-    out["h_bankfull"] = bf["h_bankfull"]
-    out["bankfull_method"] = bf["method"]
-    out["h_bankfull_alt_d2W"] = bf["h_bankfull_alt"]
-    out["W_hand_bankfull_alt_d2W"] = bf["W_bankfull_alt"]
-    out["W_over_h_range"] = bf["ratio_range"]
-    if not np.isfinite(bf["W_bankfull"]):
-        flags.append("no_bankfull_pick")
-    if np.isfinite(bf["ratio_range"]) and bf["ratio_range"] < 1.1:
-        flags.append("W_over_h_flat")
-    if hits.any():
-        flags.append("hand_hits_transect_end_at_h=%.2f" % h[np.argmax(hits)])
-    if cuts.any():
-        flags.append("hand_cut_at_crest_from_h=%.2f" % h[np.argmax(cuts)])
-
+    # fixed-stage widths (diagnostic)
     for hf in cfg["fixed_stages_m"]:
         w, sl, sr, he, cut = width_at_stage(s, z, i_t, hf, cfg["crest_drop_m"])
-        key = f"W_hand_{stage_label(hf)}"
+        key = f"W_stage_{stage_label(hf)}"
         out[key] = w
         out[key + "_sL"] = sl
         out[key + "_sR"] = sr
+        out[key + "_censored"] = censor(w, pixel_size, cfg["censor_multiple"])[0]
         if he:
             flags.append(f"stage_{stage_label(hf)}_hits_transect_end")
         if cut:
             flags.append(f"stage_{stage_label(hf)}_cut_at_crest")
-    if np.isfinite(bf["h_bankfull"]):
-        _, sl, sr, _, _ = width_at_stage(s, z, i_t, bf["h_bankfull"], cfg["crest_drop_m"])
-        out["W_hand_bankfull_sL"], out["W_hand_bankfull_sR"] = sl, sr
-    else:
-        out["W_hand_bankfull_sL"] = out["W_hand_bankfull_sR"] = np.nan
 
-    out.update(bank_break_width(s, z, i_t, cfg))
-    if not np.isfinite(out["W_bankbreak"]):
+    # inner channel
+    bb = bank_break_width(s, z, i_t, cfg)
+    out.update(bb)
+    both_banks = bool(np.isfinite(bb["W_inner_bankbreak"]))
+    out["W_inner_bankbreak_censored"] = censor(bb["W_inner_bankbreak"], pixel_size, cfg["censor_multiple"])[0]
+    out["channelized"] = bool(both_banks and bb["inner_relief_m"] >= cfg["channelized_min_relief_m"])
+    if not both_banks:
         flags.append("no_bank_break")
-    out.update(valley_floor_width(s, z, i_t, cfg))
-    if out["valley_hits_end"]:
+    elif not out["channelized"]:
+        flags.append("inner_relief_below_%.2f" % cfg["channelized_min_relief_m"])
+
+    # valley floor
+    vf = valley_floor_width(s, z, i_t, cfg)
+    out.update(vf)
+    out["W_valley_floor_censored"] = censor(vf["W_valley_floor"], pixel_size, cfg["censor_multiple"])[0]
+    if vf["valley_hits_end"]:
         flags.append("valley_hits_transect_end")
 
-    cens, bound = censor(out["W_hand_bankfull"], pixel_size, cfg["censor_multiple"])
-    out["censored"] = cens
-    out["censor_bound"] = bound
-    for key in [f"W_hand_{stage_label(hf)}" for hf in cfg["fixed_stages_m"]] + ["W_bankbreak", "W_valley"]:
-        out[key + "_censored"] = censor(out[key], pixel_size, cfg["censor_multiple"])[0]
-
+    # shape class
     sc, flat_w = shape_class(s, z, i_t, cfg)
     out["shape_class"] = sc
     out["flat_span_m"] = flat_w
+
+    # primary width: bank-break where both banks exist, valley floor where the
+    # bed is flat, otherwise unresolved (upper bound 2 pixels)
+    if both_banks:
+        out["W_primary"], out["W_primary_source"] = bb["W_inner_bankbreak"], "bankbreak"
+    elif sc == "flat_bed":
+        out["W_primary"], out["W_primary_source"] = vf["W_valley_floor"], "valley_floor"
+    else:
+        out["W_primary"], out["W_primary_source"] = np.nan, "unresolved"
+    out["censored"] = bool(out["W_primary_source"] == "unresolved" or out["W_primary"] < bound)
+    out["censor_bound"] = bound
+    if out["W_primary_source"] == "unresolved":
+        flags.append("unresolved_width")
+
+    # model-free: a resolved inner channel or a flat bed wider than 2 pixels
+    out["resolved_width"] = bool((both_banks and bb["W_inner_bankbreak"] > bound)
+                                 or (sc == "flat_bed" and vf["W_valley_floor"] > bound))
     out["qc_flags"] = ";".join(flags)
     return out

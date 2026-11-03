@@ -1,9 +1,10 @@
-"""Synthetic cross-section tests for width_analysis (no raster data needed)."""
+"""Synthetic cross-section and fitting tests for width_analysis (no raster data needed)."""
 
 import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,6 +16,8 @@ from width_analysis.widths import measure_cross_section, width_at_stage, find_th
 from width_analysis.transect import flow_line_direction  # noqa: E402
 from width_analysis.network import receiver_grids, FlowGraph  # noqa: E402
 from width_analysis.tiles import Tile  # noqa: E402
+from width_analysis.fits import tobit_fit, bootstrap_tobit, ols_uncensored, logistic_fit, fit_site_widths  # noqa: E402
+from width_analysis.regime import regime_fraction, width_of  # noqa: E402
 
 STEP = CONFIG["transect_step_m"]
 S = np.arange(-25.0, 25.0 + 0.5 * STEP, STEP)
@@ -42,16 +45,21 @@ def narrow(bed_width=1.0, side_slope=1.0):
     return np.where(a <= 0, 0.0, a * side_slope)
 
 
-def test_v_shape_widths_scale_with_stage():
+# ---------------------------------------------------------------------------
+# cross-sections
+# ---------------------------------------------------------------------------
+
+def test_v_shape_stage_widths_measure_side_slope_not_channel():
     z = v_shape(0.5)
     m = measure_cross_section(S, z, PIX, CONFIG)
     assert m["thalweg_index"] == np.argmin(np.abs(S))
-    assert m["W_hand_0.5"] == pytest.approx(2.0, abs=STEP)
-    assert m["W_hand_1.0"] == pytest.approx(4.0, abs=STEP)
+    assert m["W_stage_0.5"] == pytest.approx(2.0, abs=STEP)      # 2h / side slope
+    assert m["W_stage_1.0"] == pytest.approx(4.0, abs=STEP)
     assert m["shape_class"] == "v_shape"
-    assert "W_over_h_flat" in m["qc_flags"]           # W/h constant: pick is arbitrary and flagged
-    assert np.isnan(m["W_bankbreak"])                  # no convex break anywhere
-    assert m["W_hand_0.25_censored"] is True           # 1.0 m < 2 m bound
+    assert np.isnan(m["W_inner_bankbreak"]) and not m["channelized"]   # no convex break anywhere
+    assert m["W_primary_source"] == "unresolved" and m["censored"] is True
+    assert m["resolved_width"] is False
+    assert m["W_stage_0.25_censored"] is True                     # 1.0 m < 2 m bound
 
 
 def test_flat_bed_4m():
@@ -59,35 +67,59 @@ def test_flat_bed_4m():
     m = measure_cross_section(S, z, PIX, CONFIG)
     assert m["shape_class"] == "flat_bed"
     assert m["flat_span_m"] == pytest.approx(4.0, abs=2 * STEP)
-    assert m["W_hand_0.25"] == pytest.approx(4.5, abs=STEP)
-    assert m["W_hand_0.5"] == pytest.approx(5.0, abs=STEP)
-    assert m["h_bankfull"] == pytest.approx(1.0, abs=CONFIG["h_step_m"])
-    assert m["W_hand_bankfull"] == pytest.approx(6.0, abs=3 * STEP)
-    assert m["W_bankbreak"] == pytest.approx(6.0, abs=1.0)
-    assert m["W_valley"] == pytest.approx(4.0, abs=1.0)
-    assert m["censored"] is False
+    assert m["W_stage_0.25"] == pytest.approx(4.5, abs=STEP)
+    assert m["W_stage_0.5"] == pytest.approx(5.0, abs=STEP)
+    assert m["W_inner_bankbreak"] == pytest.approx(6.0, abs=1.0)
+    assert m["inner_relief_m"] == pytest.approx(1.0, abs=0.15)
+    assert m["channelized"] is True
+    assert m["W_valley_floor"] == pytest.approx(4.0, abs=1.0)
+    assert m["W_primary_source"] == "bankbreak" and m["W_primary"] == m["W_inner_bankbreak"]
+    assert m["censored"] is False and m["resolved_width"] is True
     assert m["censor_bound"] == pytest.approx(2.0)
 
 
 def test_trapezoid():
     z = trapezoid(3.0, bank_slope=0.5, bank_height=1.0, hill_slope=0.02)
     m = measure_cross_section(S, z, PIX, CONFIG)
-    assert m["W_hand_0.5"] == pytest.approx(5.0, abs=STEP)
-    assert m["W_hand_1.0"] == pytest.approx(7.0, abs=2 * STEP)
-    assert m["W_bankbreak"] == pytest.approx(7.0, abs=1.0)
-    assert m["W_valley"] == pytest.approx(3.0, abs=1.0)
-    assert m["shape_class"] == "flat_bed"
+    assert m["W_stage_0.5"] == pytest.approx(5.0, abs=STEP)
+    assert m["W_stage_1.0"] == pytest.approx(7.0, abs=2 * STEP)
+    assert m["W_inner_bankbreak"] == pytest.approx(7.0, abs=1.0)
+    assert m["W_valley_floor"] == pytest.approx(3.0, abs=1.0)
+    assert m["shape_class"] == "flat_bed" and m["channelized"] is True
     assert m["censored"] is False
 
 
 def test_narrow_channel_is_censored():
     z = narrow(1.0, side_slope=1.0)
     m = measure_cross_section(S, z, PIX, CONFIG)
-    assert m["W_hand_0.25"] == pytest.approx(1.5, abs=STEP)
-    assert m["W_hand_0.25_censored"] is True
+    assert m["W_stage_0.25"] == pytest.approx(1.5, abs=STEP)
+    assert m["W_stage_0.25_censored"] is True
     assert m["censor_bound"] == pytest.approx(2.0)
     assert m["shape_class"] == "v_shape"           # 1 m flat span < 2 m
-    assert np.isfinite(m["W_hand_0.25"])           # value is kept, not dropped
+    assert m["censored"] is True                   # no banks -> unresolved -> bound 2 m
+    assert np.isfinite(m["W_stage_0.25"])          # the stage value is kept, not dropped
+
+
+def test_shallow_notch_is_not_channelized():
+    # 1.5 m bed with 0.25 m banks on a flat floor: both breaks exist but relief < 0.3 m
+    z = flat_bed(1.5, bank_height=0.25, bank_slope=1.0, hill_slope=0.0)
+    m = measure_cross_section(S, z, PIX, CONFIG)
+    assert np.isfinite(m["W_inner_bankbreak"])
+    assert m["inner_relief_m"] < CONFIG["channelized_min_relief_m"]
+    assert m["channelized"] is False
+    assert "inner_relief_below" in m["qc_flags"]
+
+
+def test_flat_bed_without_banks_uses_valley_floor():
+    # a 6 m flat floor rising gently (0.03) to both sides: no convex break, flat_bed -> valley-floor primary
+    a = np.abs(S) - 3.0
+    z = np.where(a <= 0, 0.0, a * 0.03)
+    m = measure_cross_section(S, z, PIX, CONFIG)
+    assert m["shape_class"] == "flat_bed"
+    assert np.isnan(m["W_inner_bankbreak"])
+    assert m["W_primary_source"] == "valley_floor"
+    assert m["W_primary"] == pytest.approx(m["W_valley_floor"])
+    assert m["resolved_width"] is True and m["censored"] is False
 
 
 def test_width_at_stage_interpolates_crossing():
@@ -98,20 +130,18 @@ def test_width_at_stage_interpolates_crossing():
 
 
 def test_span_stops_at_crest_before_neighbouring_channel():
-    # two parallel V channels 12 m apart with a 0.6 m crest between them
-    z = np.minimum(0.1 * np.abs(S), 0.6)                      # gentle main channel, crest at |s| >= 6
-    z = np.where(S < -6, 0.6 - 0.5 * (-6 - S), z)              # second channel descending left of the crest
+    z = np.minimum(0.1 * np.abs(S), 0.6)
+    z = np.where(S < -6, 0.6 - 0.5 * (-6 - S), z)
     i_t = find_thalweg(S, z, 3.0)
     w, sl, sr, hit, cut = width_at_stage(S, z, i_t, 1.0, crest_drop=0.3)
     assert cut
-    assert sl == pytest.approx(-6.0, abs=STEP)                 # left end sits on the crest, not in the next hollow
-    assert sr == pytest.approx(25.0, abs=STEP) or hit          # right side never exceeds 1.0 m -> transect end
-    w2, sl2, *_ = width_at_stage(S, z, i_t, 1.0)               # without the crest rule the span runs on
+    assert sl == pytest.approx(-6.0, abs=STEP)
+    w2, sl2, *_ = width_at_stage(S, z, i_t, 1.0)
     assert sl2 < -6.0
 
 
 def test_confinement_rejects_planar_slope_and_accepts_channel():
-    planar = 0.5 * S + 3.0                                     # monotonic: a D8 line across a hillslope
+    planar = 0.5 * S + 3.0
     i_t = find_thalweg(S, planar, 3.0)
     ok, rl, rr = confinement(S, planar, i_t, 5.0, 0.1)
     assert not ok and rl <= 0.0
@@ -127,27 +157,29 @@ def test_censor_bound_scales_with_pixel_size():
     assert m["censor_bound"] == pytest.approx(2 * 0.9752)
 
 
+# ---------------------------------------------------------------------------
+# transect direction and flow graph
+# ---------------------------------------------------------------------------
+
 def test_flow_line_direction_is_continuous():
-    # a trace at 30 degrees from the x axis, quantized to a D8-like staircase
     t = np.linspace(0, 10, 11)
     xy = np.column_stack([t * np.cos(np.radians(30)), t * np.sin(np.radians(30))])
-    xy = np.round(xy)       # staircase
+    xy = np.round(xy)
     d = flow_line_direction(xy)
     ang = np.degrees(np.arctan2(d[1], d[0]))
     assert ang == pytest.approx(30.0, abs=8.0)
-    assert d[0] > 0         # oriented from first to last point
+    assert d[0] > 0
 
 
 def _synthetic_tile(n=60):
-    # straight channel along the central row flowing east; V-shaped valley 0.3 side slope
     ii, jj = np.indices((n, n))
     z = 0.3 * np.abs(ii - n // 2) * 1.0 + 100.0 - 0.01 * jj
-    fd = np.full((n, n), 1, dtype=np.uint8)            # everything flows east
-    fd[: n // 2, :] = 4                                 # north half flows south
-    fd[n // 2 + 1 :, :] = 64                            # south half flows north
+    fd = np.full((n, n), 1, dtype=np.uint8)
+    fd[: n // 2, :] = 4
+    fd[n // 2 + 1 :, :] = 64
     fd[n // 2, :] = 1
     area = np.ones((n, n))
-    area[n // 2, :] = (jj[n // 2, :] + 1) * n          # channel accumulates ~n per column
+    area[n // 2, :] = (jj[n // 2, :] + 1) * n
     return Tile("XX", 1, z, area, fd, 1.0, 1.0, 0.0, float(n), "")
 
 
@@ -156,9 +188,8 @@ def test_flow_graph_on_synthetic_tile():
     g = FlowGraph(t, a_min=100.0)
     ri, rj = receiver_grids(t.fd)
     assert ri[30, 10] == 30 and rj[30, 10] == 11
-    assert ri[30, 59] == -1                              # leaves the grid
-    assert g.up(30, 10) == (30, 9)                       # main-stem donor is upstream along the channel
-    # local slope along the channel: 0.01 per pixel; a 10 m drop needs 1000 pixels -> undefined on a 60 px tile
+    assert ri[30, 59] == -1
+    assert g.up(30, 10) == (30, 9)
     assert np.isnan(g.local_slope(30, 30, 10.0))
     assert g.local_slope(30, 30, 0.1) == pytest.approx(0.01, rel=1e-6)
     assert g.edge_distance(30, 10) == 10.0
@@ -171,12 +202,67 @@ def test_flow_graph_on_synthetic_tile():
 def test_confluence_requires_significant_tributary():
     t = _synthetic_tile()
     n = t.shape[0]
-    # tributary from the north joining the channel at column 40: give column 40 of the north half area >= 100
-    t.area[: n // 2, 40] = np.arange(1, n // 2 + 1) * 10.0     # 10 ... 300 m^2 arriving from the north
+    t.area[: n // 2, 40] = np.arange(1, n // 2 + 1) * 10.0
     t.area[n // 2, 40:] += 300.0
     g_abs = FlowGraph(t, a_min=100.0, confluence_min_fraction=0.0)
-    assert g_abs.confluence[n // 2, 40]                        # 300 >= a_min: counts under the absolute rule
+    assert g_abs.confluence[n // 2, 40]
     g_rel = FlowGraph(t, a_min=100.0, confluence_min_fraction=0.5)
-    assert not g_rel.confluence[n // 2, 40]                    # 300 < 0.5 x (41*60+300): not a jump in A
+    assert not g_rel.confluence[n // 2, 40]
     assert g_rel.distance_to_confluence(n // 2, 35, 15.0) == np.inf
     assert g_abs.distance_to_confluence(n // 2, 35, 15.0) == pytest.approx(5.0)
+
+
+# ---------------------------------------------------------------------------
+# fits
+# ---------------------------------------------------------------------------
+
+def _synthetic_widths(n=120, c=0.02, b=0.45, sigma=0.08, bound=2.0, seed=1):
+    rng = np.random.default_rng(seed)
+    logA = rng.uniform(3, 7, n)
+    logW = np.log10(c) + b * logA + rng.normal(0, sigma, n)
+    cens = logW < np.log10(bound)
+    return logA, logW, cens, np.full(n, np.log10(bound))
+
+
+def test_tobit_recovers_parameters_where_ols_is_biased():
+    logA, logW, cens, lb = _synthetic_widths()
+    assert 0.15 < cens.mean() < 0.6                # a meaningful censored fraction
+    f = tobit_fit(logA, logW, cens, lb)
+    assert f["converged"]
+    assert f["b"] == pytest.approx(0.45, abs=0.04)
+    assert np.log10(f["c"]) == pytest.approx(np.log10(0.02), abs=0.25)
+    o = ols_uncensored(logA, logW, cens)
+    assert o["b"] < f["b"]                          # dropping the censored (small) widths flattens the slope
+    boot = bootstrap_tobit(logA, logW, cens, lb, 50, np.random.default_rng(2))
+    assert boot.shape[1] == 2 and len(boot) >= 45
+    lo, hi = np.percentile(boot[:, 1], [2.5, 97.5])
+    assert lo < 0.45 < hi
+
+
+def test_logistic_a50():
+    rng = np.random.default_rng(3)
+    logA = rng.uniform(3, 7, 300)
+    p = 1 / (1 + np.exp(-3.0 * (logA - 5.0)))      # A50 = 1e5
+    y = rng.uniform(size=300) < p
+    f = logistic_fit(logA, y.astype(float))
+    assert f["logA50"] == pytest.approx(5.0, abs=0.15)
+    assert np.isnan(logistic_fit(logA, np.ones(300))["A50"])
+
+
+def test_fit_site_widths_uses_channelized_points_only():
+    logA, logW, cens, lb = _synthetic_widths(n=60)
+    df = pd.DataFrame(dict(area_m2=10 ** logA, W_inner_bankbreak=np.where(cens, 1.0, 10 ** logW),
+                           W_inner_bankbreak_censored=cens, censor_bound=2.0, channelized=True))
+    df.loc[df.index[:10], "channelized"] = False
+    cfg = dict(CONFIG, bootstrap_n=20)
+    f = fit_site_widths(df, cfg, np.random.default_rng(0), "all")
+    assert f["n_channelized"] == 50
+    assert np.isfinite(f["tobit"]["b"]) and len(f["c_ci"]) == 2
+
+
+def test_regime_fraction_monotone_in_dx():
+    chan = [dict(area=np.logspace(3, 7, 500), length=np.ones(500))]
+    dxs = np.array([1.0, 5.0, 20.0, 100.0])
+    fr = regime_fraction(chan, np.log10(0.02), 0.45, dxs)
+    assert np.all(np.diff(fr) <= 0) and 0 < fr[0] <= 1
+    assert width_of(np.array([1e4]), np.log10(0.02), 0.5)[0] == pytest.approx(2.0)
