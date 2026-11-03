@@ -294,9 +294,11 @@ def test_constrained_trapezoid_4m_is_inner_channel():
     z = channel(bed=3.0, bank_slope=2.0, bank_height=1.0)          # bank tops at +/- 2 m
     m, agg = _point(z)
     assert agg["point_class"] == "inner_channel"
-    assert agg["W_bank"] == pytest.approx(4.0, abs=0.6)
-    assert 0.3 <= agg["relief_left_m"] <= 1.5
-    assert agg["ratio_bank_over_stage"] == pytest.approx(1.0, abs=0.25)
+    assert agg["W_trench"] == pytest.approx(4.0, abs=0.6)
+    assert agg["W_bed"] == pytest.approx(3.5, abs=0.3)                # bed 3 m + 2 x 0.5 / 2 at the 0.5 m stage
+    assert agg["trench_depth_m"] == pytest.approx(1.0, abs=0.2)
+    assert 0.3 <= agg["relief_left_m"] <= 4.0
+    assert agg["ratio_trench_over_stage"] == pytest.approx(1.0, abs=0.25)
     assert "asymmetric_banks" not in agg["qc_flags"]
 
 
@@ -305,11 +307,9 @@ def test_constrained_channel_inset_in_30m_hollow_picks_the_channel():
     z = channel(bed=3.0, bank_slope=2.0, bank_height=1.0, hill_slope=0.0) + hollow
     m, agg = _point(z)
     assert agg["point_class"] == "inner_channel"
-    assert agg["W_bank"] == pytest.approx(4.0, abs=0.8)              # not 30 m
-    # the unconstrained Phase 3 pick on the same section lands at the inner banks here too, but with
-    # a window of 20 m it would accept the hollow lip: check the constraint actually bites
+    assert agg["W_trench"] == pytest.approx(4.0, abs=0.8)            # not 30 m
     m_wide, agg_wide = _point(z, bank_max_offset_m=20.0, bank_max_relief_m=5.0)
-    assert agg_wide["W_bank"] == pytest.approx(4.0, abs=0.8)         # nearest-first search still prefers the inner bank
+    assert agg_wide["W_trench"] == pytest.approx(4.0, abs=0.8)       # nearest-first search still prefers the inner bank
 
 
 def test_constrained_14m_channel_is_wide_or_terrace():
@@ -320,7 +320,8 @@ def test_constrained_14m_channel_is_wide_or_terrace():
     assert agg["fit_censor"] == "right" and agg["W_fit"] == pytest.approx(12.0)
     assert shown_to_exceed(agg, 10.0) and shown_to_exceed(agg, 5.0) and not shown_to_exceed(agg, 15.0)
     m8, agg8 = _point(z, bank_max_offset_m=8.0)                      # a wider window resolves it
-    assert agg8["point_class"] == "inner_channel" and agg8["W_bank"] == pytest.approx(14.0, abs=0.8)
+    assert agg8["point_class"] == "inner_channel" and agg8["W_trench"] == pytest.approx(14.0, abs=0.8)
+    assert shown_to_exceed(agg8, 10.0, "bed")                        # W_bed = 13 + 0.5 = 13.5 m
 
 
 def test_constrained_bench_on_one_side_is_asymmetric():
@@ -337,18 +338,44 @@ def test_constrained_bench_on_one_side_is_asymmetric():
 def test_constrained_plain_v_is_unresolved_narrow():
     m, agg = _point(v_shape(0.5))
     assert m["left_class"] == "no_break" and m["right_class"] == "no_break"
-    assert agg["point_class"] == "unresolved_narrow"
+    assert agg["point_class"] == "unresolved_narrow"                   # W_stage_0.25 = 1.0 m <= 2 delta
     assert agg["fit_censor"] == "left" and agg["W_fit"] == pytest.approx(2.0)
-    assert not shown_to_exceed(agg, 1.0)
+    assert not shown_to_exceed(agg, 1.0, "bed") and not shown_to_exceed(agg, 1.0, "trench")
+
+
+def test_constrained_wide_v_and_flat_floor_are_unresolved_wide():
+    m, agg = _point(v_shape(0.05))                                     # W_stage_0.25 = 10 m > 2 delta, no break
+    assert agg["point_class"] == "unresolved_wide" and agg["fit_censor"] == "excluded"
+    assert not shown_to_exceed(agg, 1.0, "bed")                        # a hollow floor is not a bed
+    a = np.abs(S) - 8.0
+    flat = np.where(a <= 0, 0.0, a * 0.03)                             # 16 m flat floor, no break
+    m2, agg2 = _point(flat)
+    assert agg2["shape_class"] == "flat_bed" and agg2["point_class"] == "unresolved_wide"
+
+
+def test_constrained_bank_plus_wall_is_one_bank():
+    # left: 1 m bank at -2 m then a gentle floodplain; right: a 6 m cliff rising from +1.5 m
+    left = np.where(S < 0, np.minimum((-S - 1.5).clip(0) * 2.0, 1.0) + (-S - 2.0).clip(0) * 0.03, 0.0)
+    right = np.where(S > 0, (S - 1.5).clip(0) * 4.0, 0.0)
+    z = left + right
+    m, agg = _point(z)
+    assert m["left_class"] == "bank" and m["right_class"] == "wall"    # cliff reaches 18 m within the 6 m offset
+    assert agg["point_class"] == "one_bank" and "wall_bounded" in agg["qc_flags"]
+    assert agg["trench_depth_m"] == pytest.approx(1.0, abs=0.2)
+    assert agg["W_trench"] == pytest.approx(2.0 + 1.5 + 0.25, abs=0.5)   # width at the left bank's relief
+    assert agg["fit_censor"] == "none" and shown_to_exceed(agg, 2.0, "trench")
 
 
 def test_constrained_classification_rules_and_intervals():
     assert classify("bank", "bank", "v_shape") == "inner_channel"
+    assert classify("bank", "wall", "v_shape") == "one_bank" and classify("wall", "bank", "flat_bed") == "one_bank"
     assert classify("bank", "none_within_window", "v_shape") == "wide_or_terrace"
     assert classify("none_within_window", "none_within_window", "flat_bed") == "wide_or_terrace"
-    assert classify("no_break", "no_break", "v_shape") == "unresolved_narrow"
-    assert classify("no_break", "no_break", "flat_bed") == "ambiguous"
+    assert classify("no_break", "no_break", "v_shape", 1.0, 2.0) == "unresolved_narrow"
+    assert classify("no_break", "no_break", "v_shape", 3.0, 2.0) == "unresolved_wide"
+    assert classify("no_break", "no_break", "flat_bed", 1.0, 2.0) == "unresolved_wide"
     assert classify("bank", "no_break", "v_shape") == "ambiguous"
+    assert classify("wall", "wall", "v_shape") == "ambiguous"
     lo, hi = clopper_pearson(5, 10)
     assert lo == pytest.approx(0.187, abs=0.01) and hi == pytest.approx(0.813, abs=0.01)
     assert clopper_pearson(0, 10)[0] == 0.0 and clopper_pearson(10, 10)[1] == 1.0
@@ -359,7 +386,7 @@ def test_constrained_aggregate_majority_and_consistency():
     ccfg = dict(CONSTRAINED)
     ms = [measure_transect(S, z_ch, PIX, CONFIG, ccfg)] * 3 + [measure_transect(S, v_shape(0.5), PIX, CONFIG, ccfg)] * 2
     agg = aggregate(ms, PIX, ccfg)
-    assert agg["point_class"] == "inner_channel" and agg["W_bank_n_valid"] == 3 and agg["n_transects"] == 5
+    assert agg["point_class"] == "inner_channel" and agg["W_trench_n_valid"] == 3 and agg["n_transects"] == 5
     assert "inconsistent_along_stream" not in agg["qc_flags"]
     agg2 = aggregate(ms[:2] + ms[3:5], PIX, ccfg)                     # 2 vs 2 with one transect missing
     assert agg2["point_class"] == "ambiguous" and "inconsistent_along_stream" in agg2["qc_flags"]

@@ -41,6 +41,8 @@ def plot_point_constrained(tile: Tile, point: dict, mt: MultiTransect, per: list
             if np.isfinite(sk):
                 if cl == "bank":
                     ax.plot(sk - m["thalweg_s"], rel, marker="o", mfc="white", mec=C_BANK, mew=1.6, ms=6, ls="none")
+                elif cl == "wall":
+                    ax.plot(sk - m["thalweg_s"], min(rel, 9.5), marker="|", color=C_BEYOND, ms=10, mew=1.5, ls="none")
                 else:
                     ax.plot(sk - m["thalweg_s"], rel, marker="s", mfc="none", mec=C_BEYOND, mew=1.2, ms=6, ls="none")
     if stack:
@@ -52,6 +54,7 @@ def plot_point_constrained(tile: Tile, point: dict, mt: MultiTransect, per: list
         ax.axvline(sgn * ccfg["bank_max_offset_m"], color=C_BAND, lw=1.0, ls="--")
     ax.plot([], [], marker="o", mfc="white", mec=C_BANK, mew=1.6, ms=6, ls="none", label="accepted bank pick (per transect)")
     ax.plot([], [], marker="s", mfc="none", mec=C_BEYOND, ms=6, ls="none", label="break in relief window but beyond the offset limit")
+    ax.plot([], [], marker="|", color=C_BEYOND, ms=10, mew=1.5, ls="none", label="wall: first break above the relief ceiling (clipped)")
     ax.axhline(0, color="#d9d8d4", lw=0.8, zorder=0)
     ax.set_xlim(-cfg["transect_half_length_m"], cfg["transect_half_length_m"])
     ymax = np.nanmax(np.vstack(stack)) if stack else 3
@@ -62,8 +65,8 @@ def plot_point_constrained(tile: Tile, point: dict, mt: MultiTransect, per: list
     for sp in ("top", "right"):
         ax.spines[sp].set_visible(False)
     ax.legend(fontsize=7, frameon=False, loc="upper center", ncol=2)
-    wb = f"W_bank = {agg['W_bank']:.2f} m (n={agg['W_bank_n_valid']}, spread {agg['W_bank_spread']:.2f})" if np.isfinite(agg.get("W_bank", np.nan)) else "W_bank: none"
-    ws = f"W_stage_bank = {agg['W_stage_bank']:.2f} m, ratio {agg['ratio_bank_over_stage']:.2f}" if np.isfinite(agg.get("W_stage_bank", np.nan)) else ""
+    wb = f"W_trench = {agg['W_trench']:.2f} m (n={agg['W_trench_n_valid']}, spread {agg['W_trench_spread']:.2f}), depth {agg['trench_depth_m']:.2f} m" if np.isfinite(agg.get("W_trench", np.nan)) else "W_trench: none"
+    ws = f"W_bed = {agg['W_bed']:.2f} m" + (f", ratio trench/stage {agg['ratio_trench_over_stage']:.2f}" if np.isfinite(agg.get("ratio_trench_over_stage", np.nan)) else "")
     ax.set_title(f"{point['site']} tile {point['tile']}  id={point['point_id']}   A = {point['area_m2']:.3g} m²   S = {point['local_slope']:.4f}\n"
                  f"class = {agg['point_class']}  [{agg.get('class_counts', '')}]   {wb}   {ws}\nflags: {agg.get('qc_flags') or 'none'}",
                  fontsize=8.3, loc="left", color="#0b0b0b")

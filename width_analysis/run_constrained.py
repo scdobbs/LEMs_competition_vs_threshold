@@ -22,7 +22,7 @@ import pandas as pd
 
 from . import figures_constrained as figs
 from .config import A_CRIT_M2, CONFIG, CONSTRAINED, SITES, TILES
-from .constrained import (exceedance_table, measure_point, multi_transect, sensitivity_table,
+from .constrained import (RESOLVED, exceedance_table, measure_point, multi_transect, sensitivity_table,
                           window_is_binding)
 from .fits import bootstrap_tobit, tobit_fit
 from .network import FlowGraph
@@ -34,9 +34,10 @@ from .tiles import REPO_ROOT, load_tile
 
 POINT_COLUMNS = [
     "point_id", "site", "tile", "row", "col", "x", "y", "crs", "area_m2", "local_slope", "slope_method",
-    "point_class", "W_bank", "W_bank_n_valid", "W_bank_spread", "W_stage_bank", "ratio_bank_over_stage",
-    "h_bank_mean", "relief_left_m", "relief_right_m", "left_class", "right_class", "n_transects",
-    "n_inner_channel_transects", "class_counts", "fit_censor", "W_fit", "censor_left_bound", "censor_right_bound",
+    "point_class", "W_trench", "W_trench_n_valid", "W_trench_spread", "W_bed", "W_bed_n_valid", "W_bed_spread",
+    "trench_depth_m", "W_stage_bank", "ratio_trench_over_stage",
+    "relief_left_m", "relief_right_m", "first_relief_left_m", "first_relief_right_m", "left_class", "right_class",
+    "n_transects", "n_resolved_transects", "class_counts", "fit_censor", "W_fit", "censor_left_bound", "censor_right_bound",
     "shape_class", "W_stage_0.25", "W_stage_0.5", "W_stage_1.0", "qc_flags",
 ]
 
@@ -96,7 +97,7 @@ def measure(stage: str, out_dir: Path, cfg: dict, ccfg: dict, qc_dir: Path | Non
 
 
 def fit_constrained(df: pd.DataFrame, cfg: dict, label: str, rng: np.random.Generator, binding: bool, binding_reasons: list) -> dict:
-    """Censored MLE on inner_channel (observed), wide_or_terrace (right) and unresolved_narrow (left) points."""
+    """Censored MLE of W_trench: inner_channel and one_bank observed, wide_or_terrace right-censored, unresolved_narrow left-censored."""
     d = df[df.fit_censor != "excluded"]
     logA = np.log10(d.area_m2.to_numpy(float))
     W = d.W_fit.to_numpy(float)
@@ -163,12 +164,18 @@ def run(stage: str, out_dir: Path, cfg: dict = CONFIG, ccfg: dict = CONSTRAINED)
                 dd = dd.merge(df[["point_id", "site", "area_m2"]], on="point_id")
                 fits[site][f"offset{off:g}_relief{rel:g}"] = fit_constrained(dd[dd.site == site], cfg, f"offset {off:g} m, relief {rel:g} m", rng, binding, reasons)
             fits[site]["class_counts"] = df[df.site == site].point_class.value_counts().to_dict()
-            fits[site]["n_asymmetric_banks"] = int(df[df.site == site].qc_flags.fillna("").str.contains("asymmetric_banks").sum())
-            fits[site]["n_inconsistent_along_stream"] = int(df[df.site == site].qc_flags.fillna("").str.contains("inconsistent_along_stream").sum())
+            fl = df[df.site == site].qc_flags.fillna("")
+            fits[site]["n_asymmetric_banks"] = int(fl.str.contains("asymmetric_banks").sum())
+            fits[site]["n_inconsistent_along_stream"] = int(fl.str.contains("inconsistent_along_stream").sum())
+            fits[site]["n_wall_bounded"] = int(fl.str.contains("wall_bounded").sum())
             ic = df[(df.site == site) & (df.point_class == "inner_channel")]
-            fits[site]["ratio_bank_over_stage"] = dict(median=float(ic.ratio_bank_over_stage.median()) if len(ic) else np.nan,
-                                                       frac_within_25pct=float(((ic.ratio_bank_over_stage > 0.8) & (ic.ratio_bank_over_stage < 1.25)).mean()) if len(ic) else np.nan,
-                                                       n=int(len(ic)))
+            fits[site]["ratio_trench_over_stage"] = dict(median=float(ic.ratio_trench_over_stage.median()) if len(ic) else np.nan,
+                                                         frac_within_25pct=float(((ic.ratio_trench_over_stage > 0.8) & (ic.ratio_trench_over_stage < 1.25)).mean()) if len(ic) else np.nan,
+                                                         n=int(len(ic)))
+            res = df[(df.site == site) & df.point_class.isin(RESOLVED)]
+            fits[site]["resolved"] = dict(n=int(len(res)), median_W_trench=float(res.W_trench.median()) if len(res) else np.nan,
+                                          median_W_bed=float(res.W_bed.median()) if len(res) else np.nan,
+                                          median_trench_depth_m=float(res.trench_depth_m.median()) if len(res) else np.nan)
         fits["window_binding"] = dict(binding=binding, reasons=reasons)
         with open(out_dir / "fits.json", "w") as f:
             json.dump(_json_safe(fits), f, indent=2)
@@ -192,15 +199,17 @@ def run(stage: str, out_dir: Path, cfg: dict = CONFIG, ccfg: dict = CONSTRAINED)
         figdir = out_dir / "figures"
         figdir.mkdir(exist_ok=True)
         figs.fig_width_vs_area(df, fits, figdir / "fig1_width_vs_area.png")
-        figs.fig_exceedance(exc, edges_by_site, figdir / "fig2_exceedance.png")
+        figs.fig_exceedance(exc, edges_by_site, figdir / "fig2_exceedance_bed.png", measure="bed")
+        figs.fig_exceedance(exc, edges_by_site, figdir / "fig2b_exceedance_trench.png", measure="trench")
         figs.fig_consistency(df, figdir / "fig3_consistency_Wbank_vs_Wstagebank.png")
         figs.fig_sensitivity(sens, figdir / "fig4_window_sensitivity.png")
+        figs.fig_depth_vs_area(df, figdir / "fig5_trench_depth_vs_area.png")
         # validation export
-        val = df[df.point_class.isin(["inner_channel", "wide_or_terrace"])].copy()
+        val = df[df.point_class.isin([*RESOLVED, "wide_or_terrace"])].copy()
         val["W_imagery_m"] = np.nan
         val["imagery_source"] = ""
-        vcols = ["point_id", "site", "tile", "area_m2", "local_slope", "point_class", "W_bank", "W_stage_bank",
-                 "ratio_bank_over_stage", "censor_right_bound", "qc_flags", "W_imagery_m", "imagery_source"]
+        vcols = ["point_id", "site", "tile", "area_m2", "local_slope", "point_class", "W_trench", "W_bed", "trench_depth_m",
+                 "W_stage_bank", "ratio_trench_over_stage", "censor_right_bound", "qc_flags", "W_imagery_m", "imagery_source"]
         write_gpkg(val, out_dir / "validation_points.gpkg", columns=vcols)
         val[["point_id", "site", "tile", "x", "y"] + vcols[3:]].to_csv(out_dir / "validation_points.csv", index=False)
         # random gallery

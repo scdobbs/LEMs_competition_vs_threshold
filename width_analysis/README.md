@@ -200,33 +200,48 @@ python -m width_analysis.run_constrained --stage full         # 10 per bin per s
 - **Constrained bank pick.** Candidates are the convex breaks of Phase 3
   (convexity >= 0.05 m^-1, mean slope from the thalweg >= 0.10). Searching
   outward, the first candidate with relief in [`bank_min_relief_m`,
-  `bank_max_relief_m`] = [0.3, 1.5] m and offset <= `bank_max_offset_m` = 6 m
-  is the bank. A side is `none_within_window` when a candidate in the relief
-  window exists only beyond the offset limit, `no_break` when none exists.
+  `bank_max_relief_m`] = [0.3, 4.0] m (ceiling raised from 1.5 m after the
+  checkpoint, where 2-4 m deep incised channels came back as no_break) and
+  offset <= `bank_max_offset_m` = 6 m is the bank. A side is
+  `none_within_window` when a candidate in the relief window exists only
+  beyond the offset limit; `wall` when no candidate is in the window and the
+  profile rises above the ceiling within the offset limit (a valley wall or
+  cliff; its first break, if any, is above the ceiling); `no_break` otherwise.
 - **Point class** (majority over the transects; ties are `ambiguous`):
-  `inner_channel` (both banks; W_bank = distance between picks),
-  `wide_or_terrace` (one or both sides `none_within_window`, none `no_break`;
-  right-censored at 2 x offset limit), `unresolved_narrow` (both `no_break`
-  and V-shaped; left-censored at 2 delta), `ambiguous` (no width).
-  `inconsistent_along_stream` when fewer than 3 transects agree on whether an
-  inner channel exists (only possible when transects are missing);
-  `asymmetric_banks` when the median relief at the two picks differs by more
-  than a factor of 2 (benches, terraces).
-- **Consistency width.** `W_stage_bank` is the height-above-thalweg width at
-  the mean relief of the two picks; `ratio_bank_over_stage` should be within
-  about 25 % of 1 for a real channel.
-- **Exceedance.** A point is shown to exceed T when it is `inner_channel` with
-  W_bank > T, or `wide_or_terrace` with T <= 2 x offset limit.
-  `unresolved_narrow` and `ambiguous` points are never shown to exceed.
-  Fractions per A bin and site carry Clopper-Pearson 95 % intervals.
+  `inner_channel` (both banks), `one_bank` (bank + wall, flag `wall_bounded`),
+  `wide_or_terrace` (one or both sides `none_within_window`, the rest bank;
+  right-censored at 2 x offset limit), `unresolved_narrow` (both `no_break`,
+  V-shaped and `W_stage_0.25` <= 2 delta; left-censored at 2 delta),
+  `unresolved_wide` (both `no_break` otherwise: a flat floor, or wider than
+  2 delta at 0.25 m with no bank anywhere; no width), `ambiguous` (anything
+  else; no width). `inconsistent_along_stream` when fewer than 3 transects
+  agree on whether a resolved channel exists; `asymmetric_banks` when the
+  median relief at the two picks differs by more than a factor of 2.
+- **Two widths, never merged.** `W_trench` is the break-to-break width
+  (`inner_channel`), or the width at the accepted bank's relief (`one_bank`).
+  `W_bed` is `W_stage_0.5`, the width 0.5 m above the thalweg, on every
+  point. `trench_depth_m` is the mean relief of the two picks (or of the one
+  accepted bank). `W_stage_bank` (width at the mean pick relief) and
+  `ratio_trench_over_stage` are the consistency check on `inner_channel`
+  points.
+- **Exceedance.** Conservative (`measure = bed`): resolved (`inner_channel`,
+  `one_bank`) and `wide_or_terrace` points are shown to exceed T when
+  `W_bed` > T. Trench-based (`measure = trench`): resolved points when
+  `W_trench` > T, `wide_or_terrace` when T <= 2 x offset limit. Unresolved and
+  ambiguous points are never shown to exceed (their 0.5 m width is a valley
+  floor or hollow, not a bed). Fractions per A bin and site carry
+  Clopper-Pearson 95 % intervals.
 - **Window sensitivity.** Every point is re-classified over offset {4, 6, 8} m
-  x relief {1.0, 1.5, 2.0} m from the stored transects. The window is called
-  binding when more than 20 % of W_bank lie within 1 m of 2 x offset, or the
-  `wide_or_terrace` fraction moves by more than 0.15 between offset 4 and 8 m.
-- **Fit.** Tobit with left- and right-censored points at their bounds, 1000
-  bootstrap samples, at the default window and the two extremes. Regime
-  outputs are written only if the 95 % CI on b lies within [0, 1] and the
-  window is not binding; `regime_outputs_note.txt` says why otherwise.
-- **Validation export.** `validation_points.gpkg` / `.csv`: every
-  `inner_channel` and `wide_or_terrace` point with W_bank, W_stage_bank,
-  class, flags, and empty `W_imagery_m`, `imagery_source` columns.
+  x relief {1.5, 2.5, 4.0} m from the stored transects. The window is called
+  binding when more than 20 % of `W_trench` lie within 1 m of 2 x offset, or
+  the `wide_or_terrace` fraction moves by more than 0.15 between offset 4 and
+  8 m.
+- **Fit.** Tobit on `W_trench` (resolved points observed, `wide_or_terrace`
+  right-censored, `unresolved_narrow` left-censored), 1000 bootstrap samples,
+  at the default window and the two extremes. Regime outputs are written only
+  if the 95 % CI on b lies within [0, 1] and the window is not binding;
+  `regime_outputs_note.txt` says why otherwise.
+- **Validation export.** `validation_points.gpkg` / `.csv`: every resolved
+  and `wide_or_terrace` point with `W_trench`, `W_bed`, `trench_depth_m`,
+  `W_stage_bank`, class, flags, and empty `W_imagery_m`, `imagery_source`
+  columns.

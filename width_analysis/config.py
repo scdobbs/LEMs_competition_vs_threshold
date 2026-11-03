@@ -97,13 +97,13 @@ CONSTRAINED: dict = {
     "full_points_per_bin": 10,           # about 50 per site
     "checkpoint_per_bin": 2,             # first 2 accepted per bin = 10 per site for the checkpoint
     "transect_offsets_m": [-10.0, -5.0, 0.0, 5.0, 10.0],   # along-stream offsets (negative = upstream)
-    "bank_min_relief_m": 0.3,            # a bank pick must sit 0.3 to 1.5 m above the thalweg
-    "bank_max_relief_m": 1.5,
+    "bank_min_relief_m": 0.3,            # a bank pick must sit 0.3 to 4.0 m above the thalweg (ceiling raised from 1.5 m after the checkpoint)
+    "bank_max_relief_m": 4.0,
     "bank_max_offset_m": 6.0,            # and within 6 m of the thalweg horizontally
     "asymmetry_factor": 2.0,             # relief at the two picks differing by more than this -> asymmetric_banks
     "min_agreeing_transects": 3,         # fewer transects agreeing on inner-channel presence -> inconsistent_along_stream
     "sensitivity_offsets_m": [4.0, 6.0, 8.0],
-    "sensitivity_reliefs_m": [1.0, 1.5, 2.0],
+    "sensitivity_reliefs_m": [1.5, 2.5, 4.0],
     "exceedance_thresholds_m": [1.0, 2.0, 5.0, 10.0],
     "binding_pileup_fraction": 0.2,      # window is binding if > this fraction of W_bank lies within 1 m of 2 x offset
     "binding_wide_jump": 0.15,           # or the wide_or_terrace fraction changes by more than this from offset 4 to 8
