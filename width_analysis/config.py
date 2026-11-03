@@ -84,3 +84,29 @@ SWEEP_DX_MAX_M = 100.0
 
 SITES = {"AP": "Allegheny Plateau", "GM": "Gabilan Mesa"}
 TILES = [1, 2, 3, 4, 5]
+
+
+# ---------------------------------------------------------------------------
+# Constrained re-run (reports/directives/channel_width_constrained_directive.md)
+# These keys are read only by width_analysis.constrained / run_constrained;
+# the Phase 3 behaviour of run.py is unchanged.
+# ---------------------------------------------------------------------------
+CONSTRAINED: dict = {
+    "a_min_sample_m2": 1.0e5,            # channel pixels with A >= 1e5 m^2 only
+    "n_area_bins": 5,                    # log-spaced from 1e5 m^2 to the site maximum
+    "full_points_per_bin": 10,           # about 50 per site
+    "checkpoint_per_bin": 2,             # first 2 accepted per bin = 10 per site for the checkpoint
+    "transect_offsets_m": [-10.0, -5.0, 0.0, 5.0, 10.0],   # along-stream offsets (negative = upstream)
+    "bank_min_relief_m": 0.3,            # a bank pick must sit 0.3 to 1.5 m above the thalweg
+    "bank_max_relief_m": 1.5,
+    "bank_max_offset_m": 6.0,            # and within 6 m of the thalweg horizontally
+    "asymmetry_factor": 2.0,             # relief at the two picks differing by more than this -> asymmetric_banks
+    "min_agreeing_transects": 3,         # fewer transects agreeing on inner-channel presence -> inconsistent_along_stream
+    "sensitivity_offsets_m": [4.0, 6.0, 8.0],
+    "sensitivity_reliefs_m": [1.0, 1.5, 2.0],
+    "exceedance_thresholds_m": [1.0, 2.0, 5.0, 10.0],
+    "binding_pileup_fraction": 0.2,      # window is binding if > this fraction of W_bank lies within 1 m of 2 x offset
+    "binding_wide_jump": 0.15,           # or the wide_or_terrace fraction changes by more than this from offset 4 to 8
+    "qc_gallery_per_site": 20,
+    "output_dir": "outputs/widths_constrained",
+}

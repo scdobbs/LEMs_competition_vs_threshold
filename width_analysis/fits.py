@@ -16,48 +16,62 @@ from scipy.stats import norm
 # Tobit (left-censored) maximum likelihood
 # ---------------------------------------------------------------------------
 
-def tobit_nll(theta: np.ndarray, x: np.ndarray, y: np.ndarray, cens: np.ndarray, ybound: np.ndarray) -> float:
-    """Negative log-likelihood of y = a + b x + N(0, sigma^2), with y <= ybound
-    observed only as the bound where ``cens`` is True."""
+def tobit_nll(theta: np.ndarray, x: np.ndarray, y: np.ndarray, cens: np.ndarray, ybound: np.ndarray,
+              cens_right: np.ndarray | None = None) -> float:
+    """Negative log-likelihood of y = a + b x + N(0, sigma^2).
+
+    Left-censored points (``cens``) are observed only as y <= ybound;
+    right-censored points (``cens_right``) only as y >= ybound.
+    """
     a, b, log_sigma = theta
     sigma = np.exp(log_sigma)
     mu = a + b * x
-    ll_obs = norm.logpdf(y[~cens], loc=mu[~cens], scale=sigma)
-    ll_cen = log_ndtr((ybound[cens] - mu[cens]) / sigma)
-    return -(ll_obs.sum() + ll_cen.sum())
+    if cens_right is None:
+        cens_right = np.zeros_like(cens)
+    obs = ~cens & ~cens_right
+    ll_obs = norm.logpdf(y[obs], loc=mu[obs], scale=sigma)
+    ll_left = log_ndtr((ybound[cens] - mu[cens]) / sigma)
+    ll_right = log_ndtr(-(ybound[cens_right] - mu[cens_right]) / sigma)
+    return -(ll_obs.sum() + ll_left.sum() + ll_right.sum())
 
 
-def tobit_fit(logA: np.ndarray, logW: np.ndarray, censored: np.ndarray, log_bound: np.ndarray) -> dict:
+def tobit_fit(logA: np.ndarray, logW: np.ndarray, censored: np.ndarray, log_bound: np.ndarray,
+              censored_right: np.ndarray | None = None) -> dict:
     """Censored MLE of log10 W = a + b log10 A.
 
-    ``logW`` of censored points is ignored; ``log_bound`` is used there.
-    Returns dict(a, b, sigma, c, converged, n, n_censored, nll).
+    ``logW`` of censored points is ignored; ``log_bound`` is used there
+    (left-censored by default, right-censored where ``censored_right``).
+    Returns dict(a, b, sigma, c, converged, n, n_censored, n_censored_right, nll).
     """
     x = np.asarray(logA, float)
     y = np.asarray(logW, float)
     cens = np.asarray(censored, bool)
+    cr = np.zeros_like(cens) if censored_right is None else np.asarray(censored_right, bool)
     yb = np.asarray(log_bound, float)
-    y = np.where(cens, yb, y)
-    out = dict(a=np.nan, b=np.nan, sigma=np.nan, c=np.nan, converged=False, n=int(len(x)), n_censored=int(cens.sum()), nll=np.nan)
-    if len(x) < 3 or (~cens).sum() < 2:
+    y = np.where(cens | cr, yb, y)
+    out = dict(a=np.nan, b=np.nan, sigma=np.nan, c=np.nan, converged=False, n=int(len(x)),
+               n_censored=int(cens.sum()), n_censored_right=int(cr.sum()), nll=np.nan)
+    if len(x) < 3 or (~cens & ~cr).sum() < 2:
         return out
     # start from OLS on everything (censored at their bounds)
     b0, a0 = np.polyfit(x, y, 1)
     s0 = max(np.std(y - (a0 + b0 * x)), 0.05)
-    res = minimize(tobit_nll, np.array([a0, b0, np.log(s0)]), args=(x, y, cens, yb), method="Nelder-Mead",
+    res = minimize(tobit_nll, np.array([a0, b0, np.log(s0)]), args=(x, y, cens, yb, cr), method="Nelder-Mead",
                    options=dict(xatol=1e-7, fatol=1e-9, maxiter=20000))
     a, b, ls = res.x
     out.update(a=float(a), b=float(b), sigma=float(np.exp(ls)), c=float(10 ** a), converged=bool(res.success), nll=float(res.fun))
     return out
 
 
-def bootstrap_tobit(logA, logW, censored, log_bound, n_boot: int, rng: np.random.Generator) -> np.ndarray:
+def bootstrap_tobit(logA, logW, censored, log_bound, n_boot: int, rng: np.random.Generator,
+                    censored_right=None) -> np.ndarray:
     """Pairs-bootstrap of the Tobit fit. Returns an (n_ok, 2) array of (a, b)."""
     n = len(logA)
+    cr = np.zeros(n, bool) if censored_right is None else np.asarray(censored_right, bool)
     out = []
     for _ in range(n_boot):
         idx = rng.integers(0, n, n)
-        f = tobit_fit(logA[idx], logW[idx], censored[idx], log_bound[idx])
+        f = tobit_fit(logA[idx], logW[idx], censored[idx], log_bound[idx], cr[idx])
         if np.isfinite(f["a"]) and np.isfinite(f["b"]):
             out.append((f["a"], f["b"]))
     return np.array(out).reshape(-1, 2)

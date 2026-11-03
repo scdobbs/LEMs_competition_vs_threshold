@@ -266,3 +266,108 @@ def test_regime_fraction_monotone_in_dx():
     fr = regime_fraction(chan, np.log10(0.02), 0.45, dxs)
     assert np.all(np.diff(fr) <= 0) and 0 < fr[0] <= 1
     assert width_of(np.array([1e4]), np.log10(0.02), 0.5)[0] == pytest.approx(2.0)
+
+
+# ---------------------------------------------------------------------------
+# constrained pick (reports/directives/channel_width_constrained_directive.md)
+# ---------------------------------------------------------------------------
+
+from width_analysis.config import CONSTRAINED  # noqa: E402
+from width_analysis.constrained import measure_transect, aggregate, classify, shown_to_exceed, clopper_pearson  # noqa: E402
+
+
+def channel(bed=3.0, bank_slope=2.0, bank_height=1.0, hill_slope=0.05):
+    """Trapezoid: bed, banks of given slope and height, then a gentle floodplain. Top width = bed + 2 h / slope."""
+    a = np.abs(S) - bed / 2
+    z = np.where(a <= 0, 0.0, np.minimum(a * bank_slope, bank_height))
+    beyond = a - bank_height / bank_slope
+    return z + np.where(beyond > 0, beyond * hill_slope, 0.0)
+
+
+def _point(z, **over):
+    ccfg = dict(CONSTRAINED, **over)
+    m = measure_transect(S, z, PIX, CONFIG, ccfg)
+    return m, aggregate([m], PIX, ccfg)
+
+
+def test_constrained_trapezoid_4m_is_inner_channel():
+    z = channel(bed=3.0, bank_slope=2.0, bank_height=1.0)          # bank tops at +/- 2 m
+    m, agg = _point(z)
+    assert agg["point_class"] == "inner_channel"
+    assert agg["W_bank"] == pytest.approx(4.0, abs=0.6)
+    assert 0.3 <= agg["relief_left_m"] <= 1.5
+    assert agg["ratio_bank_over_stage"] == pytest.approx(1.0, abs=0.25)
+    assert "asymmetric_banks" not in agg["qc_flags"]
+
+
+def test_constrained_channel_inset_in_30m_hollow_picks_the_channel():
+    hollow = 3.0 * (S / 15.0) ** 2                                   # 30 m wide parabolic hollow, 3 m deep at its lip
+    z = channel(bed=3.0, bank_slope=2.0, bank_height=1.0, hill_slope=0.0) + hollow
+    m, agg = _point(z)
+    assert agg["point_class"] == "inner_channel"
+    assert agg["W_bank"] == pytest.approx(4.0, abs=0.8)              # not 30 m
+    # the unconstrained Phase 3 pick on the same section lands at the inner banks here too, but with
+    # a window of 20 m it would accept the hollow lip: check the constraint actually bites
+    m_wide, agg_wide = _point(z, bank_max_offset_m=20.0, bank_max_relief_m=5.0)
+    assert agg_wide["W_bank"] == pytest.approx(4.0, abs=0.8)         # nearest-first search still prefers the inner bank
+
+
+def test_constrained_14m_channel_is_wide_or_terrace():
+    z = channel(bed=13.0, bank_slope=2.0, bank_height=1.0)         # bank tops at +/- 7 m > 6 m offset limit
+    m, agg = _point(z)
+    assert m["left_class"] == "none_within_window" and m["right_class"] == "none_within_window"
+    assert agg["point_class"] == "wide_or_terrace"
+    assert agg["fit_censor"] == "right" and agg["W_fit"] == pytest.approx(12.0)
+    assert shown_to_exceed(agg, 10.0) and shown_to_exceed(agg, 5.0) and not shown_to_exceed(agg, 15.0)
+    m8, agg8 = _point(z, bank_max_offset_m=8.0)                      # a wider window resolves it
+    assert agg8["point_class"] == "inner_channel" and agg8["W_bank"] == pytest.approx(14.0, abs=0.8)
+
+
+def test_constrained_bench_on_one_side_is_asymmetric():
+    # left bank 1 m high at -2 m; right bank only 0.4 m high at +2 m then a flat bench to +12 m, then the valley wall
+    left = np.where(S < 0, np.minimum((-S - 1.5).clip(0) * 2.0, 1.0) + (-S - 2.0).clip(0) * 0.05, 0.0)
+    right = np.where(S > 0, np.minimum((S - 1.5).clip(0) * 2.0, 0.4) + (S - 12.0).clip(0) * 0.6, 0.0)
+    z = left + right
+    m, agg = _point(z)
+    assert agg["point_class"] == "inner_channel"
+    assert "asymmetric_banks" in agg["qc_flags"]
+    assert agg["relief_left_m"] / agg["relief_right_m"] > 2.0
+
+
+def test_constrained_plain_v_is_unresolved_narrow():
+    m, agg = _point(v_shape(0.5))
+    assert m["left_class"] == "no_break" and m["right_class"] == "no_break"
+    assert agg["point_class"] == "unresolved_narrow"
+    assert agg["fit_censor"] == "left" and agg["W_fit"] == pytest.approx(2.0)
+    assert not shown_to_exceed(agg, 1.0)
+
+
+def test_constrained_classification_rules_and_intervals():
+    assert classify("bank", "bank", "v_shape") == "inner_channel"
+    assert classify("bank", "none_within_window", "v_shape") == "wide_or_terrace"
+    assert classify("none_within_window", "none_within_window", "flat_bed") == "wide_or_terrace"
+    assert classify("no_break", "no_break", "v_shape") == "unresolved_narrow"
+    assert classify("no_break", "no_break", "flat_bed") == "ambiguous"
+    assert classify("bank", "no_break", "v_shape") == "ambiguous"
+    lo, hi = clopper_pearson(5, 10)
+    assert lo == pytest.approx(0.187, abs=0.01) and hi == pytest.approx(0.813, abs=0.01)
+    assert clopper_pearson(0, 10)[0] == 0.0 and clopper_pearson(10, 10)[1] == 1.0
+
+
+def test_constrained_aggregate_majority_and_consistency():
+    z_ch = channel(bed=3.0, bank_slope=2.0, bank_height=1.0)
+    ccfg = dict(CONSTRAINED)
+    ms = [measure_transect(S, z_ch, PIX, CONFIG, ccfg)] * 3 + [measure_transect(S, v_shape(0.5), PIX, CONFIG, ccfg)] * 2
+    agg = aggregate(ms, PIX, ccfg)
+    assert agg["point_class"] == "inner_channel" and agg["W_bank_n_valid"] == 3 and agg["n_transects"] == 5
+    assert "inconsistent_along_stream" not in agg["qc_flags"]
+    agg2 = aggregate(ms[:2] + ms[3:5], PIX, ccfg)                     # 2 vs 2 with one transect missing
+    assert agg2["point_class"] == "ambiguous" and "inconsistent_along_stream" in agg2["qc_flags"]
+
+
+def test_tobit_right_censoring():
+    logA, logW, cens, lb = _synthetic_widths(n=150, c=0.02, b=0.45)
+    right = logW > np.log10(12.0)
+    lb2 = np.where(right, np.log10(12.0), lb)
+    f = tobit_fit(logA, logW, cens & ~right, lb2, right)
+    assert f["converged"] and f["b"] == pytest.approx(0.45, abs=0.06)
