@@ -34,7 +34,8 @@ from .heads import EXCLUSION_REASONS, curvature_grid, measure_heads
 HEAD_COLUMNS = ["site", "tile", "row", "col", "x", "y", "area_m2", "a_crit_m2", "kept", "reason",
                 "S_up_5", "S_up_10", "S_up_20", "S_centred_5", "S_centred_10", "S_centred_20", "S_pixel", "AS2",
                 "plan_curvature", "plan_curvature_sign", "convergent", "edge_distance_m", "upslope_path_m",
-                "downslope_path_m", "trace_slope_20m", "flag_tile_edge", "flag_path_leaves_tile", "flag_flat_fill"]
+                "downslope_path_m", "trace_slope_20m", "flag_tile_edge", "flag_path_leaves_tile", "flag_flat_fill",
+                "flag_upslope_flat"]
 
 
 def _git_hash() -> str:
@@ -117,6 +118,7 @@ def summarize(heads: pd.DataFrame, cfg: dict) -> pd.DataFrame:
         row["AS2_median"] = k.AS2.median()
         row["convergent_fraction"] = k.convergent.mean() if len(k) else np.nan
         row["n_curvature_defined"] = int(np.isfinite(k.plan_curvature).sum())
+        row["n_kept_upslope_flat"] = int(k.flag_upslope_flat.sum())
         rows.append(row)
     return pd.DataFrame(rows)
 

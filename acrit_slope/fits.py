@@ -89,7 +89,9 @@ def two_level_bootstrap(keys, logA: dict, site: dict, head_slopes: dict, method:
             ys.append(logA[k])
             gs.append(site[k])
         xs, ys, gs = np.array(xs), np.array(ys), np.array(gs)
-        if np.std(xs) == 0 or len(set(gs.tolist())) < (2 if method == "common_slope" else 1):
+        # a resample made of one repeated tile has no spread in A_crit (and none in x
+        # beyond head resampling): no line is defined, so the draw is skipped
+        if np.std(xs) == 0 or np.std(ys) == 0 or len(set(gs.tolist())) < (2 if method == "common_slope" else 1):
             n_skip += 1
             continue
         if method == "OLS":
@@ -102,6 +104,11 @@ def two_level_bootstrap(keys, logA: dict, site: dict, head_slopes: dict, method:
             f = fit_common_slope(xs, ys, gs)
             for lv, v in f["intercepts"].items():
                 ints.setdefault(lv, []).append(v)
+        if not np.isfinite(f["b"]):
+            n_skip += 1
+            if as_ and method != "common_slope":
+                as_.pop()
+            continue
         bs.append(f["b"])
     return dict(b=np.array(bs), a=np.array(as_) if as_ else None,
                 intercepts={k: np.array(v) for k, v in ints.items()}, n_ok=len(bs), n_skipped=n_skip)

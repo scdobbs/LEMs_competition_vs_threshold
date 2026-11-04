@@ -236,8 +236,7 @@ def fig_slope_area_structure(pseudo: pd.DataFrame, summary: pd.DataFrame, supp: 
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_xlabel("area threshold at the pseudo-heads (m²)")
-        ax.set_title(f"{site}: median {slope_col.replace('_', ' ')} m of heads detected at each threshold; "
-                     "large marker = A_crit", fontsize=9, loc="left", color=C_TEXT)
+        ax.set_title(f"{site}: median head slope at each threshold (large marker: at A_crit)", fontsize=9, loc="left", color=C_TEXT)
         _style(ax)
     axes[0].set_ylabel("median head slope (m/m)")
     th = supp["within_tile_slope_area"]

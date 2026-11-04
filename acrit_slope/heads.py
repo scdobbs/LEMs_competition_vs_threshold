@@ -215,6 +215,9 @@ def measure_heads(tile: Tile, graph: FlowGraph, a_crit: float, cfg: dict, curv=N
                    reason=reason, kept=(reason == ""))
         rec.update(s)
         rec.update({f"flag_{k}": bool(v) for k, v in flags.items()})
+        # QC only (not an exclusion): the fit window itself is flat, i.e. the head sits at the
+        # downstream lip of a filled flat that the +/- 10 m trace proxy does not catch
+        rec["flag_upslope_flat"] = bool(np.isfinite(s[f"S_up_{cfg['L_default_m']:g}"]) and s[f"S_up_{cfg['L_default_m']:g}"] < cfg["flat_fill_slope_max"])
         rec["AS2"] = rec["area_m2"] * rec[f"S_up_{cfg['L_default_m']:g}"] ** 2
         out.append(rec)
     return out
