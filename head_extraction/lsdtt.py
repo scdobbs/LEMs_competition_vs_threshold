@@ -40,11 +40,12 @@ def export_bil(tile: Tile, work: Path, name: str) -> Path:
     return path
 
 
-def write_driver(work: Path, name: str, m_over_n: float, cfg: dict, tcp: int, wiener: bool) -> Path:
+def write_driver(work: Path, name: str, m_over_n: float, cfg: dict, tcp: int, wiener: bool, dreich: bool = True) -> Path:
+    tag = f"{name}_tcp{tcp}" if dreich else f"{name}_wiener"
     lines = [
-        f"read path: {work}", f"write path: {work}", f"read fname: {name}", f"write fname: {name}_tcp{tcp}",
+        f"read path: {work}", f"write path: {work}", f"read fname: {name}", f"write fname: {tag}",
         "raster_is_filled: true", f"min_slope_for_fill: {cfg['min_slope_for_fill']}",
-        "print_area_threshold_channels: false", "print_dreich_channels: true",
+        "print_area_threshold_channels: false", f"print_dreich_channels: {'true' if dreich else 'false'}",
         f"print_wiener_channels: {'true' if wiener else 'false'}", "print_pelletier_channels: false",
         f"m_over_n: {m_over_n}", f"A_0: {cfg['A_0']}", f"number_of_junctions_dreich: {cfg['number_of_junctions_dreich']}",
         f"threshold_contributing_pixels: {tcp}", f"pruning_drainage_area: {cfg['pruning_drainage_area']}",
@@ -52,7 +53,7 @@ def write_driver(work: Path, name: str, m_over_n: float, cfg: dict, tcp: int, wi
         f"curvature_threshold: {cfg['curvature_threshold']}", f"surface_fitting_radius: {cfg['surface_fitting_radius']}",
         "print_sources_to_csv: true", "print_channels_to_csv: false", "print_curvature_raster: false",
     ]
-    p = work / f"{name}_tcp{tcp}.driver"
+    p = work / f"{tag}.driver"
     p.write_text("\n".join(lines) + "\n")
     return p
 
@@ -72,23 +73,30 @@ def run_tile(tile: Tile, m_over_n: float, cfg: dict, work_root: Path, tcps=None,
     t0 = time.time()
     export_bil(tile, work, name)
     frames = []
-    for k, tcp in enumerate(tcps or [cfg["threshold_contributing_pixels"]]):
+    # LSDTT's Wiener heads in their own run: a DrEICH crash in the same process would lose them
+    runs = ([("wiener", None)] if cfg["print_wiener_channels"] else []) + [("dreich", tcp) for tcp in (tcps or [cfg["threshold_contributing_pixels"]])]
+    for kind, tcp in runs:
         if deadline is not None and time.time() > deadline:
-            out["log"].append(f"time cap reached before tcp={tcp}")
+            out["log"].append(f"time cap reached before {kind} tcp={tcp}")
             break
-        drv = write_driver(work, name, m_over_n, cfg, tcp, cfg["print_wiener_channels"] and k == 0)
-        log = work / f"{name}_tcp{tcp}.log"
+        if kind == "wiener":
+            drv = write_driver(work, name, m_over_n, cfg, cfg["threshold_contributing_pixels"], True, dreich=False)
+            tag, tcp = f"{name}_wiener", cfg["threshold_contributing_pixels"]
+        else:
+            drv = write_driver(work, name, m_over_n, cfg, tcp, False, dreich=True)
+            tag = f"{name}_tcp{tcp}"
+        log = work / f"{tag}.log"
         with open(log, "w") as fh:
             try:
                 # LSDTT takes two arguments: the directory (with trailing slash) and the driver file name
                 proc = subprocess.run([exe, str(work) + "/", drv.name], cwd=work, stdout=fh, stderr=subprocess.STDOUT, check=False,
                                       timeout=max(60, (deadline - time.time()) if deadline else 3600))
-                out["log"].append(f"tcp={tcp}: exit code {proc.returncode}")
+                out["log"].append(f"{tag}: exit code {proc.returncode}")
             except subprocess.TimeoutExpired:
-                out["log"].append(f"tcp={tcp}: timed out")
+                out["log"].append(f"{tag}: timed out")
                 continue
-        found = sorted(glob.glob(str(work / f"{name}_tcp{tcp}*sources*.csv")))
-        out["log"].append(f"tcp={tcp}: outputs {[os.path.basename(f) for f in sorted(glob.glob(str(work / f'{name}_tcp{tcp}*')))]}")
+        found = sorted(glob.glob(str(work / f"{tag}*sources*.csv")))
+        out["log"].append(f"{tag}: outputs {[os.path.basename(f) for f in sorted(glob.glob(str(work / f'{tag}*')))]}")
         for f in found:
             df = parse_sources(f, tile)
             if df is None or len(df) == 0:
