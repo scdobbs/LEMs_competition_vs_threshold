@@ -81,19 +81,21 @@ def run_tile(tile: Tile, m_over_n: float, cfg: dict, work_root: Path, tcps=None,
         with open(log, "w") as fh:
             try:
                 # LSDTT takes two arguments: the directory (with trailing slash) and the driver file name
-                subprocess.run([exe, str(work) + "/", drv.name], cwd=work, stdout=fh, stderr=subprocess.STDOUT, check=False,
-                               timeout=max(60, (deadline - time.time()) if deadline else 3600))
+                proc = subprocess.run([exe, str(work) + "/", drv.name], cwd=work, stdout=fh, stderr=subprocess.STDOUT, check=False,
+                                      timeout=max(60, (deadline - time.time()) if deadline else 3600))
+                out["log"].append(f"tcp={tcp}: exit code {proc.returncode}")
             except subprocess.TimeoutExpired:
                 out["log"].append(f"tcp={tcp}: timed out")
                 continue
-        found = sorted(glob.glob(str(work / f"{name}_tcp{tcp}*.csv")))
-        out["log"].append(f"tcp={tcp}: outputs {[os.path.basename(f) for f in found]}")
+        found = sorted(glob.glob(str(work / f"{name}_tcp{tcp}*sources*.csv")))
+        out["log"].append(f"tcp={tcp}: outputs {[os.path.basename(f) for f in sorted(glob.glob(str(work / f'{name}_tcp{tcp}*')))]}")
         for f in found:
             df = parse_sources(f, tile)
             if df is None or len(df) == 0:
                 continue
             base = os.path.basename(f).lower()
-            method = "D" if "dreich" in base else ("W" if "wiener" in base else ("Pl" if "pelletier" in base else "?"))
+            # LSDTT names: <fname>_Wsources.csv (wiener), _Dsources.csv (dreich), _Psources.csv (pelletier), _ATsources.csv (area threshold)
+            method = "D" if "_dsources" in base else ("W" if "_wsources" in base else ("Pl" if "_psources" in base else "?"))
             if method == "?":
                 continue
             df["method"] = method
