@@ -110,11 +110,32 @@ def contour_curvature(z: np.ndarray, dx: float) -> np.ndarray:
 # 3. heads
 # ---------------------------------------------------------------------------
 
+class _quiet:
+    """Silence richdem's C++ progress bars (written straight to fd 1 and 2)."""
+
+    def __enter__(self):
+        import os
+        import sys
+        sys.stdout.flush(); sys.stderr.flush()
+        self._null = os.open(os.devnull, os.O_WRONLY)
+        self._saved = [os.dup(1), os.dup(2)]
+        os.dup2(self._null, 1); os.dup2(self._null, 2)
+        return self
+
+    def __exit__(self, *exc):
+        import os
+        os.dup2(self._saved[0], 1); os.dup2(self._saved[1], 2)
+        for fd in self._saved + [self._null]:
+            os.close(fd)
+        return False
+
+
 def condition(z: np.ndarray, epsilon: bool = True) -> np.ndarray:
     """Priority-flood depression filling (epsilon gradients) of the filtered DEM."""
     import richdem as rd
-    arr = rd.rdarray(np.ascontiguousarray(z, dtype=np.float64), no_data=-9999.0)
-    filled = rd.FillDepressions(arr, epsilon=epsilon, in_place=False)
+    with _quiet():
+        arr = rd.rdarray(np.ascontiguousarray(z, dtype=np.float64), no_data=-9999.0)
+        filled = rd.FillDepressions(arr, epsilon=epsilon, in_place=False)
     return np.array(filled, dtype=np.float64)
 
 
