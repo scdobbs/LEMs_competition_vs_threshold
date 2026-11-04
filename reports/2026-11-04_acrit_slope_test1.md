@@ -354,3 +354,77 @@ Read before deciding how to use this test in the manuscript.
 `fits.json`, `run_info.json`, `figures/` as listed. Code: `acrit_slope/`
 (`config.py` holds every threshold), tests `tests/test_acrit_slope.py`
 (10 passed in the job).
+
+## 9. Head-quality check (added 2026-11-04 after review)
+
+Steve's review of the QC maps questioned whether the blue dots are channel
+heads at all (GM5 heads inside the trunk valley; convex and plateau
+profiles). `acrit_slope/qc_diagnostics.py` redraws every QC map with log₁₀ A
+overlaid on the hillshade (`figures/qc_maps/`, pixels with A ≥ 10³ m² in a
+single-hue ramp, trunk = A ≥ 10⁵ m²), classifies every kept head
+(`heads_qc.csv`, `qc_class_summary.csv`) and repeats the fits on the
+remaining heads (`fits_hollow_only.json`). Job 51085854.
+
+Classes: `trunk_floor` = within 30 m of a trunk pixel and S_up_10 < 0.10;
+`plateau` = S_up_20 < 0.05; `hollow` = everything else (the name is the
+residual class, not a morphologic verdict). Profile shape over the upslope
+path: slope over 10–20 m divided by slope over 0–10 m, > 1.25 `steepening`,
+< 0.8 `flattening`, else `uniform`.
+
+| tile | kept | trunk_floor | plateau | residual "hollow" | steepening | uniform | flattening | median S_up_10 all | median S_up_10 residual |
+|---|---|---|---|---|---|---|---|---|---|
+| AP1 | 30 | 6 | 0 | 24 | 7 | 17 | 4 | 0.623 | 0.761 |
+| AP2 | 40 | 4 | 1 | 35 | 16 | 18 | 3 | 0.646 | 0.690 |
+| AP3 | 26 | 6 | 1 | 19 | 7 | 10 | 7 | 0.583 | 0.706 |
+| AP4 | 35 | 1 | 0 | 34 | 13 | 15 | 6 | 0.785 | 0.790 |
+| AP5 | 159 | 1 | 0 | 158 | 54 | 81 | 24 | 0.729 | 0.729 |
+| GM1 | 13 | 1 | 0 | 12 | 0 | 11 | 1 | 0.201 | 0.201 |
+| GM2 | 46 | 10 | 0 | 36 | 10 | 33 | 1 | 0.348 | 0.363 |
+| GM3 | 34 | 1 | 0 | 33 | 5 | 25 | 4 | 0.176 | 0.176 |
+| GM4 | 23 | 3 | 0 | 20 | 3 | 19 | 1 | 0.306 | 0.340 |
+| GM5 | 72 | 15 | 3 | 54 | 18 | 39 | 7 | 0.232 | 0.349 |
+
+What the overlays show, tile by tile (my reading; the maps are the evidence):
+
+- **GM5, GM2 (trunk floors).** 15 of 72 and 10 of 46 kept heads sit on the
+  floor of the trunk valley: parallel D8 paths run along the 30–60 m wide
+  floor beside the trunk and cross A_crit before they join it. These are
+  not heads of anything. The automatic class catches most of them; a few
+  more sit on the floor with slopes above 0.10.
+- **AP5 (rills and roads).** The great majority of its 159 heads are at the
+  tops of straight, parallel, closely spaced flow lines running directly
+  down the 35–40° valley walls in the south and north-east of the tile, and
+  along the two roads that cross it (ditch-line heads every few tens of
+  metres). The maps for the width work already identified AP5's small-A
+  "channels" as parallel rills on steep slopes. Almost none of these are
+  hollows in the Montgomery & Dietrich sense; the class filter does not
+  remove them because they are steep and far from the trunk.
+- **AP1–AP4 (walls, benches, roads).** Heads at A ≈ 6–10 × 10³ m² sit at
+  the lower ends of hollows where they drop over the steep valley walls,
+  on the walls themselves (parallel lines in the south-east of AP1), along
+  the trunk floor (triangles), and on benches and road cuts (the plateau
+  profiles in `qc_profiles/AP1.png`). The steepening profiles (7–16 per
+  tile) are heads at the base of a convex wall below a bench: slope
+  increases upslope because the path climbs the wall.
+- **GM1, GM3, GM4, and the hollow tips of GM2** are the only tiles where the
+  heads mostly look like M&D heads: single lines at the convergent tips of
+  broad hollows on the noses, uniform profiles (11 of 13, 25 of 34, 19 of
+  23), narrow slope distributions.
+
+Effect on the fits: removing the trunk_floor and plateau classes raises the
+GM5 median slope from 0.23 to 0.35 and the AP1/AP3 medians by 0.1–0.14,
+and leaves the result unchanged: ten-tile OLS b = −0.01 [−0.63, 0.88],
+r² = 0.00; common slope with site intercepts b = −1.08 [−2.57, 1.13],
+r² = 0.21.
+
+Assessment. The question "do these heads obey A S² = const" cannot be
+answered with this head set, independently of the fit result, because on
+AP the set is dominated by rills, wall-base points and road ditches, and on
+GM it is contaminated by valley-floor paths. The negative result in
+sections 4–7 therefore says only that the partition's threshold crossings
+are not channel heads; it does not test whether real channel heads on these
+tiles follow M&D. To test that, the heads have to be found
+morphologically (bank-defined, as in the width work's channelized points,
+or by curvature-based extraction), and the hollow slope above them measured;
+A_crit then enters as the model's prediction to be compared with the
+envelope of real heads. That is a different directive.

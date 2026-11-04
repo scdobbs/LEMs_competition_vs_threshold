@@ -245,3 +245,53 @@ def fig_slope_area_structure(pseudo: pd.DataFrame, summary: pd.DataFrame, supp: 
     fig.tight_layout()
     fig.savefig(out, dpi=200)
     plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# figure 4 (revised): QC map with log10 drainage area overlaid
+# ---------------------------------------------------------------------------
+
+C_CLASS = {"hollow": "#2a78d6", "trunk_floor": "#4a3aa7", "plateau": "#e34948"}   # blue, violet, red
+M_CLASS = {"hollow": "o", "trunk_floor": "^", "plateau": "s"}
+
+
+def fig_qc_map_area(tile, heads: pd.DataFrame, cfg: dict, qc: dict, out: Path) -> None:
+    """Hillshade + log10 A (single-hue sequential, A >= area_overlay_min_m2) + heads by class / reason."""
+    from matplotlib.colors import LogNorm
+    hs = hillshade(tile.z, tile.dx, tile.dy, cfg["hillshade_azimuth_deg"], cfg["hillshade_altitude_deg"])
+    ny, nx = tile.shape
+    ext = (tile.x0, tile.x0 + nx * tile.dx, tile.y0 - ny * tile.dy, tile.y0)
+    fig, ax = plt.subplots(figsize=(8.6, 8.0), facecolor="white")
+    ax.imshow(hs, cmap="gray", vmin=0, vmax=1, extent=ext, interpolation="nearest")
+    a = np.where(tile.area >= qc["area_overlay_min_m2"], tile.area, np.nan)
+    im = ax.imshow(a, cmap="YlOrBr", norm=LogNorm(vmin=qc["area_overlay_min_m2"], vmax=max(1e6, np.nanmax(a))),
+                   extent=ext, interpolation="nearest", alpha=0.85)
+    cb = fig.colorbar(im, ax=ax, fraction=0.035, pad=0.01)
+    cb.set_label("drainage area A (m²), pixels with A ≥ 10³ m²", fontsize=8)
+    cb.ax.tick_params(labelsize=7)
+    kept = heads[heads.kept]
+    for cls in ("hollow", "trunk_floor", "plateau"):
+        sub = kept[kept.head_class == cls] if "head_class" in kept else (kept if cls == "hollow" else kept.iloc[:0])
+        if len(sub):
+            ax.plot(sub.x, sub.y, M_CLASS[cls], color=C_CLASS[cls], ms=5, mec="white", mew=0.6, ls="none",
+                    label=f"kept, {cls} (n = {len(sub)})")
+    for r in EXCLUSION_REASONS:
+        sub = heads[heads.reason == r]
+        if len(sub):
+            ax.plot(sub.x, sub.y, "x", color=C_REASON[r], ms=4, mew=1.0, ls="none", label=f"excluded, {r} (n = {len(sub)})")
+    b = cfg["edge_buffer_m"]
+    ax.plot([ext[0] + b, ext[1] - b, ext[1] - b, ext[0] + b, ext[0] + b], [ext[2] + b, ext[2] + b, ext[3] - b, ext[3] - b, ext[2] + b],
+            color=C_MUTED, lw=0.8, ls=(0, (3, 3)), label=f"{b:g} m edge buffer")
+    ax.plot([ext[0] + 40, ext[0] + 140], [ext[2] + 40, ext[2] + 40], color="white", lw=3)
+    ax.text(ext[0] + 90, ext[2] + 48, "100 m", color="white", ha="center", fontsize=8)
+    ax.set_xlim(ext[0], ext[1])
+    ax.set_ylim(ext[2], ext[3])
+    ax.set_aspect("equal")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_title(f"{tile.site} tile {tile.tile}: partition heads at A_crit = {heads.a_crit_m2.iloc[0]:.3g} m² "
+                 f"({len(heads)} detected, {len(kept)} kept); trunk = A ≥ {qc['trunk_area_m2']:g} m²", fontsize=9.5, loc="left", color=C_TEXT)
+    ax.legend(loc="lower right", fontsize=7, frameon=True, framealpha=0.9)
+    fig.tight_layout()
+    fig.savefig(out, dpi=170)
+    plt.close(fig)
