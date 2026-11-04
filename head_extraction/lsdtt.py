@@ -64,7 +64,7 @@ def run_tile(tile: Tile, m_over_n: float, cfg: dict, work_root: Path, tcps=None,
     """
     exe = binary_available(cfg)
     name = f"{tile.site}{tile.tile}"
-    work = work_root / name
+    work = (Path(work_root) / name).resolve()      # LSDTT runs with the directory as an argument: must be absolute
     out = dict(heads=pd.DataFrame(columns=["method", "tcp", "row", "col", "x", "y"]), log=[], elapsed_s=0.0, exe=exe)
     if exe is None:
         out["log"].append("lsdtt-channel-extraction not found; Method D skipped")
