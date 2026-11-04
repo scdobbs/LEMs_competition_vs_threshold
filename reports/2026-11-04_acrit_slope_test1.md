@@ -1,35 +1,50 @@
 # Test 1: does the optimized A_crit follow the Montgomery & Dietrich inverse area–slope relation?
 
-Date: 2026-11-04. Branch `feature/acrit-slope` (commit 3e61011), package
-`acrit_slope/`, outputs `outputs/acrit_slope/`, Slurm job 51084181 (74 s).
+Date: 2026-11-04, revised the same day after review of the QC maps. Branch
+`feature/acrit-slope`, package `acrit_slope/`, outputs `outputs/acrit_slope/`,
+Slurm jobs 51084181 (main run, 74 s) and 51085854 (head-quality diagnostics).
 Directive: `reports/directives/acrit_slope_test1_directive.md`. Nothing pushed.
 
 ## Summary
 
-Across the ten tiles there is no inverse relation between the optimized
-A_crit and the slope at the partition channel heads. The ten-tile OLS
-exponent is 0.04 with a 95 % interval of [−0.65, 0.73] and r² = 0.00; the
-reduced-major-axis fit is meaningless at r² = 0 (its sign flips across the
-bootstrap). The only fit whose interval contains −2 is the common-slope model
-with separate site intercepts, and that interval, [−2.6, 0.7], also contains
-zero: the two sites separate cleanly in head slope (AP 0.58–0.79, GM
-0.18–0.35) but not in A_crit (both 2e3–1e4 m²), so the "common slope" is a
-line through two clusters, not a relation within either. AP tile 5 lies off
-the nine-tile relation (A_crit a factor of 4 below prediction, 2.7–2.9
-residual SDs, outside every 95 % prediction interval), but its head slopes
-(median 0.73) are indistinguishable from those of AP tiles 1–4
-(0.58–0.79), so slope does not explain why its A_crit is low. The evidence
-supports the second outcome of the directive: the A_crit values do not follow
-A ∝ S⁻², and AP tile 5 is off the trend for a reason other than slope.
+**The test could not be carried out as intended, because the partition
+channel heads are mostly not channel heads.** With log₁₀ A overlaid on the
+hillshades (section 9, `figures/qc_maps/`), the pixels where A first exceeds
+A_crit turn out to be, on AP tile 5, the tops of parallel rills on 35–40°
+valley walls and ditch lines along two roads; on AP tiles 1–4, a mix of
+hollow mouths, valley-wall points, trunk-floor points and bench or road-cut
+plateaus; on GM tiles 2 and 5, partly parallel paths on the trunk valley
+floor (10 of 46 and 15 of 72 kept heads). Only GM1, GM3, GM4 and the hollow
+tips of GM2 look like Montgomery & Dietrich heads. The directive's
+definition (A ≥ A_crit, no donor ≥ A_crit) locates threshold crossings of
+the D8 area field, and on these 1 m DEMs those crossings fall on rills,
+walls, roads and floors far more often than on hollows.
 
-Two findings beyond the directive matter for how the manuscript can use this
-test. First, head slope within a tile barely changes with threshold area over
-1e3–2e4 m² (pooled log-log slope 0.12), so the across-tile comparison is not
-an artefact of a shared slope–area curve; the null result stands. Second,
-A_crit is not a stable tile property: the stage-2 values (A_crit optimized
-with K and D at their measured values) differ from the Table 1 values by
-factors of 1.7 to 30 and give a *positive* exponent (OLS 0.91 [0.01, 3.11]).
-Any statement about what A_crit tracks has to say which A_crit.
+The fits were run as specified and are reported in full (sections 4–5), with
+this reading: across the ten tiles there is no inverse relation between
+A_crit and the slope at the threshold crossings (ten-tile OLS exponent 0.04,
+95 % interval [−0.65, 0.73], r² = 0.00; the same with every slope window;
+the same after removing the trunk-floor and plateau classes, b = −0.01).
+AP tile 5 lies a factor of 4 below the nine-tile relation (2.7–2.9 residual
+SDs, outside every prediction interval) while its crossing slopes (median
+0.73) match AP tiles 1–4 (0.58–0.79). The sites separate threefold in slope
+and not at all in A_crit. What this establishes is that the partition's
+threshold crossings do not behave like an A S² = const threshold. It does
+not test whether real channel heads on these tiles follow Montgomery &
+Dietrich, because the measured points are not those heads.
+
+Two further findings bear on any A_crit-based test. Head slope within a tile
+barely changes with threshold area over 1e3–2e4 m² (pooled log-log slope
+0.12), so an across-tile comparison is not an artefact of a shared
+slope–area curve. And A_crit is not a stable tile property: the notebooks'
+stage-2 values (A_crit optimized with K and D at their measured values)
+differ from the Table 1 values by factors of 1.7 to 30 and give a
+*positive* exponent (OLS 0.91 [0.01, 3.11]).
+
+The next step is a morphologic head set: bank-defined heads (the width
+work's channelized points) or a curvature-based extraction, the hollow slope
+measured above each, and A_crit compared with the envelope those heads
+define. That is a different directive.
 
 ## 1. Input verification
 
@@ -247,33 +262,37 @@ supplies A_crit.
 
 ## 7. What the evidence supports
 
-Observation: across the ten tiles the optimized A_crit is unrelated to the
-slope at the partition heads (b ≈ 0, r² ≈ 0), under every slope definition;
-AP tile 5 has an A_crit about four times lower than the other AP tiles at
-the same head slope. The sites differ threefold in head slope and not at all
-in A_crit.
+Observation (section 9 governs the reading of sections 3–5): the pixels
+where A first exceeds A_crit are rills, valley-wall points, road ditches,
+benches and trunk-floor paths on most tiles, and hollow heads only on GM1,
+GM3, GM4 and parts of GM2. Across the ten tiles the slope at those pixels is
+unrelated to A_crit (b ≈ 0, r² ≈ 0) under every slope definition and after
+removing the classes that can be removed automatically. AP tile 5's A_crit
+is about four times lower than the other AP tiles' at the same crossing
+slope; its crossings are overwhelmingly rill tops and road-ditch points.
 
-Interpretation: the Table 1 A_crit values do not behave like a Montgomery &
-Dietrich channel-head threshold. Whatever the optimizer is fitting with
-A_crit, it is not the position on an A S² = const envelope. The AP5 anomaly
-needs another explanation; the obvious candidate from the width work is that
-AP5's small A_crit lets the partition reproduce the parallel rills and
-road-side channels on its steep walls, which are not hollows at all.
+Interpretation: the Table 1 A_crit values do not place the partition
+boundary at channel heads, and the slope at the partition boundary carries
+no information about A_crit. The AP5 anomaly is consistent with the width
+work's reading: a small A_crit lets the partition reproduce the parallel
+rills and road-side channels on AP5's steep walls, which are not hollows.
+Whether real channel heads on these tiles obey A S² = const is untested.
 
 Where the evidence is weak:
 
-- Ten tiles, two sites, five each. The intervals of every variant are wide
-  enough to contain exponents between about −0.7 and +0.7 even where they
-  exclude −2; the test can reject A ∝ S⁻² but cannot establish a precise
-  alternative.
-- Head slopes at AP are bimodal because of benches and roads; the medians
-  are robust to that, the IQR bars are not informative.
+- The head set is the main weakness: on AP the measured points are
+  dominated by rills and wall bases, on GM2 and GM5 by floor paths. No
+  slope- or distance-based filter separates rills from hollows, because
+  both are steep and far from the trunk; a morphologic head definition is
+  required.
+- Ten tiles, two sites, five each. Every interval is wide enough to contain
+  exponents between about −0.7 and +0.7 even where it excludes −2.
 - A_crit uncertainty is quantified only at fixed K, D and only for AP5; the
-  joint trade-off is large (stage-2 versus final values) and changes the sign
-  of the fitted exponent. This is the largest unquantified source of
-  uncertainty in the test.
-- The sites differ in climate, lithology and land use; with n = 5 per site,
-  the site-intercept model cannot separate a slope effect from a site effect.
+  joint trade-off is large (stage-2 versus final values) and changes the
+  sign of the fitted exponent.
+- The sites differ in climate, lithology and land use; with n = 5 per site
+  the site-intercept model cannot separate a slope effect from a site
+  effect.
 
 ## 8. Evaluation of the plan against Montgomery & Dietrich
 
@@ -355,7 +374,7 @@ Read before deciding how to use this test in the manuscript.
 (`config.py` holds every threshold), tests `tests/test_acrit_slope.py`
 (10 passed in the job).
 
-## 9. Head-quality check (added 2026-11-04 after review)
+## 9. Head-quality check (added after review)
 
 Steve's review of the QC maps questioned whether the blue dots are channel
 heads at all (GM5 heads inside the trunk valley; convex and plateau
