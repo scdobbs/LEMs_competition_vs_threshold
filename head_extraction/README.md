@@ -73,6 +73,20 @@ identification, `surface_fitting_radius` = 6 m, `raster_is_filled: true`.
 The tile is exported as ENVI `.bil` in the tile's UTM CRS; LSDTT's source
 CSV (WGS84) is converted back with pyproj.
 
+**Status (2026-11-04): Method D did not run.** `lsdtt-channel-extraction`
+0.9 (conda-forge build h33989ec_0) aborts inside
+`LSDJunctionNetwork::create` with `malloc(): memory corruption` (exit 134,
+or signal 11 under the Python wrapper) immediately after it reports the
+number of source nodes, on AP1 and GM1 alike. Reproduced with
+`raster_is_filled` true and false, `threshold_contributing_pixels` 1000 and
+4000, `number_of_junctions_dreich` 1 and 2, `connected_components_threshold`
+10 and 100, `A_0` 1 and 1000, and with a two-pixel NoData border added to
+the raster. The Wiener option of the same binary runs in 3 s and writes
+sources, so the installation itself works. About two hours of the four-hour
+cap were used; the remaining options (build from source, the LSDTT
+container) are not parameter fixes and were not attempted. Logs are in
+`$SCRATCH/head_jobs/lsdtt_debug*/`.
+
 **Caveat the directive did not anticipate.** LSDTT's DrEICH builds an
 initial test network with `threshold_contributing_pixels` (default 1000,
 i.e. 1000 m² at 1 m) and prunes with `pruning_drainage_area` (1000 m²);
