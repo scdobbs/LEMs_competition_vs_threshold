@@ -137,7 +137,7 @@ def fig_sensitivity(sens: dict, cfg: dict, out: Path) -> None:
     ax.set_ylabel("fitted exponent b (A_crit ∝ S^b), 95 % bootstrap interval")
     ax.set_title("Sensitivity of the exponent to the slope-measurement choice", fontsize=10, loc="left", color=C_TEXT)
     _style(ax)
-    ax.legend(fontsize=7.5, frameon=False)
+    ax.legend(fontsize=7.5, frameon=False, loc="upper right")
     fig.tight_layout()
     fig.savefig(out, dpi=200)
     plt.close(fig)
