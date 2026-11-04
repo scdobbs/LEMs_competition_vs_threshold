@@ -93,6 +93,23 @@ def _records(tile, graph, rc):
     return cl.classify(df, hcfg.QC)
 
 
+def test_path_leaves_tile_only_at_the_grid_edge():
+    z = 0.3 * (120 - 1 - np.indices((120, 120))[0]) * DX
+    tile = _flow_south_tile(z)
+    g = FlowGraph(tile, 1.0, 0.0)
+    curv = (np.full((12, 12), 0.5), 10, 10.0)
+    df = cl.measure(tile, g, np.array([10, 50]), np.array([60, 60]), hcfg.EXTRACTION, hcfg.QC, curv)
+    assert bool(df.flag_path_leaves_tile.iloc[0]) and not bool(df.flag_short_upslope_path.iloc[0])   # path hits row 0
+    assert not bool(df.flag_path_leaves_tile.iloc[1])
+    z2 = z.copy(); z2[:45, :] = z[45, :] - 1.0          # an interior divide: rows above 45 are lower
+    fd = np.full(z2.shape, 4, dtype=np.uint8); fd[-1, :] = 1; fd[:45, :] = 64   # upper block flows north
+    from acrit_slope.heads import d8_accumulate
+    tile2 = Tile("SY", 1, z2, d8_accumulate(fd, 1.0), fd, DX, DX, 0.0, 120.0, "")
+    g2 = FlowGraph(tile2, 1.0, 0.0)
+    df2 = cl.measure(tile2, g2, np.array([50]), np.array([60]), hcfg.EXTRACTION, hcfg.QC, curv)
+    assert bool(df2.flag_short_upslope_path.iloc[0]) and not bool(df2.flag_path_leaves_tile.iloc[0]) and bool(df2.retained.iloc[0])
+
+
 def test_rill_rule_fires_on_parallel_gullies_not_on_single_hollow():
     n = 160
     ii, jj = np.indices((n, n))

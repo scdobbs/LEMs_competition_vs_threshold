@@ -80,7 +80,8 @@ def run_tile(tile: Tile, m_over_n: float, cfg: dict, work_root: Path, tcps=None,
         log = work / f"{name}_tcp{tcp}.log"
         with open(log, "w") as fh:
             try:
-                subprocess.run([exe, str(drv)], cwd=work, stdout=fh, stderr=subprocess.STDOUT, check=False,
+                # LSDTT takes two arguments: the directory (with trailing slash) and the driver file name
+                subprocess.run([exe, str(work) + "/", drv.name], cwd=work, stdout=fh, stderr=subprocess.STDOUT, check=False,
                                timeout=max(60, (deadline - time.time()) if deadline else 3600))
             except subprocess.TimeoutExpired:
                 out["log"].append(f"tcp={tcp}: timed out")

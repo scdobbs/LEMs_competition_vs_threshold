@@ -59,7 +59,13 @@ def measure(tile: Tile, graph: FlowGraph, rows, cols, ext: dict, qc: dict, curv)
                    S_down_10=downslope_slope(graph, i, j, 10.0))
         rec.update(s)
         rec["flag_tile_edge"] = edge < ext["edge_buffer_m"]
-        rec["flag_path_leaves_tile"] = s["upslope_path_m"] < ext["min_upslope_path_m"]
+        # the upslope path "leaves the tile" if it reaches the grid edge before min_upslope_path_m;
+        # a path that ends at an interior divide (no donor) within that distance is kept and flagged short
+        du, _, rc_up = walk_path(graph, i, j, "up", ext["min_upslope_path_m"])
+        ti, tj = rc_up[-1]
+        at_edge = ti == 0 or tj == 0 or ti == ny - 1 or tj == nx - 1
+        rec["flag_path_leaves_tile"] = bool(s["upslope_path_m"] < ext["min_upslope_path_m"] and at_edge)
+        rec["flag_short_upslope_path"] = bool(s["upslope_path_m"] < ext["min_upslope_path_m"] and not at_edge)
         rec["drop_reason"] = next((r for r in DROP_REASONS if rec[f"flag_{r}"]), "")
         rec["retained"] = rec["drop_reason"] == ""
         recs.append(rec)

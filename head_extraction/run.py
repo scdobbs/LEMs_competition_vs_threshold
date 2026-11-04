@@ -33,7 +33,7 @@ from .config import A_CRIT_M2, A_CRIT_STAGE2_M2, ANALYSIS, EXTRACTION, LSDTT, OU
 HEAD_COLUMNS = ["head_id", "site", "tile", "method", "smoothing", "kt", "tcp", "row", "col", "x", "y", "crs", "area_D8_m2", "retained", "drop_reason",
                 "head_class", "class_detail", "S_up_5", "S_up_10", "S_up_20", "S_centred_5", "S_centred_10", "S_centred_20", "S_pixel",
                 "S_down_10", "plan_curvature_10m", "convergent_10m", "dist_to_trunk_m", "flow_azimuth_deg", "edge_distance_m",
-                "upslope_path_m", "downslope_path_m", "z_m", "flag_tile_edge", "flag_path_leaves_tile"]
+                "upslope_path_m", "downslope_path_m", "z_m", "flag_tile_edge", "flag_path_leaves_tile", "flag_short_upslope_path"]
 
 
 def _git_hash() -> str:
@@ -183,7 +183,9 @@ def class_summary(heads: pd.DataFrame) -> pd.DataFrame:
         rec = dict(site=site, tile=t, method=m, smoothing=sm, tcp=(None if tc < 0 else int(tc)), n_extracted=len(sub),
                    n_dropped_tile_edge=int((sub.drop_reason == "tile_edge").sum()),
                    n_dropped_path_leaves_tile=int((sub.drop_reason == "path_leaves_tile").sum()),
-                   n_retained=int(sub.retained.sum()))
+                   n_retained=int(sub.retained.sum()),
+                   n_retained_short_upslope_path=int((sub.retained & sub.flag_short_upslope_path).sum()),
+                   n_retained_S_up_10_defined=int((sub.retained & np.isfinite(sub.S_up_10)).sum()))
         for c in cl.CLASSES:
             rec[f"n_{c}"] = int(((sub.head_class == c) & sub.retained).sum())
         hol = sub[sub.retained & (sub.head_class == "hollow")]
