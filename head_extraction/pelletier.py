@@ -183,9 +183,16 @@ def component_top_heads(zc: np.ndarray, kappa: np.ndarray, kt: float) -> tuple[n
     return pos[:, 0], pos[:, 1]
 
 
-def extract(z: np.ndarray, dx: float, kt: float, cfg: dict) -> dict:
-    """Full Method P on one tile. Returns dict with the filtered DEM, curvature, conditioned DEM and heads."""
+def extract(z: np.ndarray, dx: float, kt: float, cfg: dict, diffusion_DT: float | None = None) -> dict:
+    """Full Method P on one tile. Returns dict with the filtered DEM, curvature, conditioned DEM and heads.
+
+    ``diffusion_DT`` (m^2), if given, adds Gaussian smoothing with sigma^2 = 2 DT after the
+    Wiener filter (the diffusion-filter equivalent Pelletier 2013 uses for his sensitivity maps).
+    """
     zf, model = wiener_filter(z, dx, cfg)
+    if diffusion_DT:
+        zf = ndimage.gaussian_filter(zf, sigma=np.sqrt(2.0 * diffusion_DT) / dx, mode="reflect")
+        model = dict(model, diffusion_DT_m2=float(diffusion_DT), rms_change_m=float(np.sqrt(np.mean((zf - z) ** 2))))
     kappa = contour_curvature(zf, dx)
     zc = condition(zf, cfg["fill_epsilon"])
     r, c = pelletier_heads(zc, kappa, kt)

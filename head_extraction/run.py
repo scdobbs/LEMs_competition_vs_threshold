@@ -30,7 +30,7 @@ from . import classify as cl
 from . import figures, lsdtt, pelletier
 from .config import A_CRIT_M2, A_CRIT_STAGE2_M2, ANALYSIS, EXTRACTION, LSDTT, OUTPUT_DIR, QC, THETA, TILE_KEYS
 
-HEAD_COLUMNS = ["head_id", "site", "tile", "method", "kt", "tcp", "row", "col", "x", "y", "crs", "area_D8_m2", "retained", "drop_reason",
+HEAD_COLUMNS = ["head_id", "site", "tile", "method", "smoothing", "kt", "tcp", "row", "col", "x", "y", "crs", "area_D8_m2", "retained", "drop_reason",
                 "head_class", "class_detail", "S_up_5", "S_up_10", "S_up_20", "S_centred_5", "S_centred_10", "S_centred_20", "S_pixel",
                 "S_down_10", "plan_curvature_10m", "convergent_10m", "dist_to_trunk_m", "flow_azimuth_deg", "edge_distance_m",
                 "upslope_path_m", "downslope_path_m", "z_m", "flag_tile_edge", "flag_path_leaves_tile"]
@@ -97,8 +97,9 @@ def extract_tile(site, t, out_dir: Path, rng, use_lsdtt: bool, partition: pd.Dat
                    wiener_rms_change_m=res["wiener"]["rms_change_m"], wiener_beta=res["wiener"]["beta"],
                    wiener_N2=res["wiener"]["N2"], wiener_signal_max_nu=res["wiener"]["signal_max_nu"])
         sens.append(rec)
+        rec["smoothing"] = "OWF"
         if kt == kt0:
-            df["method"], df["kt"], df["tcp"] = "P", kt, np.nan
+            df["method"], df["kt"], df["tcp"], df["smoothing"] = "P", kt, np.nan, "OWF"
             frames.append(df)
             info["wiener"] = res["wiener"]
             # directive-wording alternative, retained counts only
@@ -109,6 +110,19 @@ def extract_tile(site, t, out_dir: Path, rng, use_lsdtt: bool, partition: pd.Dat
             info["pelletier_vs_component_top"] = m
         print(f"[{site}{t}] P kt={kt:g}: {len(df)} heads, {int(df.retained.sum())} retained ({time.time() - t0:.0f} s)", flush=True)
 
+    # beyond the directive: extra smoothing after the Wiener filter, default threshold
+    for DT in EXTRACTION["smoothing_sensitivity_DT_m2"]:
+        res = pelletier.extract(tile.z, tile.pixel_size, kt0, EXTRACTION, diffusion_DT=DT)
+        r, c = res["heads_rc"]
+        df = cl.measure(tile, graph, r, c, EXTRACTION, QC, curv)
+        sens.append(dict(site=site, tile=t, kt=kt0, smoothing=f"OWF+DT{DT:g}", n_heads=len(df), n_retained=int(df.retained.sum()),
+                         n_component_top=len(res["component_heads_rc"][0]), n_valley_pixels=res["n_valley_pixels"],
+                         wiener_rms_change_m=res["wiener"]["rms_change_m"], wiener_beta=res["wiener"]["beta"],
+                         wiener_N2=res["wiener"]["N2"], wiener_signal_max_nu=res["wiener"]["signal_max_nu"]))
+        df["method"], df["kt"], df["tcp"], df["smoothing"] = "P", kt0, np.nan, f"OWF+DT{DT:g}"
+        frames.append(df)
+        print(f"[{site}{t}] P kt={kt0:g} OWF+DT{DT:g}: {len(df)} heads, {int(df.retained.sum())} retained", flush=True)
+
     # Method D (and LSDTT Wiener)
     info["lsdtt"] = dict(skipped=True)
     if use_lsdtt:
@@ -118,31 +132,46 @@ def extract_tile(site, t, out_dir: Path, rng, use_lsdtt: bool, partition: pd.Dat
                              n_by_method_tcp={f"{m}_tcp{tc}": int(n) for (m, tc), n in res["heads"].groupby(["method", "tcp"]).size().items()} if len(res["heads"]) else {})
         for (m, tc), sub in res["heads"].groupby(["method", "tcp"]):
             df = cl.measure(tile, graph, sub.row.to_numpy(), sub.col.to_numpy(), EXTRACTION, QC, curv)
-            df["method"], df["kt"], df["tcp"] = m, np.nan, tc
+            df["method"], df["kt"], df["tcp"], df["smoothing"] = m, np.nan, tc, "LSDTT"
             frames.append(df)
             print(f"[{site}{t}] {m} tcp={tc}: {len(df)} heads, {int(df.retained.sum())} retained", flush=True)
 
     heads = pd.concat(frames, ignore_index=True)
     heads["site"], heads["tile"], heads["crs"] = site, t, tile.crs
-    heads = cl.classify(heads, QC, f"S_up_{EXTRACTION['L_default_m']:g}")
-    heads["head_id"] = [f"{site}{t}_{m}_{int(r)}_{int(c)}" + (f"_tcp{int(tc)}" if np.isfinite(tc) else "") for m, r, c, tc in zip(heads.method, heads.row, heads.col, heads.tcp)]
+    # classify within each head set: the rill and road rules count neighbouring heads of the same set only
+    heads = pd.concat([cl.classify(sub, QC, f"S_up_{EXTRACTION['L_default_m']:g}")
+                       for _, sub in heads.groupby(["method", "smoothing", heads.tcp.fillna(-1)], sort=False)], ignore_index=True)
+    heads["head_id"] = [f"{site}{t}_{m}_{int(r)}_{int(c)}" + (f"_tcp{int(tc)}" if np.isfinite(tc) else "") + ("" if sm == "OWF" or sm == "LSDTT" else f"_{sm.replace('+', '')}")
+                        for m, r, c, tc, sm in zip(heads.method, heads.row, heads.col, heads.tcp, heads.smoothing)]
 
     # method agreement at the default settings
-    P = heads[(heads.method == "P") & heads.retained]
+    P = heads[(heads.method == "P") & (heads.smoothing == "OWF") & heads.retained]
     agree = {}
     for m in ("D", "W"):
         for tc, sub in heads[(heads.method == m) & heads.retained].groupby("tcp"):
             agree[f"P_vs_{m}_tcp{int(tc)}"] = match_sets(P, sub, EXTRACTION["match_radius_m"])
+    for sm, sub in heads[(heads.method == "P") & (heads.smoothing != "OWF") & heads.retained].groupby("smoothing"):
+        agree[f"P_OWF_vs_P_{sm}"] = match_sets(P, sub, EXTRACTION["match_radius_m"])
+        for m in ("D", "W"):
+            for tc, subD in heads[(heads.method == m) & heads.retained].groupby("tcp"):
+                agree[f"P_{sm}_vs_{m}_tcp{int(tc)}"] = match_sets(sub, subD, EXTRACTION["match_radius_m"])
     info["method_agreement"] = agree
 
     # figures
     fig_dir = out_dir / "figures"
     (fig_dir / "qc_maps").mkdir(parents=True, exist_ok=True)
     (fig_dir / "qc_profiles").mkdir(parents=True, exist_ok=True)
-    default_only = heads[(heads.method == "P") | (heads.tcp == LSDTT["threshold_contributing_pixels"]) | heads.tcp.isna()]
+    is_default_D = (heads.tcp == LSDTT["threshold_contributing_pixels"])
+    default_only = heads[((heads.method == "P") & (heads.smoothing == "OWF")) | is_default_D]
     part = partition[(partition.site == site) & (partition.tile == t) & partition.kept] if partition is not None else None
     figures.fig_qc_map(tile, default_only, part, QC, EXTRACTION, fig_dir / "qc_maps" / f"{site}{t}.png")
-    info["n_profiles"] = figures.fig_profiles(tile, graph, heads, QC, EXTRACTION, rng, fig_dir / "qc_profiles" / f"{site}{t}.png")
+    info["n_profiles"] = figures.fig_profiles(tile, graph, heads[heads.smoothing == "OWF"], QC, EXTRACTION, rng, fig_dir / "qc_profiles" / f"{site}{t}.png")
+    smk = f"OWF+DT{EXTRACTION['smoothing_map_DT_m2']:g}"
+    (fig_dir / f"qc_maps_{smk.replace('+', '_')}").mkdir(parents=True, exist_ok=True)
+    (fig_dir / f"qc_profiles_{smk.replace('+', '_')}").mkdir(parents=True, exist_ok=True)
+    sm_only = heads[((heads.method == "P") & (heads.smoothing == smk)) | is_default_D]
+    figures.fig_qc_map(tile, sm_only, part, QC, EXTRACTION, fig_dir / f"qc_maps_{smk.replace('+', '_')}" / f"{site}{t}.png")
+    figures.fig_profiles(tile, graph, heads[heads.smoothing == smk], QC, EXTRACTION, rng, fig_dir / f"qc_profiles_{smk.replace('+', '_')}" / f"{site}{t}.png")
     info["elapsed_s"] = round(time.time() - t0, 1)
     print(f"[{site}{t}] done in {info['elapsed_s']} s", flush=True)
     return dict(heads=heads, sensitivity=pd.DataFrame(sens), info=info)
@@ -150,8 +179,8 @@ def extract_tile(site, t, out_dir: Path, rng, use_lsdtt: bool, partition: pd.Dat
 
 def class_summary(heads: pd.DataFrame) -> pd.DataFrame:
     rows = []
-    for (site, t, m, tc), sub in heads.groupby(["site", "tile", "method", heads.tcp.fillna(-1)]):
-        rec = dict(site=site, tile=t, method=m, tcp=(None if tc < 0 else int(tc)), n_extracted=len(sub),
+    for (site, t, m, sm, tc), sub in heads.groupby(["site", "tile", "method", "smoothing", heads.tcp.fillna(-1)]):
+        rec = dict(site=site, tile=t, method=m, smoothing=sm, tcp=(None if tc < 0 else int(tc)), n_extracted=len(sub),
                    n_dropped_tile_edge=int((sub.drop_reason == "tile_edge").sum()),
                    n_dropped_path_leaves_tile=int((sub.drop_reason == "path_leaves_tile").sum()),
                    n_retained=int(sub.retained.sum()))
@@ -204,7 +233,7 @@ def main(argv=None):
     print(cs.to_string(), flush=True)
     figures.fig_threshold_sensitivity(S, out_dir / "figures" / "fig_threshold_sensitivity.png")
     # review template: every retained Method P head, keep by default
-    rev = H[H.retained & (H.method == "P")][["head_id", "site", "tile", "head_class", "area_D8_m2", "S_up_10"]].copy()
+    rev = H[H.retained & (H.method == "P")][["head_id", "site", "tile", "smoothing", "head_class", "area_D8_m2", "S_up_10"]].copy()
     rev["keep"] = True
     rev["reason"] = ""
     rev.to_csv(out_dir / "heads_review_template.csv", index=False)

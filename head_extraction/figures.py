@@ -103,6 +103,7 @@ def fig_profiles(tile, graph, heads: pd.DataFrame, qc: dict, ext: dict, rng: np.
 def fig_threshold_sensitivity(sens: pd.DataFrame, out: Path) -> None:
     fig, ax = plt.subplots(figsize=(7.5, 4.2), facecolor="white")
     tiles = [f"{s}{t}" for s, t in zip(sens.site, sens.tile)][:: max(1, len(sens) // 10)] if False else None
+    sens = sens[sens.get("smoothing", "OWF") == "OWF"] if "smoothing" in sens else sens
     piv = sens.pivot_table(index=["site", "tile"], columns="kt", values="n_retained")
     x = np.arange(len(piv))
     w = 0.26

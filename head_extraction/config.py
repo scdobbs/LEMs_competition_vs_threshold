@@ -19,6 +19,10 @@ EXTRACTION: dict = {
     "wiener_n_radial_bins": 200,
     "curvature_threshold_default": 0.10,   # m^-1 (Pelletier 2013; Clubb et al. 2014)
     "curvature_thresholds": [0.05, 0.10, 0.20],
+    # beyond the directive: diffusion smoothing (Gaussian, sigma^2 = 2 DT) applied after the Wiener filter,
+    # because the Wiener filter leaves the TIN-faceted AP surfaces essentially unsmoothed (see README)
+    "smoothing_sensitivity_DT_m2": [0.5, 2.0, 5.0],
+    "smoothing_map_DT_m2": 2.0,       # QC maps are also drawn for this smoothing
     "fill_epsilon": True,              # hydrologic conditioning of the filtered DEM before flagging
     "edge_buffer_m": 30.0,
     "min_upslope_path_m": 20.0,        # heads whose largest-donor path leaves the tile within this are dropped
