@@ -122,7 +122,8 @@ def trace_dinf_integration(gd: dict, m: float, U: float, K: float, r_facet: np.n
                 b, ka, kb = BRANCH["cardinal_only"], k1, -1
                 zref = Z[k1]
             elif z2k:
-                z = Z[k2] + s * dx * np.sqrt(2.0)
+                dL = dx * np.sqrt(2.0)          # same evaluation order as the model (bit-identical replay)
+                z = Z[k2] + s * dL
                 b, ka, kb = BRANCH["diagonal_only"], -1, k2
                 zref = Z[k2]
             else:
@@ -191,8 +192,13 @@ def diagnose_tile(td, cfg: dict[str, Any], rec: RunRecorder, save_grids: bool = 
     gd = extract_grid_data(Z0, A, FD, dx)
     Z_model, _ds, k_out, bc_inds, _bc_vals = _precompute_channel_network_dinf(gd, m, U, K, angles, r_facet, facet_idx, A_dinf)
     tr = trace_dinf_integration(gd, m, U, K, r_facet, facet_idx, A_dinf)
-    same = np.array_equal(np.isnan(Z_model), np.isnan(tr["Z"])) and np.array_equal(Z_model[~np.isnan(Z_model)], tr["Z"][~np.isnan(tr["Z"])])
+    same_nan = np.array_equal(np.isnan(Z_model), np.isnan(tr["Z"]))
+    fin = ~np.isnan(Z_model) & ~np.isnan(tr["Z"])
+    max_diff = float(np.max(np.abs(Z_model[fin] - tr["Z"][fin]))) if fin.any() else 0.0
+    same = same_nan and max_diff == 0.0
     res["trace_reproduces_model"] = bool(same)
+    res["trace_max_abs_diff"] = max_diff
+    res["trace_same_nan_pattern"] = bool(same_nan)
     n = gd["n"]
     ch = tr["A_flat"] >= A_crit
     ch[k_out] = True
