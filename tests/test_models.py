@@ -259,3 +259,46 @@ class TestPhase3VectorisedAssembly:
         hs = hs[(hs % 7) != 0]              # a non-trivial subset, like a hillslope set
         zr = zf.ravel() + np.random.RandomState(2).normal(0, 0.5, zf.size)
         np.testing.assert_array_equal(f.compute_slopes(zr, hs), f.compute_slopes_v1(zr, hs))
+
+
+class TestPhase3AdvectionDiffusionAssembly:
+    """Phase 3 step 3: vectorised AD assembly with build-time Dirichlet rows equals the v1 construction bit for bit."""
+
+    def test_solution_bit_identical(self):
+        from tests.synthetic_tile import hydro_from_padded, synthetic_dem
+
+        z = synthetic_dem(60, 60, 1.0, seed=7)
+        zf, fd, area = hydro_from_padded(z, 1.0)
+        f_v1 = _ad.advection_diffusion_model_v1(zf, area, fd, 1.0, 0.4)
+        f_new = _ad.advection_diffusion_model(zf, area, fd, 1.0, 0.4)
+        for U, K, D in ((1e-4, 2e-5, 1e-2), (1.47e-4, 5e-5, 3e-3), (5.5e-5, 1e-6, 2.8e-3)):
+            a, b = f_v1(U, K, D), f_new(U, K, D)
+            np.testing.assert_array_equal(np.isnan(a), np.isnan(b))
+            np.testing.assert_array_equal(a[np.isfinite(a)], b[np.isfinite(b)])
+
+    def test_matrix_identical_to_v1_round_trip(self):
+        from tests.synthetic_tile import hydro_from_padded, synthetic_dem
+
+        z = synthetic_dem(40, 40, 1.0, seed=9)
+        zf, fd, area = hydro_from_padded(z, 1.0)
+        f_new = _ad.advection_diffusion_model(zf, area, fd, 1.0, 0.4)
+        M_diff0, M_adv0, I_bc = f_new.matrices
+        bc_inds, bc_vals, b_U = f_new.bc
+        K, D = 2e-5, 1e-2
+        M_new = (D * M_diff0 + K * M_adv0 + I_bc).tocsr()
+        M_new.sort_indices()
+        # v1 round trip on the v1 stencils
+        f_v1 = _ad.advection_diffusion_model_v1(zf, area, fd, 1.0, 0.4)
+        cl = f_v1.__closure__
+        names = f_v1.__code__.co_freevars
+        env = {nm: c.cell_contents for nm, c in zip(names, cl, strict=True)}
+        M = D * env["M_diff_csr"] + K * env["M_adv_csr"]
+        M = M.tolil()
+        M[env["bc_inds_arr"], :] = 0.0
+        M[env["bc_inds_arr"], env["bc_inds_arr"]] = 1.0
+        M_v1 = M.tocsr()
+        M_v1.sort_indices()
+        np.testing.assert_array_equal(M_new.indptr, M_v1.indptr)
+        np.testing.assert_array_equal(M_new.indices, M_v1.indices)
+        np.testing.assert_array_equal(M_new.data, M_v1.data)
+        np.testing.assert_array_equal(np.sort(bc_inds), np.sort(env["bc_inds_arr"]))

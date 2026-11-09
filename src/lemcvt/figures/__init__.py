@@ -31,6 +31,7 @@ FIGURE_BUILDERS: dict[str, str] = {
     "resolution_dinf": "lemcvt.figures.resolution:build_dinf",
     "d8_vs_dinf": "lemcvt.figures.d8_vs_dinf:build",
     "fig3_deltas": "lemcvt.figures.fig3_deltas:build",
+    "measure_diagnostics": "lemcvt.figures.measure_diagnostics:build_all",
 }
 
 
