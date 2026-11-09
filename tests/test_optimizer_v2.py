@@ -176,5 +176,6 @@ def test_unique_and_thin():
     ua = unique_areas(A, 2.0, 200.0)
     np.testing.assert_array_equal(ua, [2.0, 50.0, 100.0, 150.0])
     th = thin_log_uniform(np.arange(100.0, 100000.0), 2000)
-    assert 1900 <= th.size <= 2000 and th[0] == 100.0 and th[-1] == 99999.0
+    assert th.size == 2000 and th[0] == 100.0 and th[-1] == 99999.0
+    assert thin_log_uniform(np.arange(1.0, 1500.0), 2000).size == 1499
     assert np.all(np.diff(th) > 0)

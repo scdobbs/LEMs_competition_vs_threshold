@@ -256,13 +256,18 @@ def curvature_on_mask(C_grids: dict[int, np.ndarray], mask: np.ndarray, U: float
     """C_ht(L) on a hilltop mask, the re-selected plateau scale, and C_ht with a segment bootstrap at w_fixed and w*."""
     hw = sorted(C_grids)
     L = np.array([(2 * w + 1) * dx for w in hw])
+    seg, n_seg = label(mask, structure=np.ones((3, 3)))
+    if int(mask.sum()) < 20:
+        return {"n_pixels": int(mask.sum()), "n_segments": int(n_seg), "window_lengths_m": L.tolist(), "C_ht_median_curve": None,
+                "w_star_reselected": None, "L_star_reselected_m": None, "reselect_note": "fewer than 20 hilltop pixels; no curvature",
+                "at_fixed_L": {"w": int(w_fixed), "L_m": float((2 * w_fixed + 1) * dx), "C_ht": float("nan"), "D0": None, "n_pixels": int(mask.sum())},
+                "at_reselected_L": {"w": None, "L_m": None, "C_ht": float("nan"), "D0": None, "n_pixels": int(mask.sum())}}
     med = []
     for w in hw:
         v = -C_grids[w][mask]
         v = v[np.isfinite(v)]
         med.append(float(np.median(v)) if v.size else float("nan"))
     i_star, note = select_scale(L, np.array(med))
-    seg, n_seg = label(mask, structure=np.ones((3, 3)))
 
     def at(w: int) -> dict[str, Any]:
         vals = -C_grids[w][mask]

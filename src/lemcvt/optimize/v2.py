@@ -59,7 +59,13 @@ def unique_areas(A: np.ndarray, lo: float, hi: float) -> np.ndarray:
 
 
 def thin_log_uniform(values: np.ndarray, n: int) -> np.ndarray:
-    """The unique values nearest a uniform log grid of ``n`` points between min and max of ``values``."""
+    """``n`` unique values nearest a uniform log grid between min and max of ``values``.
+
+    Each grid point takes its nearest unique value; where several grid points snap to the same
+    value (the dense low end of the staircase) the count is topped up by inserting, repeatedly,
+    the unselected value nearest the midpoint of the largest remaining log gap, so that exactly
+    ``min(n, len(values))`` values are returned.
+    """
     values = np.unique(np.asarray(values, dtype=float))
     if values.size <= n:
         return values
@@ -67,7 +73,24 @@ def thin_log_uniform(values: np.ndarray, n: int) -> np.ndarray:
     targets = np.linspace(lv[0], lv[-1], n)
     pos = np.searchsorted(lv, targets).clip(1, lv.size - 1)
     nearer = np.where(np.abs(lv[pos] - targets) <= np.abs(lv[pos - 1] - targets), pos, pos - 1)
-    return values[np.unique(nearer)]
+    chosen = np.zeros(values.size, dtype=bool)
+    chosen[np.unique(nearer)] = True
+    while chosen.sum() < n:
+        idx = np.where(chosen)[0]
+        gaps = lv[idx[1:]] - lv[idx[:-1]]
+        order = np.argsort(-gaps)
+        inserted = False
+        for k in order:
+            lo, hi = idx[k], idx[k + 1]
+            if hi - lo > 1:
+                mid = 0.5 * (lv[lo] + lv[hi])
+                cand = lo + 1 + int(np.argmin(np.abs(lv[lo + 1:hi] - mid)))
+                chosen[cand] = True
+                inserted = True
+                break
+        if not inserted:
+            break
+    return values[chosen]
 
 
 # ----------------------------------------------------------------------------- box quadratic

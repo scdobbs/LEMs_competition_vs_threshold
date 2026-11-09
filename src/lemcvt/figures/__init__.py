@@ -11,7 +11,7 @@ supp_fig6         resolution sweep: Ks_mod/Ks_obs against dx, median + IQR by si
 resolution_dinf   same with D8 (solid) and D-infinity (dashed)
 d8_vs_dinf        4-panel elevation comparison, area scatter, slope-area overlay per tile
 fig3_deltas       log10(K_fit/K0), log10(D_fit/D0) per tile for the AD and joint stages
-acrit_profiles    (Phase 4) MSE(A_crit) profiles; placeholder until optimizer v2 exists
+optimizer_v2      (Phase 4) MSE(A_crit) profiles, AD r-profiles, MSE(A_crit, m) contours with the measured theta(A_c)
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ FIGURE_BUILDERS: dict[str, str] = {
     "d8_vs_dinf": "lemcvt.figures.d8_vs_dinf:build",
     "fig3_deltas": "lemcvt.figures.fig3_deltas:build",
     "measure_diagnostics": "lemcvt.figures.measure_diagnostics:build_all",
+    "optimizer_v2": "lemcvt.figures.optimizer_v2:build_all",
 }
 
 
