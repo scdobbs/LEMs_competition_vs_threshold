@@ -71,3 +71,52 @@ def partitioned_threshold_model(
     output_function.Z_channel_all = Z_channel_all  # type: ignore[attr-defined]
     output_function.grid_data = gd  # type: ignore[attr-defined]
     return output_function
+
+
+def partitioned_threshold_model_chi(
+    Z0: np.ndarray, A: np.ndarray, FD: np.ndarray, dx: float, m: float, U: float,
+) -> Callable[..., tuple[np.ndarray, np.ndarray]]:
+    """Build ``f(A_crit, D, K) -> (Z, channel_mask)`` with the channel network integrated once (Phase 3, step 4).
+
+    ``Z_channel(K) = z_anchor + (U/K) chi_D8`` replaces the per-K rebuild of the joint stage;
+    the hillslope solve is :func:`solve_hillslope_diffusion`. Differs from
+    :func:`partitioned_threshold_model` only by last-bit rounding of the channel elevations
+    (``docs/numerics_changes.md`` N6).
+    """
+    from lemcvt.models.common import precompute_chi_network
+
+    gd = extract_grid_data(Z0, A, FD, dx)
+    n = gd["n"]
+    Ny, Nx = gd["Ny"], gd["Nx"]
+    rev_i, rev_j = gd["rev_i"], gd["rev_j"]
+    A_flat = gd["A_flat"]
+    chi, z_anchor, _ds, k_out, bc_boundary_inds, bc_boundary_vals = precompute_chi_network(gd, m)
+
+    def output_function(A_crit: float, D: float, K: float) -> tuple[np.ndarray, np.ndarray]:
+        Z_channel_flat = z_anchor + (U / K) * chi
+        channel_mask_flat = A_flat >= A_crit
+        if not channel_mask_flat[k_out]:
+            channel_mask_flat[k_out] = True
+        is_channel_or_boundary = channel_mask_flat.copy()
+        is_channel_or_boundary[bc_boundary_inds] = True
+        hillslope_mask = ~is_channel_or_boundary
+        hillslope_indices = np.where(hillslope_mask)[0]
+        if hillslope_indices.size == 0:
+            z_flat = np.full(n, np.nan)
+            z_flat[bc_boundary_inds] = bc_boundary_vals[bc_boundary_inds]
+            z_flat[channel_mask_flat] = Z_channel_flat[channel_mask_flat]
+        else:
+            hillslope_to_reduced = np.full(n, -1, dtype=int)
+            hillslope_to_reduced[hillslope_indices] = np.arange(hillslope_indices.size)
+            z_flat = solve_hillslope_diffusion(gd, hillslope_indices, hillslope_to_reduced, hillslope_mask, D,
+                                               Z_channel_flat, channel_mask_flat, bc_boundary_inds, bc_boundary_vals, U)
+        Z_ss = np.full((Ny, Nx), np.nan)
+        Z_ss[rev_j, rev_i] = z_flat
+        channel_mask_2d = np.zeros((Ny, Nx), dtype=bool)
+        channel_mask_2d[rev_j, rev_i] = channel_mask_flat
+        return Z_ss, channel_mask_2d
+
+    output_function.chi = chi  # type: ignore[attr-defined]
+    output_function.z_anchor = z_anchor  # type: ignore[attr-defined]
+    output_function.grid_data = gd  # type: ignore[attr-defined]
+    return output_function

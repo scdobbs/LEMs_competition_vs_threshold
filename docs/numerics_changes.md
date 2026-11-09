@@ -69,6 +69,17 @@ stable rule. Where no tie exists the results are bit-identical to Phase 1.
 - **Where results can differ:** nowhere; equal values are interchangeable in a weighted
   median. Changed only so that every sort in the package has a stated tie rule.
 
+## N6. Joint stage: channel network integrated once (Phase 3, step 4)
+
+- **Old:** `optimize_threshold_full` rebuilt the partitioned model for every candidate K, i.e.
+  re-ran the channel BFS with `S0 = (U/K)/A^m` and accumulated `z = z_down + S0 dL` term by term.
+- **New:** `precompute_chi_network` integrates `chi = sum A^-m dL` and the anchor elevation
+  once; `Z_channel(K) = z_anchor + (U/K) chi` (`partitioned_threshold_model_chi`).
+- **Where results differ:** everywhere at the last bit only. Scaling the sum once instead of
+  each term changes the rounding: on a synthetic tile the channel elevations differ by
+  <= 9e-16 relative and the surfaces by <= 1.2e-14 of relief; the Phase 3 gate tolerance is
+  1e-8 of relief. The channel mask is unaffected. `rebuild_per_K=True` restores the v1 path.
+
 ## Sorts examined and left unchanged
 
 - `lemcvt.hydro.fill.priority_flood_fill`: the heap holds `(z, counter, row, col)`;

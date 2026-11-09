@@ -21,7 +21,7 @@ from typing import Any
 import numpy as np
 from scipy.optimize import minimize
 
-from lemcvt.models.partitioned import partitioned_threshold_model
+from lemcvt.models.partitioned import partitioned_threshold_model, partitioned_threshold_model_chi
 
 logger = logging.getLogger(__name__)
 
@@ -225,10 +225,17 @@ def optimize_threshold_full(
     A_crit_bounds: tuple[float, float] = (1e2, 1e5),
     method: str = "Nelder-Mead",
     return_result: bool = False,
+    rebuild_per_K: bool = False,
 ):
-    """Jointly optimise (A_crit, D, K); rebuilds the partitioned model for every candidate K (v1)."""
+    """Jointly optimise (A_crit, D, K).
+
+    v1 rebuilt the partitioned model (channel BFS) for every candidate K; since Phase 3 step 4
+    the channel network is integrated once and ``Z_channel = z_anchor + (U/K) chi``
+    (``rebuild_per_K=True`` restores the v1 path for comparison).
+    """
     traj = Trajectory("joint", ("log10_A_crit", "log10_D", "log10_K"))
     t0 = time.perf_counter()
+    chi_model = None if rebuild_per_K else partitioned_threshold_model_chi(Z0, A, FD, dx, m, U)
 
     @lru_cache(maxsize=None)
     def _solve(log10_A_crit: float, log10_D: float, log10_K: float) -> np.ndarray:
@@ -236,6 +243,9 @@ def optimize_threshold_full(
         K = 10**log10_K
         D = 10**log10_D
         A_crit = 10**log10_A_crit
+        if chi_model is not None:
+            Z, _ = chi_model(A_crit, D, K)
+            return Z
         model_fn = partitioned_threshold_model(Z0, A, FD, dx, m, U, K)
         Z, _ = model_fn(A_crit, D)
         return Z

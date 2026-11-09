@@ -163,6 +163,73 @@ def precompute_channel_network(gd: dict, m: float, U: float, K: float):
     return Z_channel_all, downstream_of, k_out, bc_boundary_inds, bc_boundary_vals
 
 
+def precompute_chi_network(gd: dict, m: float):
+    """chi_D8 = sum A^-m dL and the anchor elevation of every cell's D8 path (Phase 3, step 4).
+
+    The same BFS as :func:`precompute_channel_network` with the factor U/K taken out:
+    ``Z_channel(K) = z_anchor + (U/K) * chi``. Rounding differs from the v1 integration at
+    the last bit (the sum is scaled once instead of term by term; ``docs/numerics_changes.md``
+    N6). Returns ``(chi_all, z_anchor_all, downstream_of, k_out, bc_boundary_inds, bc_boundary_vals)``.
+    """
+    Z0 = gd["Z0"]
+    dx = gd["dx"]
+    Ny, Nx = gd["Ny"], gd["Nx"]
+    n = gd["n"]
+    valid = gd["valid"]
+    idx_map = gd["idx_map"]
+    rev_i, rev_j = gd["rev_i"], gd["rev_j"]
+    A_flat, FD_flat = gd["A_flat"], gd["FD_flat"]
+
+    a_pow = 1.0 / (A_flat**m)
+    # receivers, vectorised
+    codes = FD_flat.astype(int)
+    di_arr = np.zeros(n, dtype=np.int64)
+    dj_arr = np.zeros(n, dtype=np.int64)
+    has = np.zeros(n, dtype=bool)
+    for code, (di, dj) in D8_OFFSETS.items():
+        sel = codes == code
+        di_arr[sel], dj_arr[sel], has[sel] = di, dj, True
+    ni, nj = rev_i + di_arr, rev_j + dj_arr
+    inside = has & (ni >= 0) & (ni < Nx) & (nj >= 0) & (nj < Ny)
+    downstream_of = np.full(n, -1, dtype=int)
+    downstream_of[inside] = idx_map[nj[inside], ni[inside]]
+    dL = np.where((di_arr != 0) & (dj_arr != 0), dx * np.sqrt(2.0), dx)
+
+    boundary_mask = make_boundary_mask(valid)
+    z_anchor = np.full(n, np.nan)
+    chi = np.full(n, np.nan)
+    bc_boundary_vals = np.zeros(n, dtype=float)
+    jb, ib = np.where(boundary_mask)
+    bc_boundary_inds = idx_map[jb, ib]
+    for k, j_b, i_b in zip(bc_boundary_inds.tolist(), jb.tolist(), ib.tolist(), strict=True):
+        elev = Z0[j_b, i_b] if np.isfinite(Z0[j_b, i_b]) else find_boundary_value(Z0, i_b, j_b, Nx, Ny)
+        z_anchor[k] = elev
+        chi[k] = 0.0
+        bc_boundary_vals[k] = elev
+
+    j_out, i_out = np.unravel_index(np.nanargmax(gd["A"]), (Ny, Nx))
+    k_out = idx_map[j_out, i_out]
+
+    # BFS upstream from the boundary (order-independent on a tree)
+    order = np.argsort(downstream_of, kind="stable")
+    ups_sorted = order[downstream_of[order] >= 0]
+    recv_sorted = downstream_of[ups_sorted]
+    starts = np.searchsorted(recv_sorted, np.arange(n + 1))
+    queue = deque(bc_boundary_inds.tolist())
+    while queue:
+        kc = queue.popleft()
+        for ku in ups_sorted[starts[kc]:starts[kc + 1]].tolist():
+            if not np.isnan(chi[ku]):
+                continue
+            step = a_pow[ku] * dL[ku]
+            if not np.isfinite(step):
+                continue
+            chi[ku] = chi[kc] + step
+            z_anchor[ku] = z_anchor[kc]
+            queue.append(ku)
+    return chi, z_anchor, downstream_of, k_out, bc_boundary_inds, bc_boundary_vals
+
+
 def build_diffusion_stencil(gd: dict) -> lil_matrix:
     """Full-grid Laplacian as LIL (v1 ``_build_diffusion_stencil``; kept for completeness)."""
     n = gd["n"]

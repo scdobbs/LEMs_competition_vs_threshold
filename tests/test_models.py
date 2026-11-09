@@ -302,3 +302,28 @@ class TestPhase3AdvectionDiffusionAssembly:
         np.testing.assert_array_equal(M_new.indices, M_v1.indices)
         np.testing.assert_array_equal(M_new.data, M_v1.data)
         np.testing.assert_array_equal(np.sort(bc_inds), np.sort(env["bc_inds_arr"]))
+
+
+class TestPhase3ChiNetwork:
+    """Phase 3 step 4: the once-integrated chi network reproduces the per-K rebuild to rounding."""
+
+    def test_channel_elevations_and_surfaces(self):
+        from tests.synthetic_tile import hydro_from_padded, synthetic_dem
+
+        z = synthetic_dem(80, 80, 1.0, seed=7)
+        zf, fd, area = hydro_from_padded(z, 1.0)
+        U, m = 1.47e-4, 0.4
+        g = _p.partitioned_threshold_model_chi(zf, area, fd, 1.0, m, U)
+        relief = float(np.nanmax(zf) - np.nanmin(zf))
+        for K in (2e-5, 7e-5):
+            f = _p.partitioned_threshold_model(zf, area, fd, 1.0, m, U, K)
+            zc_v1 = f.Z_channel_all
+            zc_chi = g.z_anchor + (U / K) * g.chi
+            np.testing.assert_array_equal(np.isnan(zc_v1), np.isnan(zc_chi))
+            ok = np.isfinite(zc_v1)
+            assert np.max(np.abs(zc_v1[ok] - zc_chi[ok]) / np.abs(zc_v1[ok])) < 1e-13
+            for A_crit, D in ((300.0, 1e-2), (1000.0, 3e-3)):
+                Z1, m1 = f(A_crit, D)
+                Z2, m2 = g(A_crit, D, K)
+                np.testing.assert_array_equal(m1, m2)
+                assert np.nanmax(np.abs(Z1 - Z2)) <= 1e-12 * relief
