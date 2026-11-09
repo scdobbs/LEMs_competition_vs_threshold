@@ -342,8 +342,10 @@ def hilltop_widths(Z, A, FD, dx, dy, A_c: float) -> dict[str, Any]:
     channel = np.isfinite(A) & (A >= A_c)
     dist = distance_transform_edt(~channel, sampling=(dy, dx))
     d = dist[mask]
-    return {"A_c": A_c, "n_hilltop": int(mask.sum()), "distance_to_channel_m": {q: float(np.percentile(d, q)) for q in (10, 25, 50, 75, 90)},
-            "hilltop_width_2x_m": {q: float(2 * np.percentile(d, q)) for q in (10, 50, 90)}, **diag}
+    qs = list(range(5, 100, 5))
+    return {"A_c": A_c, "n_hilltop": int(mask.sum()), "distance_to_channel_m": {q: float(np.percentile(d, q)) for q in qs},
+            "hilltop_width_2x_m": {q: float(2 * np.percentile(d, q)) for q in (10, 25, 50, 75, 90)},
+            "width_percentiles_2x_m": {q: float(2 * np.percentile(d, q)) for q in qs}, **diag}
 
 
 def facet_size(Z, dx, dy, lap_tol: float = 2e-3) -> dict[str, Any]:
@@ -467,6 +469,9 @@ def diagnose_tile(tile: str, thetas: np.ndarray, n_boot: int, stats_store: dict,
     pixel_store[tile] = (np.log10(A[ok]), np.log10(S[ok]))
     out["scaling_break"] = scaling_break(Z, A, FD, dx, dy, A_roll, n_boot=n_boot)
     out["scaling_break"]["rollover_note"] = roll.note
+    # the same restricted to A <= 1e5 m^2: on a 1 km^2 tile the cells above 1e5 m^2 are trunk-channel cells
+    # whose area is inherited from outside the tile (a few hundred pixels in 1-2 bins)
+    out["scaling_break_le1e5"] = scaling_break(Z, A, FD, dx, dy, A_roll, n_boot=n_boot, a_max=1e5)
     # 6.4 common-theta ks at 1e4 (site break added at pooling time)
     net4 = channel_network(Z, A, FD, 1e4, dx, dy)
     out["ks_common_theta_1e4"] = {"theta_0.45": ks_at_theta_from_stats(net4, THETA_REF_COMMON, labels)}
@@ -534,26 +539,35 @@ def run_measure_diagnostics(tiles: Sequence[str], n_boot: int = N_BOOT, run_id: 
         rolls = [results[t]["scaling_break"]["A_rollover"] for t in st_tiles]
         pooled[site]["scaling_break"] = scaling_break(None, None, None, None, None, float(np.median(rolls)), n_boot=n_boot,
                                                       pixels=(la, ls))
+        pooled[site]["scaling_break_le1e5"] = scaling_break(None, None, None, None, None, float(np.median(rolls)),
+                                                            n_boot=n_boot, a_max=1e5, pixels=(la, ls))
+        lad = pooled[site]["ladder"]
+        ths = [(s["A_c"], s["theta_star"]) for s in lad if s.get("theta_star") is not None]
+
+        def _theta_at(brk):
+            if not brk or not ths:
+                return None
+            a_near = min(ths, key=lambda p: abs(math.log10(p[0]) - math.log10(brk)))
+            return {"A_c_step": a_near[0], "theta": a_near[1]}
+
         brk = pooled[site]["scaling_break"].get("break_A_m2")
-        pooled[site]["theta_at_break"] = None
-        if brk:
-            lad = pooled[site]["ladder"]
-            ths = [(s["A_c"], s["theta_star"]) for s in lad if s.get("theta_star") is not None]
-            if ths:
-                a_near = min(ths, key=lambda p: abs(math.log10(p[0]) - math.log10(brk)))
-                pooled[site]["theta_at_break"] = {"A_c_step": a_near[0], "theta": a_near[1]}
-        # 6.4 common-theta k_sn per tile at the site break and at 1e4
+        brk5 = pooled[site]["scaling_break_le1e5"].get("break_A_m2")
+        pooled[site]["theta_at_break"] = _theta_at(brk)
+        pooled[site]["theta_at_break_le1e5"] = _theta_at(brk5)
+        # 6.4 common-theta k_sn per tile at the site breaks and at 1e4, at theta_ref = 0.45 and the site theta
         for t in st_tiles:
             td = _metre_tile(t, crop)
             labels = edge_outlet_labels(td.A, td.FD)
             ks_c: dict[str, Any] = {}
-            for a_c_name, a_c in (("site_break", brk), ("1e4", 1e4)):
+            for a_c_name, a_c, th_entry in (("site_break", brk, pooled[site]["theta_at_break"]),
+                                            ("site_break_le1e5", brk5, pooled[site]["theta_at_break_le1e5"]),
+                                            ("1e4", 1e4, pooled[site]["theta_at_break_le1e5"])):
                 if not a_c:
                     continue
                 net = channel_network(td.Z, td.A, td.FD, float(a_c), td.dx, td.filled.dy)
                 entry = {"A_c": float(a_c), "theta_0.45": ks_at_theta_from_stats(net, THETA_REF_COMMON, labels)}
-                if pooled[site]["theta_at_break"]:
-                    th = pooled[site]["theta_at_break"]["theta"]
+                if th_entry:
+                    th = th_entry["theta"]
                     entry[f"theta_site_{th:.2f}"] = ks_at_theta_from_stats(net, th, labels)
                 ks_c[a_c_name] = entry
             results[t]["ks_common_theta"] = ks_c
@@ -569,7 +583,8 @@ def run_measure_diagnostics(tiles: Sequence[str], n_boot: int = N_BOOT, run_id: 
     syn = {}
     for site in sites:
         st_tiles = [t for t in tiles if t.startswith(site)]
-        widths = sorted({round(results[t]["hilltop_widths_1e4"]["hilltop_width_2x_m"][q]) for t in st_tiles for q in (10, 50, 90)})
+        widths = sorted({max(2, round(results[t]["hilltop_widths_1e4"]["width_percentiles_2x_m"][q]))
+                         for t in st_tiles for q in (5, 10, 25, 50, 75, 90)} | {4, 8, 12, 16, 20, 30, 40, 60, 80, 120})
         ap_tiles = [t for t in tiles if t.startswith("AP")]
         facet = float(np.median([results[t]["facets"]["equiv_length_m"][50] for t in ap_tiles])) if ap_tiles else 0.0
         gm_tiles = [t for t in tiles if t.startswith("GM")]
