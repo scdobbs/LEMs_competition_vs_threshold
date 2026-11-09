@@ -19,7 +19,14 @@ export MAMBA_ROOT_PREFIX="$GROUP_HOME/micromamba_root"
 cd "{repo}" || exit 1
 echo "git=$(git rev-parse --short HEAD) env={env_prefix}"
 {micromamba} run -p {env_prefix} python -c "import numpy, scipy; print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
-{micromamba} run -p {env_prefix} {command}
-rc=$?
+{micromamba} run -p {env_prefix} {command} 2>&1 | tee "$SLURM_JOB_ID.$SLURM_ARRAY_TASK_ID.lemcvt.log"
+rc=${{PIPESTATUS[0]}}
+RUNDIR=$(grep -oP '^results: \K.*' "$SLURM_JOB_ID.$SLURM_ARRAY_TASK_ID.lemcvt.log" | tail -1)
+rm -f "$SLURM_JOB_ID.$SLURM_ARRAY_TASK_ID.lemcvt.log"
+if [ -n "$RUNDIR" ] && [ -d "$RUNDIR" ]; then
+  # Slurm accounting for this task (addendum 2, section 4): partition, elapsed, CPU time, peak memory
+  sacct -j "$SLURM_JOB_ID" -P --format=JobID,JobName,Partition,State,Elapsed,TotalCPU,MaxRSS,AllocCPUS,ReqMem,Timelimit > "$RUNDIR/slurm_sacct.txt" 2>/dev/null
+  sstat -j "$SLURM_JOB_ID.batch" -P --format=JobID,MaxRSS,AveCPU,Elapsed >> "$RUNDIR/slurm_sacct.txt" 2>/dev/null
+fi
 echo "exit=$rc end=$(date -Is)"
 exit $rc

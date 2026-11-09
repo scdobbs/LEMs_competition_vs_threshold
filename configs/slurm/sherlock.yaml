@@ -1,35 +1,56 @@
-# Slurm settings for `lemcvt slurm submit`. Partition/account/QoS: Sherlock has no
-# --account; `partition: null` means "omit -p and take the scheduler default (normal)".
-# Steve has not yet confirmed partition/QoS (Phase 0 report, section 0, item 2).
-partition: null
+# Slurm settings for `lemcvt slurm submit`.
+# Decision (addendum 2, 2026-11-09): every job goes to `serc`; never `owners`; Sherlock has
+# no --account and no QoS is needed. Limits confirmed with `sh_part` and `sinfo -Nlp serc`
+# on 2026-11-09 (login node sh03-ln04):
+#   serc: 383 nodes, 14352 cores; job runtime default 2h, maximum 7 days;
+#         memory per core default 6 GB, maximum 32 GB; 24-256 cores and 191-2048 GB per node;
+#         nodes seen: 24 cores/384 GB (sh02-10n6x), 24 cores/191 GB (sh02-16n0x),
+#         32 cores/256 GB (sh03-04n4x).
+# Concurrency: keep total concurrent CPUs <= 300 (SDSS guidance); every array is throttled with %N.
+# Resources below come from measurements of the Phase 2 forward runs (sacct, jobs 51680757 and
+# 51683792): TotalCPU/Elapsed = 0.98-1.0 (single-threaded solves), MaxRSS 32.2-33.9 GB
+# (full tile, AD model with LIL assembly + partitioned + nonlinear). Memory = 1.5 x MaxRSS.
+partition: serc
 account: null
 qos: null
+max_concurrent_cpus: 300
+array_throttle: 10
 micromamba: $GROUP_HOME/scdobbs-envs/bin/micromamba
 env_prefix: $GROUP_HOME/scdobbs-envs/lemcvt
 log_dir: $SCRATCH/lemcvt_jobs
 threads_env: [OMP_NUM_THREADS, MKL_NUM_THREADS, OPENBLAS_NUM_THREADS]
 defaults:
   time: "04:00:00"
-  cpus: 4
-  mem: 32G
+  cpus: 2
+  mem: 51G
 steps:
-  tile_run:           # four stages, one tile, v1 optimizer: ~10-45 h per tile in v1
+  tile_run:           # one stage per job (see `lemcvt slurm submit-stages`); time = 1.5 x v1 stage time
     time: "2-00:00:00"
-    cpus: 4
-    mem: 48G
-    core_hours_estimate_per_task: 120
-  tile_forward:
+    cpus: 2
+    mem: 51G
+    core_hours_estimate_per_task: 96
+  tile_forward:       # measured 10-55 min, 32-34 GB
+    time: "01:30:00"
+    cpus: 2
+    mem: 51G
+    core_hours_estimate_per_task: 3
+  sweep_resolution:   # measured ~1 min per tile (coarse grids only), 24G requested
     time: "01:00:00"
-    cpus: 4
+    cpus: 2
+    mem: 24G
+    core_hours_estimate_per_task: 2
+  measure:            # measured 0.6-2 min per tile
+    time: "01:00:00"
+    cpus: 2
     mem: 32G
     core_hours_estimate_per_task: 2
-  sweep_resolution:
-    time: "12:00:00"
-    cpus: 4
-    mem: 48G
-    core_hours_estimate_per_task: 24
-  measure:
-    time: "04:00:00"
-    cpus: 4
-    mem: 32G
-    core_hours_estimate_per_task: 8
+  closeout:           # linearized recovery: ~10 full-tile solves per tile (AD LIL assembly dominates memory)
+    time: "03:00:00"
+    cpus: 2
+    mem: 51G
+    core_hours_estimate_per_task: 6
+  dinf_diagnostics:   # two tiles with D-inf routing (pure-Python loops) + synthetic cases
+    time: "03:00:00"
+    cpus: 2
+    mem: 51G
+    core_hours_estimate_per_task: 6

@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import platform
+import re
 import subprocess
 import sys
 import time
@@ -46,6 +47,40 @@ def git_hash(short: bool = False) -> str:
         return out + ("-dirty" if dirty else "")
     except Exception:  # noqa: BLE001
         return "unknown"
+
+
+def slurm_accounting() -> dict[str, Any] | None:
+    """Elapsed, MaxRSS, CPU time and partition of the current job (``sstat`` + ``scontrol``), or None.
+
+    Called at ``finalize``, i.e. just before the process exits, so MaxRSS and the CPU time
+    of the batch step are those of essentially the whole run. ``sacct`` would only have
+    the step totals after the job ends, so the job script keeps the sidecar
+    ``slurm_sacct.txt`` for the final values.
+    """
+    job = os.environ.get("SLURM_JOB_ID")
+    if not job:
+        return None
+    out: dict[str, Any] = {"job_id": job, "array_task_id": os.environ.get("SLURM_ARRAY_TASK_ID"),
+                           "partition": os.environ.get("SLURM_JOB_PARTITION"),
+                           "cpus_on_node": os.environ.get("SLURM_CPUS_ON_NODE"),
+                           "mem_per_node": os.environ.get("SLURM_MEM_PER_NODE")}
+    try:
+        txt = subprocess.check_output(["sstat", "-j", f"{job}.batch", "-n", "-P", "--format=MaxRSS,AveCPU,Elapsed"],
+                                      text=True, stderr=subprocess.DEVNULL, timeout=30).strip().splitlines()
+        if txt:
+            maxrss, avecpu, elapsed = (txt[0].split("|") + ["", "", ""])[:3]
+            out.update({"max_rss": maxrss, "cpu_time_sstat": avecpu, "elapsed_sstat": elapsed})
+    except Exception:  # noqa: BLE001
+        out["sstat"] = "unavailable"
+    try:
+        txt = subprocess.check_output(["scontrol", "show", "job", job], text=True, stderr=subprocess.DEVNULL, timeout=30)
+        for key in ("RunTime", "TimeLimit", "Partition", "NumCPUs", "MinMemoryNode", "MinMemoryCPU", "NodeList"):
+            m = re.search(rf"\b{key}=(\S+)", txt)
+            if m:
+                out[key] = m.group(1)
+    except Exception:  # noqa: BLE001
+        out["scontrol"] = "unavailable"
+    return out
 
 
 def env_lock_sha256() -> str | None:
@@ -153,6 +188,7 @@ class RunRecorder:
             "started_utc": _dt.datetime.fromtimestamp(self.t_start, _dt.UTC).isoformat(timespec="seconds"),
             "wall_s": time.time() - self.t_start,
             "grids": self.grids_written,
+            "slurm_accounting": slurm_accounting(),
             "config": config_snapshot,
         }
         if extra:
