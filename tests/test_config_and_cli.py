@@ -147,8 +147,12 @@ class TestCLISmoke:
         from lemcvt.cli import main
 
         runner = CliRunner()
-        r = runner.invoke(main, ["data", "manifest"])
+        # write the synthetic tile's manifest next to its results, never into the repository's data/manifest.csv
+        # (until addendum 3 this test overwrote the repository manifest with the three synthetic entries)
+        out = tile_env["results"] / "manifest_test.csv"
+        r = runner.invoke(main, ["data", "manifest", "--out", str(out)])
         assert r.exit_code == 0, r.output
+        assert out.exists() and len(out.read_text().strip().splitlines()) == 4
         r = runner.invoke(main, ["info"])
         assert r.exit_code == 0 and "LEMCVT_DATA" in r.output
 

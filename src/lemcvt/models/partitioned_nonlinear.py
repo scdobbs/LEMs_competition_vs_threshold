@@ -3,6 +3,15 @@
 D_eff = D / (1 - (|grad z|/S_c)^2), solved by Picard iteration (max 50, tol 1e-6 on
 the maximum hillslope elevation change), with slopes from one-sided/centred
 differences over valid neighbours exactly as in v1.
+
+Instrumentation (addendum 3, section 3; the iteration itself is unchanged): every call
+records, per Picard iteration, the update norms (the max |dz| v1 tests, its RMS, and the
+max relative to the hillslope relief), the fraction of hillslope cells whose slope ratio
+was clipped at 0.99, and whether the stopping test or the iteration cap ended the loop
+(``output_function.last_picard``). With ``diagnostics=True`` it also assembles, at no
+change to the iterates, the nonlinear residual of each new iterate,
+``||M(D_eff(z_new)) z_new - b(D_eff(z_new))||_2 / ||b||_2``, and keeps the final
+hillslope slopes (``last_slopes``) for the slope statistics of the audit.
 """
 
 from __future__ import annotations
@@ -11,7 +20,12 @@ from collections.abc import Callable
 
 import numpy as np
 
-from lemcvt.models.common import extract_grid_data, precompute_channel_network, solve_hillslope_diffusion
+from lemcvt.models.common import (
+    assemble_hillslope_system,
+    extract_grid_data,
+    precompute_channel_network,
+    solve_hillslope_diffusion,
+)
 
 
 def partitioned_threshold_model_nonlinear(
@@ -95,8 +109,21 @@ def partitioned_threshold_model_nonlinear(
             slopes[idx_hs] = np.sqrt(dzdi**2 + dzdj**2)
         return slopes
 
+    def _residual(z_new: np.ndarray, hillslope_indices, hillslope_to_reduced, hillslope_mask, D_linear, S_c,
+                  Z_channel_flat, channel_mask_flat) -> dict[str, float]:
+        """Nonlinear residual of an iterate: assemble the system at D_eff(z_new) and apply it to z_new."""
+        slopes = _compute_slopes(z_new, hillslope_indices)
+        ratio = np.clip(slopes / S_c, -0.99, 0.99)
+        D_eff = D_linear / (1 - ratio**2)
+        M, b = assemble_hillslope_system(gd, hillslope_indices, hillslope_to_reduced, hillslope_mask, D_eff,
+                                         Z_channel_flat, channel_mask_flat, bc_boundary_vals, U)
+        r = M @ z_new[hillslope_indices] - b
+        nb = float(np.linalg.norm(b))
+        return {"residual_rel_l2": float(np.linalg.norm(r) / nb) if nb > 0 else float("nan"),
+                "residual_max_abs_over_U": float(np.max(np.abs(r)) / abs(U)) if U else float("nan")}
+
     def output_function(
-        A_crit: float, D_linear: float, S_c: float, max_iter: int = 50, tol: float = 1e-6,
+        A_crit: float, D_linear: float, S_c: float, max_iter: int = 50, tol: float = 1e-6, diagnostics: bool = False,
     ) -> tuple[np.ndarray, np.ndarray]:
         channel_mask_flat = A_flat >= A_crit
         if not channel_mask_flat[k_out]:
@@ -110,12 +137,16 @@ def partitioned_threshold_model_nonlinear(
 
         hillslope_indices = np.where(hillslope_mask)[0]
         n_hillslope = len(hillslope_indices)
+        picard: list[dict] = []
+        converged = False
+        slopes_final = None
 
         if n_hillslope == 0:
             z_flat = np.full(n, np.nan)
             z_flat[bc_boundary_inds] = bc_boundary_vals[bc_boundary_inds]
             z_flat[channel_mask_flat] = Z_channel_flat[channel_mask_flat]
             n_iter = 0
+            converged = True
         else:
             hillslope_to_reduced = np.full(n, -1, dtype=int)
             hillslope_to_reduced[hillslope_indices] = np.arange(n_hillslope)
@@ -124,6 +155,8 @@ def partitioned_threshold_model_nonlinear(
                 gd, hillslope_indices, hillslope_to_reduced, hillslope_mask,
                 D_linear, Z_channel_flat, channel_mask_flat, bc_boundary_inds, bc_boundary_vals, U,
             )
+            z_lin = z_flat_prev[hillslope_indices]
+            relief_hs = float(np.nanmax(z_lin) - np.nanmin(z_lin)) if np.isfinite(z_lin).any() else float("nan")
 
             z_flat_new = z_flat_prev
             n_iter = 0
@@ -138,14 +171,35 @@ def partitioned_threshold_model_nonlinear(
                     D_eff, Z_channel_flat, channel_mask_flat, bc_boundary_inds, bc_boundary_vals, U,
                 )
 
-                hillslope_change = np.max(np.abs(z_flat_new[hillslope_indices] - z_flat_prev[hillslope_indices]))
+                dz = z_flat_new[hillslope_indices] - z_flat_prev[hillslope_indices]
+                hillslope_change = np.max(np.abs(dz))
+                rec = {"iter": n_iter, "update_max_abs": float(hillslope_change),
+                       "update_rms": float(np.sqrt(np.mean(dz * dz))),
+                       "update_max_over_hillslope_relief": float(hillslope_change / relief_hs) if relief_hs else float("nan"),
+                       "frac_ratio_clipped": float(np.mean(slopes / S_c > 0.99)),
+                       "max_slope_ratio_prev": float(np.max(slopes) / S_c)}
+                if diagnostics:
+                    rec.update(_residual(z_flat_new, hillslope_indices, hillslope_to_reduced, hillslope_mask, D_linear,
+                                         S_c, Z_channel_flat, channel_mask_flat))
+                picard.append(rec)
                 if hillslope_change < tol:
+                    converged = True
                     break
                 z_flat_prev = z_flat_new.copy()
 
             z_flat = z_flat_new
+            if diagnostics:
+                slopes_final = _compute_slopes(z_flat, hillslope_indices)
 
         output_function.last_n_iter = n_iter  # type: ignore[attr-defined]
+        output_function.last_picard = {  # type: ignore[attr-defined]
+            "n_iter": n_iter, "max_iter": max_iter, "tol": tol, "converged": bool(converged),
+            "stop_reason": "tolerance" if converged else "max_iter",
+            "n_hillslope": int(n_hillslope), "iterations": picard,
+        }
+        output_function.last_slopes = slopes_final  # type: ignore[attr-defined]
+        output_function.last_hillslope_indices = hillslope_indices  # type: ignore[attr-defined]
+        output_function.last_z_flat = z_flat  # type: ignore[attr-defined]
 
         Z_ss = np.full((Ny, Nx), np.nan)
         Z_ss[rev_j, rev_i] = z_flat
@@ -155,6 +209,8 @@ def partitioned_threshold_model_nonlinear(
         return Z_ss, channel_mask_2d
 
     output_function.last_n_iter = 0  # type: ignore[attr-defined]
+    output_function.last_picard = None  # type: ignore[attr-defined]
+    output_function.grid_data = gd  # type: ignore[attr-defined]
     output_function.compute_slopes = _compute_slopes  # type: ignore[attr-defined]
     output_function.compute_slopes_v1 = _compute_slopes_v1  # type: ignore[attr-defined]
     return output_function

@@ -274,7 +274,10 @@ class TestPhase3AdvectionDiffusionAssembly:
         for U, K, D in ((1e-4, 2e-5, 1e-2), (1.47e-4, 5e-5, 3e-3), (5.5e-5, 1e-6, 2.8e-3)):
             a, b = f_v1(U, K, D), f_new(U, K, D)
             np.testing.assert_array_equal(np.isnan(a), np.isnan(b))
-            np.testing.assert_array_equal(a[np.isfinite(a)], b[np.isfinite(b)])
+            # N7 (docs/numerics_changes.md): A**m is a vectorised power here and a scalar power in the v1 loop; on
+            # CPUs where numpy's SIMD power rounds differently the advection entries differ by one ulp, and so
+            # does the solution (3.5e-16 relative on the serc AMD nodes, job 51704806). Equality is required to 1e-14.
+            np.testing.assert_allclose(b[np.isfinite(b)], a[np.isfinite(a)], rtol=1e-14, atol=0)
 
     def test_matrix_identical_to_v1_round_trip(self):
         from tests.synthetic_tile import hydro_from_padded, synthetic_dem
@@ -300,7 +303,10 @@ class TestPhase3AdvectionDiffusionAssembly:
         M_v1.sort_indices()
         np.testing.assert_array_equal(M_new.indptr, M_v1.indptr)
         np.testing.assert_array_equal(M_new.indices, M_v1.indices)
-        np.testing.assert_array_equal(M_new.data, M_v1.data)
+        # pattern exact; values to one ulp (N7: vectorised against scalar A**m, see test_solution_bit_identical)
+        np.testing.assert_allclose(M_new.data, M_v1.data, rtol=4e-16, atol=0)
+        n_exact = int(np.sum(M_new.data == M_v1.data))
+        assert n_exact >= 0.98 * M_new.data.size, f"only {n_exact} of {M_new.data.size} entries bit-identical"
         np.testing.assert_array_equal(np.sort(bc_inds), np.sort(env["bc_inds_arr"]))
 
 
@@ -367,3 +373,77 @@ class TestPhase3ChannelNetworkBFS:
         finally:
             d8m._accumulate = saved
         np.testing.assert_array_equal(a1, a2)
+
+
+class TestPicardInstrumentation:
+    """Addendum 3, section 3: the instrumented Picard loop reproduces the v1 loop bit for bit and records its record."""
+
+    def _tile(self):
+        from tests.synthetic_tile import hydro_from_padded, synthetic_dem
+
+        z = synthetic_dem(60, 60, 1.0, seed=7)
+        zf, fd, area = hydro_from_padded(z, 1.0)
+        return zf, fd, area
+
+    def _v1_loop(self, zf, area, fd, A_crit, D, S_c, max_iter, tol):
+        """The v1 Picard loop, verbatim (as ported in Phase 1), on the shared building blocks."""
+        from lemcvt.models.common import extract_grid_data, precompute_channel_network, solve_hillslope_diffusion
+
+        f = _pn.partitioned_threshold_model_nonlinear(zf, area, fd, 1.0, 0.4, 1e-4, 2e-5)
+        gd = extract_grid_data(zf, area, fd, 1.0)
+        Zc, _ds, k_out, bc_inds, bc_vals = precompute_channel_network(gd, 0.4, 1e-4, 2e-5)
+        ch = gd["A_flat"] >= A_crit
+        ch[k_out] = True
+        fixed = ch.copy()
+        fixed[bc_inds] = True
+        hs_mask = ~fixed
+        hs = np.where(hs_mask)[0]
+        to_red = np.full(gd["n"], -1, dtype=int)
+        to_red[hs] = np.arange(hs.size)
+        z_prev = solve_hillslope_diffusion(gd, hs, to_red, hs_mask, D, Zc, ch, bc_inds, bc_vals, 1e-4)
+        z_new = z_prev
+        n_iter = 0
+        for _ in range(max_iter):
+            n_iter += 1
+            slopes = f.compute_slopes(z_prev, hs)
+            ratio = np.clip(slopes / S_c, -0.99, 0.99)
+            D_eff = D / (1 - ratio**2)
+            z_new = solve_hillslope_diffusion(gd, hs, to_red, hs_mask, D_eff, Zc, ch, bc_inds, bc_vals, 1e-4)
+            if np.max(np.abs(z_new[hs] - z_prev[hs])) < tol:
+                break
+            z_prev = z_new.copy()
+        Z = np.full((gd["Ny"], gd["Nx"]), np.nan)
+        Z[gd["rev_j"], gd["rev_i"]] = z_new
+        return Z, n_iter
+
+    def test_bit_identical_with_and_without_diagnostics(self):
+        zf, fd, area = self._tile()
+        f = _pn.partitioned_threshold_model_nonlinear(zf, area, fd, 1.0, 0.4, 1e-4, 2e-5)
+        Z_a, m_a = f(300.0, 1e-2, 1.27, 8, 1e-4)
+        rec_a = f.last_picard
+        Z_b, m_b = f(300.0, 1e-2, 1.27, 8, 1e-4, diagnostics=True)
+        rec_b = f.last_picard
+        np.testing.assert_array_equal(np.isnan(Z_a), np.isnan(Z_b))
+        np.testing.assert_array_equal(Z_a[np.isfinite(Z_a)], Z_b[np.isfinite(Z_b)])
+        np.testing.assert_array_equal(m_a, m_b)
+        assert rec_a["n_iter"] == rec_b["n_iter"] == len(rec_b["iterations"])
+        assert rec_a["stop_reason"] in ("tolerance", "max_iter")
+        assert all("residual_rel_l2" in it for it in rec_b["iterations"])
+        assert all("residual_rel_l2" not in it for it in rec_a["iterations"])
+        assert f.last_slopes is not None and f.last_slopes.size == f.last_hillslope_indices.size
+        ups = [it["update_max_abs"] for it in rec_b["iterations"]]
+        if rec_b["converged"]:
+            assert ups[-1] < 1e-4 and rec_b["n_iter"] <= 8
+        else:
+            assert rec_b["n_iter"] == 8
+
+    def test_matches_v1_loop(self):
+        zf, fd, area = self._tile()
+        f = _pn.partitioned_threshold_model_nonlinear(zf, area, fd, 1.0, 0.4, 1e-4, 2e-5)
+        for A_crit, D, S_c, mi, tol in ((300.0, 1e-2, 1.27, 8, 1e-4), (150.0, 3e-3, 0.8, 50, 1e-6)):
+            Z, _ = f(A_crit, D, S_c, mi, tol, diagnostics=True)
+            Zv, n_v = self._v1_loop(zf, area, fd, A_crit, D, S_c, mi, tol)
+            np.testing.assert_array_equal(np.isnan(Z), np.isnan(Zv))
+            np.testing.assert_array_equal(Z[np.isfinite(Z)], Zv[np.isfinite(Zv)])
+            assert f.last_picard["n_iter"] == n_v
+            assert f.last_picard["converged"] == (f.last_picard["iterations"][-1]["update_max_abs"] < tol)

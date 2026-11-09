@@ -108,12 +108,15 @@ def data_fetch(source: Path | None, inputs_only: bool) -> None:
 
 @data.command("manifest")
 @click.option("--root", type=click.Path(path_type=Path), default=None, help="Directory to scan (default LEMCVT_DATA).")
-def data_manifest(root: Path | None) -> None:
+@click.option("--out", type=click.Path(path_type=Path), default=None,
+              help="Where to write the manifest (default data/manifest.csv in the repository).")
+def data_manifest(root: Path | None, out: Path | None) -> None:
     """Build data/manifest.csv from the grids under LEMCVT_DATA (sha256 of every .tif)."""
     from lemcvt.config import data_root
     from lemcvt.io.grids import sha256_file
     from lemcvt.io.manifest import MANIFEST_PATH, ManifestEntry, write_manifest
 
+    MANIFEST_PATH = out or MANIFEST_PATH  # noqa: N806
     root = root or data_root()
     entries = []
     for p in sorted(root.rglob("*.tif")):
@@ -123,7 +126,7 @@ def data_manifest(root: Path | None) -> None:
         kind = "output" if "outputs" in parts else "input"
         role = p.stem.split("_tile_", 1)[-1]
         entries.append(ManifestEntry(str(rel), sha256_file(p), p.stat().st_size, site, tile, kind, role))
-    write_manifest(entries)
+    write_manifest(entries, MANIFEST_PATH)
     click.echo(f"wrote {MANIFEST_PATH} with {len(entries)} entries")
 
 
@@ -141,14 +144,40 @@ def tile() -> None:
 @click.option("--no-derived", is_flag=True, help="Write elevation grids only (skip filled/fd/area/logarea/hillshade).")
 @click.option("--exploration", is_flag=True, help="Also run v1's plotted-only exploratory forward runs.")
 @click.option("--crop", default=None, help="row0,row1,col0,col1 pixel crop (smoke tests).")
+@click.option("--acrit-grid", default="thin", show_default=True, type=click.Choice(["thin", "full"]),
+              help="v2 only: every unique drainage area in [1e2, 1e5] m^2 ('full') or the 2000 nearest a uniform log grid ('thin').")
+@click.option("--nl-grid", default=200, show_default=True, help="v2 only: log-thinned A_crit values for the nonlinear stage.")
+@click.option("--m-acrit-grid", default=200, show_default=True, help="v2 only: log-thinned A_crit values for the m profile.")
 @click.option("--run-id", default=None)
-def tile_run(tile_id, stages, optimizer, no_grids, no_derived, exploration, crop, run_id) -> None:
-    from lemcvt.analyses.tile_pipeline import run_tile
+def tile_run(tile_id, stages, optimizer, no_grids, no_derived, exploration, crop, acrit_grid, nl_grid, m_acrit_grid, run_id) -> None:
+    """v1: the exact port of the four v1 stages. v2 (Phase 4): stages ad, partitioned (= acrit + joint), nonlinear, m_profile."""
+    st = [s.strip() for s in stages.split(",")]
+    if optimizer == "v2":
+        from lemcvt.analyses.optimizer_v2 import run_tile_v2
 
-    rec = run_tile(tile_id, stages=[s.strip() for s in stages.split(",")], optimizer=optimizer,
-                   save_grids=not no_grids, derived_grids=not no_derived, exploration_runs=exploration,
-                   crop=_parse_crop(crop), run_id=run_id)
+        rec = run_tile_v2(tile_id, stages=st, acrit_grid=acrit_grid, nl_n=nl_grid, m_acrit_n=m_acrit_grid, save_grids=not no_grids,
+                          derived_grids=not no_derived, crop=_parse_crop(crop), run_id=run_id)
+    else:
+        from lemcvt.analyses.tile_pipeline import run_tile
+
+        rec = run_tile(tile_id, stages=st, optimizer=optimizer, save_grids=not no_grids, derived_grids=not no_derived,
+                       exploration_runs=exploration, crop=_parse_crop(crop), run_id=run_id)
     click.echo(f"results: {rec.dir}")
+
+
+@tile.command("v2-estimate")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--thin-n", default=2000, show_default=True)
+def tile_v2_estimate(tiles, thin_n) -> None:
+    """Phase 4 budget rule: unique-area counts and the core-hour estimate for the full and thinned A_crit grids."""
+    import json as _json
+
+    from lemcvt.analyses.optimizer_v2 import estimate
+
+    est = estimate(_parse_tiles(tiles), thin_n=thin_n)
+    click.echo(est.pop("table"))
+    click.echo(_json.dumps({k: v for k, v in est.items() if k not in ("rows", "cost_assumptions_s")}, indent=1))
+    click.echo(f"cost assumptions (s per evaluation): {_json.dumps(est['cost_assumptions_s'])}")
 
 
 @tile.command("forward")
@@ -306,6 +335,50 @@ def closeout_dinf(tiles, no_synthetic, run_id) -> None:
     click.echo(f"results: {rec.dir}")
 
 
+# -------------------------------------------------------------------------------- audits (addendum 3, sections 3-4)
+@main.group()
+def audit() -> None:
+    """Addendum 3 audits: Picard convergence (section 3), chi estimator and hilltop set (section 4)."""
+
+
+@audit.command("picard")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--metres", is_flag=True, help="Load with reproduce_v1_units: false (in memory only; configs unchanged).")
+@click.option("--scale-k", "scale_K", default=1.0, show_default=True, help="Multiply K0_partitioned by this factor.")
+@click.option("--scale-d", "scale_D", default=1.0, show_default=True, help="Multiply D0 by this factor.")
+@click.option("--label", default=None, help="Variant label for the run id (default feet_as_v1 / metres).")
+@click.option("--reference-run", default=None,
+              help="tile_forward run directory whose nonlinear_opt grid the result is compared with ('step5' = latest Phase 3 gate run).")
+@click.option("--max-iter", default=None, type=int, help="Override the Picard cap (default: the config's 50).")
+@click.option("--no-grids", is_flag=True)
+@click.option("--run-id", default=None)
+def audit_picard(tile_id, metres, scale_K, scale_D, label, reference_run, max_iter, no_grids, run_id) -> None:
+    """Run the nonlinear model once at the v1 nonlinear optimum with the instrumented Picard loop."""
+    from lemcvt.analyses.picard_audit import run_picard_audit
+
+    if reference_run == "step5":
+        from lemcvt.results import find_runs
+
+        cands = [r for r in find_runs("tile_forward", tile_id) if "20261109T2143" <= r.name[:13] <= "20261109T2150"]
+        reference_run = str(cands[-1]) if cands else None
+    rec = run_picard_audit(tile_id, metres=metres, scale_K=scale_K, scale_D=scale_D, label=label, reference_run=reference_run,
+                           save_grids=not no_grids, run_id=run_id, max_iter=max_iter)
+    click.echo(f"results: {rec.dir}")
+
+
+@audit.command("measure")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--n-boot", default=200, show_default=True)
+@click.option("--crop", default=None, help="row0,row1,col0,col1 (smoke tests only)")
+@click.option("--run-id", default=None)
+def audit_measure(tiles, n_boot, crop, run_id) -> None:
+    """chi estimator audit (n_eff, equal-weight and median estimators, truncation) and hilltop exclusion (addendum 3, section 4)."""
+    from lemcvt.measure.audits import run_measure_audit
+
+    rec = run_measure_audit(_parse_tiles(tiles), n_boot=n_boot, run_id=run_id, crop=_parse_crop(crop))
+    click.echo(f"results: {rec.dir}")
+
+
 @main.command("measure-diagnostics")
 @click.option("--tiles", default="all", show_default=True)
 @click.option("--n-boot", default=200, show_default=True)
@@ -362,7 +435,7 @@ def slurm() -> None:
 
 @slurm.command("submit")
 @click.argument("step", type=click.Choice(["tile_run", "tile_forward", "sweep_resolution", "measure", "closeout",
-                                           "dinf_diagnostics", "measure_diagnostics", "profile", "custom"]))
+                                           "dinf_diagnostics", "measure_diagnostics", "measure_audit", "profile", "custom"]))
 @click.option("--tiles", default="all", show_default=True)
 @click.option("--labels", default=None, help="custom step: comma list of array labels (default: one task 'all')")
 @click.option("--command", "command_", default=None, help="custom step: command with $LABEL, e.g. \"lemcvt -v slope-area --tiles AP1,GM2\"")
@@ -400,6 +473,9 @@ def slurm_submit(step, tiles, labels, command_, stages, optimizer, params, compa
         labels = ["all"]
     elif step == "measure_diagnostics":
         cmd = f"lemcvt -v measure-diagnostics --tiles {tiles}"
+        labels = ["all"]
+    elif step == "measure_audit":
+        cmd = f"lemcvt -v audit measure --tiles {tiles}"
         labels = ["all"]
     elif step == "profile":
         cmd = "lemcvt -v profile --tile $LABEL"

@@ -193,7 +193,8 @@ def run_tile(
                              "params": {"U": U, "K": mp.K0_partitioned, "D": mp.D0, "S_c": mp.S_c,
                                         "A_crit": res.params["A_crit"]},
                              "mse": mse(Z, Z0), "files": _save(Z, "nonlinear_opt"),
-                             "picard_iterations": int(getattr(pmnl, "last_n_iter", 0))})
+                             "picard_iterations": int(getattr(pmnl, "last_n_iter", 0)),
+                             "picard": getattr(pmnl, "last_picard", None)})
         stage_results["nonlinear"] = _stage_record(res, {"build_s": t_build, "K": mp.K0_partitioned, "D": mp.D0,
                                                          "S_c": mp.S_c})
         logger.info("nonlinear A_crit: %.4e MSE=%.4e (%.1f s)", res.params["A_crit"], res.mse, res.wall_s)

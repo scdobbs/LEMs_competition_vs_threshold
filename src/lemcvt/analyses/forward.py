@@ -99,6 +99,7 @@ def evaluate(td: TileData, spec: dict[str, Any], models_cache: dict[Any, Any]) -
         Z, mask = f(spec["A_crit"], spec["D"], spec["S_c"], mp.nonlinear_max_iter, mp.nonlinear_tol)
         info["n_channel"] = int(mask.sum())
         info["picard_iterations"] = int(getattr(f, "last_n_iter", 0))
+        info["picard"] = getattr(f, "last_picard", None)       # addendum 3, section 3: per-iteration record
     else:
         raise ValueError(f"unknown model {model!r}")
     return Z, info

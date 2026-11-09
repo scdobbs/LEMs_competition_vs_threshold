@@ -137,4 +137,102 @@ for d in sorted(root.iterdir()):
 for t, st, code, name, res, ref, rel, dm, ok in sorted(opt_runs, key=lambda x: (x[0], ["ad", "acrit", "nonlinear", "joint"].index(x[1]), x[2])):
     out.append(f"| {t} | {st} | {code} | {name} | " + ", ".join(f"{k}={v:.6g}" for k, v in res["params"].items()) + " | "
                + ", ".join(f"{k} {v:+.1e}" for k, v in rel.items()) + f" | {res['mse']:.5g} | {dm:+.1e} | {res['wall_s']:.0f} | {ref['duration_s']:.0f} | {res['n_fev']} / {res['n_solves']} | {'yes' if ok else 'NO'} |")
+# ---- O2. Phase 3 against the section 3 baseline: pass rule and trajectory comparison (addendum 3, section 2)
+import subprocess
+
+
+def _sacct(job_ids):
+    try:
+        txt = subprocess.check_output(["sacct", "-X", "-n", "-P", "-j", ",".join(job_ids),
+                                       "--format=JobID,State,Elapsed,Timelimit,NodeList"], text=True, timeout=60)
+    except Exception:  # noqa: BLE001
+        return {}
+    outd = {}
+    for line in txt.strip().splitlines():
+        jid, state, el, tl, node = (line.split("|") + [""] * 5)[:5]
+        outd[jid.split("_")[0]] = {"state": state, "elapsed": el, "timelimit": tl, "node": node}
+    return outd
+
+
+def _same_mask(tile, a1, a2):
+    """Cells with D8 area between two A_crit values (0 means both select the same channel mask)."""
+    try:
+        import numpy as np
+        import rasterio
+
+        data = Path(os.environ.get("LEMCVT_DATA", "/home/groups/hilley/lemcvt_data/v1"))
+        site, n = tile[:2], tile[2:]
+        with rasterio.open(data / site / f"tile{n}" / f"{site}_1m_best_tile_area.tif") as f:
+            A = f.read(1)
+        lo, hi = sorted((a1, a2))
+        return int(np.sum((A >= lo) & (A < hi)))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _traj(d: Path):
+    import pandas as pd
+
+    f = d / "trajectory.parquet"
+    return pd.read_parquet(f) if f.exists() else None
+
+
+out.append("\n## O2. Phase 3 code against the section 3 baseline (addendum 3, section 2): pass rule (parameters within 1 %, MSE within 0.5 %; A_crit rule) and row-by-row trajectory comparison\n")
+out.append("| tile | stage | baseline run | Phase 3 run | baseline params | Phase 3 params | rel. diff P3 vs baseline | MSE baseline / Phase 3 | rel. MSE diff | pass | evals (b / P3) | first row with different parameters | max per-eval abs dMSE | max per-eval rel dMSE | optimizer steps differ |")
+out.append("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+pairs = {}
+for t, st, code, name, res, ref, rel, dm, ok in opt_runs:
+    pairs.setdefault((t, st), {})[code] = (name, res)
+import numpy as np
+
+traj_rows = []
+for (t, st), d in sorted(pairs.items(), key=lambda x: (x[0][0], ["ad", "acrit", "nonlinear", "joint"].index(x[0][1]))):
+    if "baseline" not in d or "Phase 3" not in d:
+        missing = "Phase 3" if "baseline" in d else "baseline"
+        have = d.get("baseline") or d.get("Phase 3")
+        out.append(f"| {t} | {st} | {have[0] if 'baseline' in d else '-'} | {have[0] if 'Phase 3' in d else '-'} | - | - | - | - | - | {missing} stage not finished | - | - | - | - | - |")
+        continue
+    (nb, rb), (np3, rp3) = d["baseline"], d["Phase 3"]
+    rel = {k: (rp3["params"][k] - rb["params"][k]) / rb["params"][k] for k in rb["params"]}
+    dmse = (rp3["mse"] - rb["mse"]) / rb["mse"]
+    ok = all(abs(v) <= 0.01 for v in rel.values()) and abs(dmse) <= 0.005
+    note = ""
+    if not ok and abs(dmse) <= 0.005 and "A_crit" in rel and all(abs(v) <= 0.01 for k, v in rel.items() if k != "A_crit"):
+        n_between = _same_mask(t, rb["params"]["A_crit"], rp3["params"]["A_crit"])
+        if n_between == 0:
+            ok, note = True, " (A_crit rule: same channel mask)"
+        else:
+            note = f" ({n_between} cells between the two A_crit values)"
+    tb, tp = _traj(root / nb), _traj(root / np3)
+    first_diff = "-"
+    mx_abs = mx_rel = float("nan")
+    steps_differ = "-"
+    if tb is not None and tp is not None:
+        pcols = [c for c in tb.columns if c.startswith("log10_")]
+        n = min(len(tb), len(tp))
+        pb, pp = tb[pcols].to_numpy()[:n], tp[pcols].to_numpy()[:n]
+        diff_rows = np.where(np.any(pb != pp, axis=1))[0]
+        first_diff = int(diff_rows[0]) if diff_rows.size else ("none" if len(tb) == len(tp) else f"none in first {n}; lengths {len(tb)} / {len(tp)}")
+        same = np.all(pb == pp, axis=1)
+        dm_ev = np.abs(tp["mse"].to_numpy()[:n] - tb["mse"].to_numpy()[:n])
+        mx_abs = float(dm_ev[same].max()) if same.any() else float("nan")
+        mx_rel = float((dm_ev[same] / np.abs(tb["mse"].to_numpy()[:n][same])).max()) if same.any() else float("nan")
+        steps_differ = "no" if (not diff_rows.size and len(tb) == len(tp)) else "yes"
+        traj_rows.append({"tile": t, "stage": st, "baseline": nb, "phase3": np3, "n_b": len(tb), "n_p3": len(tp),
+                          "first_diff_row": first_diff, "max_abs_dmse": mx_abs, "max_rel_dmse": mx_rel})
+    out.append(f"| {t} | {st} | {nb} | {np3} | " + ", ".join(f"{k}={v:.6g}" for k, v in rb["params"].items()) + " | "
+               + ", ".join(f"{k}={v:.6g}" for k, v in rp3["params"].items()) + " | "
+               + ", ".join(f"{k} {v:+.1e}" for k, v in rel.items()) + f" | {rb['mse']:.6g} / {rp3['mse']:.6g} | {dmse:+.1e} | "
+               f"{'yes' if ok else 'NO'}{note} | {rb['n_fev']} / {rp3['n_fev']} | {first_diff} | {mx_abs:.2e} | {mx_rel:.2e} | {steps_differ} |")
+
+# ---- O3. Job status of the baseline and Phase 3 stages (sacct)
+out.append("\n## O3. Slurm status of the baseline (section 3) and Phase 3 optimizer jobs\n")
+out.append("| set | tile | stage | job | state | elapsed | limit | node |")
+out.append("|---|---|---|---|---|---|---|---|")
+acct = _sacct([j["job_id"] for j in base_jobs + p3_jobs])
+for label, jobs in (("baseline", base_jobs), ("Phase 3", p3_jobs)):
+    for j in jobs:
+        a = acct.get(str(j["job_id"]), {})
+        out.append(f"| {label} | {j['tile']} | {j['stage']} | {j['job_id']} | {a.get('state', '?')}{' (' + j['status'] + ')' if j.get('status') else ''} | {a.get('elapsed', '?')} | {a.get('timelimit', j['time'])} | {a.get('node', '?')} |")
+
 print("\n".join(out))

@@ -80,6 +80,28 @@ stable rule. Where no tie exists the results are bit-identical to Phase 1.
   <= 9e-16 relative and the surfaces by <= 1.2e-14 of relief; the Phase 3 gate tolerance is
   1e-8 of relief. The channel mask is unaffected. `rebuild_per_K=True` restores the v1 path.
 
+## N7. AD advection stencil: vectorised power (Phase 3, step 3; found by addendum 3)
+
+- **Old:** v1 built the advection coefficient per cell as ``-(A[j, i] ** m) / dL`` with a numpy
+  scalar power. **New:** ``advection_diffusion_model`` computes ``A[rev_j, rev_i] ** m`` for all
+  cells at once (the ufunc loop).
+- **Where results differ:** numpy dispatches the array power to a SIMD implementation on CPUs
+  that have one, and its rounding differs from the scalar power in the last bit for some
+  arguments. `serc` mixes AMD Rome nodes (EPYC 7502, `CPU_GEN:RME`, no AVX-512; the login
+  nodes are the same CPU) with AMD Genoa nodes (EPYC 8224P, `CPU_GEN:SIE`, AVX-512). On a
+  Genoa node 103 of 8126 matrix entries of the 40 x 40 synthetic tile differ by one ulp
+  (3.4e-16 relative) and the AD solution by up to 3.5e-16 relative (test job 51704806, node
+  sh04-07n24); on a Rome node and on the login node the two agree exactly. The Phase 3 report
+  could describe step 3 as bit-identical because its tests were not run in a Slurm job after
+  step 3 landed (the test jobs of 2026-11-09 ran at 12:29, 12:42, 12:55 and 13:21 PST; step 3
+  was committed at 13:26). The same CPU dependence puts a floor of about 1e-13 of relief
+  under any comparison of full-tile grids computed on different node generations (the
+  GM2 Picard-audit grid against the step-5 gate grid: 5e-14 of relief; Rome against Genoa). The Phase 3 forward gate
+  (1e-8 of relief) and the optimizer pass rule are unaffected; the AD stage trajectories of
+  Phase 3 against the section 3 baseline are compared row by row in `03b_phase3_close.md`.
+  The tests `TestPhase3AdvectionDiffusionAssembly` now require equality to 1e-14 relative
+  (solution) and one ulp (entries) with at least 98 % of the entries bit-identical.
+
 ## Sorts examined and left unchanged
 
 - `lemcvt.hydro.fill.priority_flood_fill`: the heap holds `(z, counter, row, col)`;

@@ -62,6 +62,11 @@ steps:
     cpus: 2
     mem: 32G
     core_hours_estimate_per_task: 12
+  measure_audit:      # addendum 3 section 4: two ladders x 3 estimators, hilltop curvature on 3 networks x 2 sets, synthetic ridges
+    time: "04:00:00"
+    cpus: 2
+    mem: 32G
+    core_hours_estimate_per_task: 8
   profile:            # Phase 3 step 1: one tile per task, every stage once, 2 Picard iterations
     time: "02:00:00"
     cpus: 1
