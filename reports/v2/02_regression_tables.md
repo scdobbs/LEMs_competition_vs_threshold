@@ -2,58 +2,120 @@
 
 ## 2.1 Forward regression against the saved v1 grids
 
-| tile | key | exact_params | max_dz_over_relief | rel_mse_diff | pass_dz_1e-6 | pass_mse_1e-8 | wall_s_run |
-|---|---|---|---|---|---|---|---|
-| AP1 | ad_no_opt | True | 7.307e-13 | 2.218e-13 | True | True | 2.091e+03 |
-| AP1 | ad_opt | False | 1.867e-06 | 1.664e-10 | False | True | 2.091e+03 |
-| AP1 | acrit_opt | False | 1.042e-12 | 1.405e-12 | True | True | 2.091e+03 |
-| AP1 | nonlinear_opt | False |  |  |  |  | 2.091e+03 |
-| AP1 | joint_opt | False | 7.106e-06 | 2.678e-09 | False | True | 2.091e+03 |
-| AP2 | ad_no_opt | True | 4.827e-13 | 9.132e-14 | True | True | 2.056e+03 |
-| AP2 | ad_opt | False | 4.749e-07 | 9.431e-12 | True | True | 2.056e+03 |
-| AP2 | acrit_opt | False | 8.243e-13 | 2.871e-12 | True | True | 2.056e+03 |
-| AP2 | nonlinear_opt | False |  |  |  |  | 2.056e+03 |
-| AP2 | joint_opt | False | 1.753e-06 | 3.294e-09 | False | True | 2.056e+03 |
-| AP3 | ad_no_opt | True | 5.656e-13 | 2.080e-13 | True | True | 2.007e+03 |
-| AP3 | ad_opt | False | 6.366e-06 | 1.732e-09 | False | True | 2.007e+03 |
-| AP3 | acrit_opt | False | 6.445e-13 | 2.695e-13 | True | True | 2.007e+03 |
-| AP3 | nonlinear_opt | False |  |  |  |  | 2.007e+03 |
-| AP3 | joint_opt | False | 2.165e-06 | 4.265e-09 | False | True | 2.007e+03 |
-| AP4 | ad_no_opt | True | 9.650e-13 | 2.924e-13 | True | True | 1.968e+03 |
-| AP4 | ad_opt | False | 2.020e-06 | 1.650e-10 | False | True | 1.968e+03 |
-| AP4 | acrit_opt | False | 2.143e-12 | 6.466e-12 | True | True | 1.968e+03 |
-| AP4 | nonlinear_opt | False |  |  |  |  | 1.968e+03 |
-| AP4 | joint_opt | False | 2.201e-06 | 6.143e-10 | False | True | 1.968e+03 |
-| AP5 | ad_no_opt | True | 9.747e-13 | 3.393e-13 | True | True | 3.301e+03 |
-| AP5 | ad_opt | False | 3.121e-05 | 1.626e-08 | False | False | 3.301e+03 |
-| AP5 | acrit_opt | False | 6.187e-13 | 4.880e-13 | True | True | 3.301e+03 |
-| AP5 | nonlinear_opt | False |  |  |  |  | 3.301e+03 |
-| AP5 | joint_opt | False | 3.213e-06 | 7.752e-09 | False | True | 3.301e+03 |
-| GM1 | ad_no_opt | True | 9.253e-13 | 1.578e-13 | True | True | 1.120e+03 |
-| GM1 | ad_opt | False | 1.986e-05 | 8.074e-09 | False | True | 1.120e+03 |
-| GM1 | acrit_opt | False | 4.126e-13 | 2.317e-12 | True | True | 1.120e+03 |
-| GM1 | nonlinear_opt | False |  |  |  |  | 1.120e+03 |
-| GM1 | joint_opt | False | 7.593e-06 | 1.246e-08 | False | False | 1.120e+03 |
-| GM2 | ad_no_opt | True | 1.715e-12 | 4.392e-13 | True | True | 6.098e+02 |
-| GM2 | ad_opt | False | 2.593e-05 | 1.971e-08 | False | False | 6.098e+02 |
-| GM2 | acrit_opt | False | 2.116e-13 | 1.099e-13 | True | True | 6.098e+02 |
-| GM2 | nonlinear_opt | False |  |  |  |  | 6.098e+02 |
-| GM2 | joint_opt | False | 1.651e-06 | 1.506e-09 | False | True | 6.098e+02 |
-| GM3 | ad_no_opt | True | 1.399e-12 | 4.593e-13 | True | True | 5.736e+02 |
-| GM3 | ad_opt | False | 2.291e-05 | 1.061e-08 | False | False | 5.736e+02 |
-| GM3 | acrit_opt | False | 5.242e-13 | 1.709e-12 | True | True | 5.736e+02 |
-| GM3 | nonlinear_opt | False |  |  |  |  | 5.736e+02 |
-| GM3 | joint_opt | False | 1.718e-05 | 1.781e-09 | False | True | 5.736e+02 |
-| GM4 | ad_no_opt | True | 1.933e-12 | 3.560e-13 | True | True | 6.970e+02 |
-| GM4 | ad_opt | False | 2.452e-06 | 9.682e-11 | False | True | 6.970e+02 |
-| GM4 | acrit_opt | False | 9.007e-14 | 2.665e-13 | True | True | 6.970e+02 |
-| GM4 | nonlinear_opt | False |  |  |  |  | 6.970e+02 |
-| GM4 | joint_opt | False | 9.153e-06 | 1.594e-08 | False | False | 6.970e+02 |
-| GM5 | ad_no_opt | True | 7.939e-13 | 1.377e-13 | True | True | 6.527e+02 |
-| GM5 | ad_opt | False | 3.434e-05 | 4.926e-08 | False | False | 6.527e+02 |
-| GM5 | acrit_opt | False | 3.721e-13 | 1.158e-12 | True | True | 6.527e+02 |
-| GM5 | nonlinear_opt | False |  |  |  |  | 6.527e+02 |
-| GM5 | joint_opt | False | 9.145e-06 | 6.025e-06 | False | False | 6.527e+02 |
+| tile | key | exact_params | max_dz_over_relief | rel_mse_diff | pass_dz_1e-6 | pass_mse_1e-8 | n_dz_gt_1e-9_relief | n_dz_gt_1e-6_relief | n_mask_may_differ | wall_s_run |
+|---|---|---|---|---|---|---|---|---|---|---|
+| AP1 | ad_no_opt | True | 7.307e-13 | 2.218e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 2.091e+03 |
+| AP1 | ad_opt | False | 1.867e-06 | 1.664e-10 | False | True | 1.026e+06 | 2.315e+05 |  | 2.091e+03 |
+| AP1 | acrit_opt | False | 1.042e-12 | 1.405e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 2.091e+03 |
+| AP1 | nonlinear_opt | False |  |  |  |  |  |  |  | 2.091e+03 |
+| AP1 | joint_opt | False | 7.106e-06 | 2.678e-09 | False | True | 1.025e+06 | 5.365e+05 | 0.000e+00 | 2.091e+03 |
+| AP2 | ad_no_opt | True | 4.827e-13 | 9.132e-14 | True | True | 0.000e+00 | 0.000e+00 |  | 2.056e+03 |
+| AP2 | ad_opt | False | 4.749e-07 | 9.431e-12 | True | True | 1.018e+06 | 0.000e+00 |  | 2.056e+03 |
+| AP2 | acrit_opt | False | 8.243e-13 | 2.871e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 2.056e+03 |
+| AP2 | nonlinear_opt | False |  |  |  |  |  |  |  | 2.056e+03 |
+| AP2 | joint_opt | False | 1.753e-06 | 3.294e-09 | False | True | 1.022e+06 | 2.841e+04 | 0.000e+00 | 2.056e+03 |
+| AP3 | ad_no_opt | True | 5.656e-13 | 2.080e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 2.007e+03 |
+| AP3 | ad_opt | False | 6.366e-06 | 1.732e-09 | False | True | 1.025e+06 | 8.208e+05 |  | 2.007e+03 |
+| AP3 | acrit_opt | False | 6.445e-13 | 2.695e-13 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 2.007e+03 |
+| AP3 | nonlinear_opt | False |  |  |  |  |  |  |  | 2.007e+03 |
+| AP3 | joint_opt | False | 2.165e-06 | 4.265e-09 | False | True | 1.025e+06 | 4.355e+05 | 0.000e+00 | 2.007e+03 |
+| AP4 | ad_no_opt | True | 9.650e-13 | 2.924e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 1.968e+03 |
+| AP4 | ad_opt | False | 2.020e-06 | 1.650e-10 | False | True | 1.026e+06 | 2.484e+05 |  | 1.968e+03 |
+| AP4 | acrit_opt | False | 2.143e-12 | 6.466e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 1.968e+03 |
+| AP4 | nonlinear_opt | False |  |  |  |  |  |  |  | 1.968e+03 |
+| AP4 | joint_opt | False | 2.201e-06 | 6.143e-10 | False | True | 1.024e+06 | 4.673e+05 | 0.000e+00 | 1.968e+03 |
+| AP5 | ad_no_opt | True | 9.747e-13 | 3.393e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 3.301e+03 |
+| AP5 | ad_opt | False | 3.121e-05 | 1.626e-08 | False | False | 1.026e+06 | 9.980e+05 |  | 3.301e+03 |
+| AP5 | acrit_opt | False | 6.187e-13 | 4.880e-13 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 3.301e+03 |
+| AP5 | nonlinear_opt | False |  |  |  |  |  |  |  | 3.301e+03 |
+| AP5 | joint_opt | False | 3.213e-06 | 7.752e-09 | False | True | 1.026e+06 | 5.094e+05 | 0.000e+00 | 3.301e+03 |
+| GM1 | ad_no_opt | True | 9.253e-13 | 1.578e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 1.120e+03 |
+| GM1 | ad_opt | False | 1.986e-05 | 8.074e-09 | False | True | 9.960e+05 | 9.072e+05 |  | 1.120e+03 |
+| GM1 | acrit_opt | False | 4.126e-13 | 2.317e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 1.120e+03 |
+| GM1 | nonlinear_opt | False |  |  |  |  |  |  |  | 1.120e+03 |
+| GM1 | joint_opt | False | 7.593e-06 | 1.246e-08 | False | False | 9.950e+05 | 4.838e+05 | 0.000e+00 | 1.120e+03 |
+| GM2 | ad_no_opt | True | 1.715e-12 | 4.392e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 6.098e+02 |
+| GM2 | ad_opt | False | 2.593e-05 | 1.971e-08 | False | False | 9.960e+05 | 9.695e+05 |  | 6.098e+02 |
+| GM2 | acrit_opt | False | 2.116e-13 | 1.099e-13 | True | True | 0.000e+00 | 0.000e+00 | 1.028e+03 | 6.098e+02 |
+| GM2 | nonlinear_opt | False |  |  |  |  |  |  |  | 6.098e+02 |
+| GM2 | joint_opt | False | 1.651e-06 | 1.506e-09 | False | True | 9.923e+05 | 1.004e+04 | 0.000e+00 | 6.098e+02 |
+| GM3 | ad_no_opt | True | 1.399e-12 | 4.593e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 5.736e+02 |
+| GM3 | ad_opt | False | 2.291e-05 | 1.061e-08 | False | False | 9.960e+05 | 9.457e+05 |  | 5.736e+02 |
+| GM3 | acrit_opt | False | 5.242e-13 | 1.709e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 5.736e+02 |
+| GM3 | nonlinear_opt | False |  |  |  |  |  |  |  | 5.736e+02 |
+| GM3 | joint_opt | False | 1.718e-05 | 1.781e-09 | False | True | 9.960e+05 | 9.124e+05 | 0.000e+00 | 5.736e+02 |
+| GM4 | ad_no_opt | True | 1.933e-12 | 3.560e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 6.970e+02 |
+| GM4 | ad_opt | False | 2.452e-06 | 9.682e-11 | False | True | 9.956e+05 | 3.158e+05 |  | 6.970e+02 |
+| GM4 | acrit_opt | False | 9.007e-14 | 2.665e-13 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 6.970e+02 |
+| GM4 | nonlinear_opt | False |  |  |  |  |  |  |  | 6.970e+02 |
+| GM4 | joint_opt | False | 9.153e-06 | 1.594e-08 | False | False | 9.960e+05 | 8.674e+05 | 0.000e+00 | 6.970e+02 |
+| GM5 | ad_no_opt | True | 7.939e-13 | 1.377e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 6.527e+02 |
+| GM5 | ad_opt | False | 3.434e-05 | 4.926e-08 | False | False | 9.960e+05 | 9.785e+05 |  | 6.527e+02 |
+| GM5 | acrit_opt | False | 3.721e-13 | 1.158e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 6.527e+02 |
+| GM5 | nonlinear_opt | False |  |  |  |  |  |  |  | 6.527e+02 |
+| GM5 | joint_opt | False | 9.145e-06 | 6.025e-06 | False | False | 9.960e+05 | 8.568e+05 | 0.000e+00 | 6.527e+02 |
+
+Counts: cells with |dz| > 1e-9 x relief and > 1e-6 x relief; `n_mask_may_differ` = cells whose D8 area lies in the rounding interval of the printed A_crit (the only cells whose channel membership can differ from the saved grid; v1 saved no mask). Blank where the run has no saved-grid comparison.
+
+## 2.1b Linearized recovery of the printed-parameter rounding (closeout runs)
+
+| tile | key | delta_log10_K | box_K_lo | box_K_hi | delta_log10_D | box_D_lo | box_D_hi | in_box_K | in_box_D | max_dz_before_over_relief | max_resid_over_relief | pass | dmse_rel_measured | dmse_measured | dmse_predicted | grad_mse_log10K | grad_mse_log10D | run |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| AP1 | ad_opt | 3.547e-07 | -2.623e-06 | 2.623e-06 | -8.019e-07 | -3.987e-06 | 3.987e-06 | True | True | 1.867e-06 | 1.941e-12 | True | -1.664e-10 | -6.206e-08 | -6.199e-08 | -3.174e-01 | 4.907e-02 | 20261109T204300Z_closeout_AP1 |
+| AP1 | joint_opt | 3.970e-06 | -5.338e-06 | 5.338e-06 | -2.440e-06 | -4.036e-06 | 4.036e-06 | True | True | 7.106e-06 | 5.953e-12 | True | -2.678e-09 | -6.052e-07 | -6.091e-07 | -3.191e-01 | -8.424e-02 | 20261109T204300Z_closeout_AP1 |
+| AP2 | ad_opt | 2.015e-07 | -3.120e-06 | 3.120e-06 | 1.685e-06 | -3.260e-06 | 3.260e-06 | True | True | 4.749e-07 | 8.584e-13 | True | -9.438e-12 | -3.601e-09 | -4.101e-09 | 4.330e-02 | -1.094e-02 | 20261109T204302Z_closeout_AP2 |
+| AP2 | joint_opt | 2.222e-06 | -6.192e-06 | 6.191e-06 | -1.670e-06 | -3.065e-06 | 3.065e-06 | True | True | 1.753e-06 | 1.730e-12 | True | 3.294e-09 | 7.692e-07 | 7.709e-07 | 3.063e-01 | -3.209e-02 | 20261109T204302Z_closeout_AP2 |
+| AP3 | ad_opt | -2.810e-06 | -1.948e-05 | 1.947e-05 | 9.191e-08 | -3.268e-06 | 3.268e-06 | True | True | 6.366e-06 | 1.931e-11 | True | -1.732e-09 | -2.144e-06 | -2.151e-06 | 1.303e+00 | -3.859e-01 | 20261109T204302Z_closeout_AP3 |
+| AP3 | joint_opt | 2.094e-06 | -3.439e-06 | 3.439e-06 | 1.498e-06 | -3.145e-06 | 3.145e-06 | True | True | 2.165e-06 | 9.769e-13 | True | 4.265e-09 | 2.155e-06 | 2.156e-06 | -1.003e+00 | 2.717e+00 | 20261109T204302Z_closeout_AP3 |
+| AP4 | ad_opt | 1.263e-06 | -1.327e-05 | 1.327e-05 | 2.433e-06 | -1.024e-05 | 1.024e-05 | True | True | 2.020e-06 | 1.185e-12 | True | -1.650e-10 | -9.542e-08 | -9.470e-08 | -3.149e-01 | 7.711e-02 | 20261109T204301Z_closeout_AP4 |
+| AP4 | joint_opt | -4.557e-07 | -1.066e-05 | 1.066e-05 | 2.877e-06 | -3.559e-06 | 3.559e-06 | True | True | 2.201e-06 | 7.640e-12 | True | 6.143e-10 | 2.273e-07 | 2.346e-07 | -5.199e-01 | -7.618e-02 | 20261109T204301Z_closeout_AP4 |
+| AP5 | ad_opt | 8.946e-06 | -1.391e-05 | 1.391e-05 | 7.237e-07 | -5.031e-06 | 5.031e-06 | True | True | 3.121e-05 | 2.059e-10 | True | -1.626e-08 | -1.634e-05 | -1.632e-05 | -3.736e+00 | 8.855e-01 | 20261109T204301Z_closeout_AP5 |
+| AP5 | joint_opt | -9.774e-07 | -6.312e-06 | 6.312e-06 | -2.118e-06 | -5.984e-06 | 5.983e-06 | True | True | 3.213e-06 | 3.566e-12 | True | -7.752e-09 | -2.245e-06 | -2.242e-06 | 7.096e-01 | 8.135e-01 | 20261109T204301Z_closeout_AP5 |
+| GM1 | ad_opt | -4.511e-06 | -4.868e-06 | 4.868e-06 | 5.762e-06 | -7.528e-06 | 7.528e-06 | True | True | 1.986e-05 | 1.619e-10 | True | -8.074e-09 | -1.362e-06 | -1.362e-06 | 4.232e-01 | -1.545e-01 | 20261109T204301Z_closeout_GM1 |
+| GM1 | joint_opt | -4.541e-06 | -1.003e-05 | 1.003e-05 | 6.550e-06 | -7.655e-06 | 7.655e-06 | True | True | 7.593e-06 | 4.127e-12 | True | 1.246e-08 | 4.220e-07 | 4.226e-07 | -4.429e-02 | 2.502e-02 | 20261109T204301Z_closeout_GM1 |
+| GM2 | ad_opt | 8.895e-06 | -1.656e-05 | 1.656e-05 | -8.846e-07 | -2.617e-06 | 2.617e-06 | True | True | 2.593e-05 | 1.347e-10 | True | -1.971e-08 | -1.615e-06 | -1.612e-06 | -3.566e-01 | 7.065e-02 | 20261109T204304Z_closeout_GM2 |
+| GM2 | joint_opt | 9.766e-07 | -3.879e-06 | 3.879e-06 | -1.375e-06 | -8.221e-06 | 8.221e-06 | True | True | 1.651e-06 | 7.027e-13 | True | -1.506e-09 | -4.192e-08 | -4.192e-08 | 1.634e-01 | 1.480e-01 | 20261109T204304Z_closeout_GM2 |
+| GM3 | ad_opt | -5.593e-06 | -1.233e-05 | 1.233e-05 | 3.161e-06 | -9.264e-06 | 9.263e-06 | True | True | 2.291e-05 | 8.451e-11 | True | -1.061e-08 | -8.082e-07 | -8.067e-07 | 2.466e-01 | -7.209e-02 | 20261109T204304Z_closeout_GM3 |
+| GM3 | joint_opt | -8.986e-06 | -1.135e-05 | 1.135e-05 | -3.511e-06 | -4.790e-06 | 4.790e-06 | True | True | 1.718e-05 | 1.704e-12 | True | -1.781e-09 | -7.660e-08 | -7.649e-08 | 4.126e-02 | 3.256e-02 | 20261109T204304Z_closeout_GM3 |
+| GM4 | ad_opt | 2.975e-07 | -2.295e-06 | 2.295e-06 | -1.687e-06 | -3.201e-06 | 3.201e-06 | True | True | 2.452e-06 | 3.065e-12 | True | -9.682e-11 | -1.698e-08 | -1.688e-08 | -5.201e-02 | 1.094e-02 | 20261109T204300Z_closeout_GM4 |
+| GM4 | joint_opt | 2.364e-06 | -6.184e-06 | 6.184e-06 | 6.972e-06 | -8.179e-06 | 8.179e-06 | True | True | 9.153e-06 | 2.040e-12 | True | 1.594e-08 | 7.606e-07 | 7.605e-07 | 1.695e-01 | -5.780e-04 | 20261109T204300Z_closeout_GM4 |
+| GM5 | ad_opt | 1.023e-05 | -1.387e-05 | 1.387e-05 | -4.145e-06 | -1.167e-05 | 1.167e-05 | True | True | 3.434e-05 | 3.195e-10 | True | -4.926e-08 | -4.590e-06 | -4.583e-06 | -8.075e-01 | 2.148e-01 | 20261109T204300Z_closeout_GM5 |
+| GM5 | joint_opt | 2.387e-06 | -3.729e-06 | 3.729e-06 | 1.007e-05 | -1.071e-05 | 1.071e-05 | True | True | 9.145e-06 | 7.705e-12 | True | -6.025e-06 | -1.992e-04 | -1.992e-04 | -7.626e+01 | -1.733e+00 | 20261109T204300Z_closeout_GM5 |
+
+## 2.1c Cells with D8 area inside the rounding interval of the printed A_crit
+
+| tile | key | A_crit_printed | interval_lo | interval_hi | n_cells_in_interval | n_channel | nearest_below | nearest_above | cell_area | run |
+|---|---|---|---|---|---|---|---|---|---|---|
+| AP1 | acrit_opt | 3063.4 | 3063.35 | 3063.45 | 0 | 8095 | 3063.06 | 3064.97 | 0.950672 | 20261109T204300Z_closeout_AP1 |
+| AP1 | nonlinear_opt | 4950.3 | 4950.25 | 4950.35 | 0 | 5701 | 4949.2 | 4952.05 | 0.950672 | 20261109T204300Z_closeout_AP1 |
+| AP1 | joint_opt | 6414.3 | 6414.25 | 6414.35 | 0 | 5003 | 6379.01 | 6427.49 | 0.950672 | 20261109T204300Z_closeout_AP1 |
+| AP2 | acrit_opt | 2337.8 | 2337.75 | 2337.85 | 0 | 14043 | 2337.7 | 2338.65 | 0.950672 | 20261109T204302Z_closeout_AP2 |
+| AP2 | nonlinear_opt | 6165.9 | 6165.85 | 6165.95 | 0 | 7166 | 6159.4 | 6170.81 | 0.950672 | 20261109T204302Z_closeout_AP2 |
+| AP2 | joint_opt | 7645.6 | 7645.55 | 7645.65 | 0 | 6178 | 7645.3 | 7646.25 | 0.950672 | 20261109T204302Z_closeout_AP2 |
+| AP3 | acrit_opt | 1722.1 | 1722.05 | 1722.15 | 0 | 15419 | 1721.67 | 1722.62 | 0.950672 | 20261109T204302Z_closeout_AP3 |
+| AP3 | nonlinear_opt | 10233 | 10232.5 | 10233.5 | 0 | 4183 | 10225.4 | 10240.6 | 0.950672 | 20261109T204302Z_closeout_AP3 |
+| AP3 | joint_opt | 9741.5 | 9741.45 | 9741.55 | 0 | 4300 | 9739.63 | 9742.48 | 0.950672 | 20261109T204302Z_closeout_AP3 |
+| AP4 | acrit_opt | 995.01 | 995.005 | 995.015 | 0 | 23274 | 994.403 | 995.353 | 0.950672 | 20261109T204301Z_closeout_AP4 |
+| AP4 | nonlinear_opt | 5263.5 | 5263.45 | 5263.55 | 0 | 5460 | 5262.92 | 5263.87 | 0.950672 | 20261109T204301Z_closeout_AP4 |
+| AP4 | joint_opt | 7797.9 | 7797.85 | 7797.95 | 0 | 4055 | 7797.41 | 7799.31 | 0.950672 | 20261109T204301Z_closeout_AP4 |
+| AP5 | acrit_opt | 1130 | 1129.95 | 1130.05 | 0 | 20433 | 1129.4 | 1130.35 | 0.950672 | 20261109T204301Z_closeout_AP5 |
+| AP5 | nonlinear_opt | 3399.1 | 3399.05 | 3399.15 | 0 | 8118 | 3398.65 | 3400.55 | 0.950672 | 20261109T204301Z_closeout_AP5 |
+| AP5 | joint_opt | 1887 | 1886.95 | 1887.05 | 0 | 13046 | 1886.13 | 1887.08 | 0.950672 | 20261109T204301Z_closeout_AP5 |
+| GM1 | acrit_opt | 423.49 | 423.485 | 423.495 | 0 | 19721 | 423 | 424 | 1 | 20261109T204301Z_closeout_GM1 |
+| GM1 | nonlinear_opt | 474.21 | 474.205 | 474.215 | 0 | 17432 | 474 | 475 | 1 | 20261109T204301Z_closeout_GM1 |
+| GM1 | joint_opt | 8092.4 | 8092.35 | 8092.45 | 0 | 4953 | 8082 | 8132 | 1 | 20261109T204301Z_closeout_GM1 |
+| GM2 | acrit_opt | 100 | 99.995 | 100.005 | 1028 | 109511 | 99 | 101 | 1 | 20261109T204304Z_closeout_GM2 |
+| GM2 | nonlinear_opt | 244.59 | 244.585 | 244.595 | 0 | 45533 | 244 | 245 | 1 | 20261109T204304Z_closeout_GM2 |
+| GM2 | joint_opt | 2960 | 2959.95 | 2960.05 | 0 | 6782 | 2957 | 2965 | 1 | 20261109T204304Z_closeout_GM2 |
+| GM3 | acrit_opt | 1297.4 | 1297.35 | 1297.45 | 0 | 10762 | 1297 | 1298 | 1 | 20261109T204304Z_closeout_GM3 |
+| GM3 | nonlinear_opt | 1297.4 | 1297.35 | 1297.45 | 0 | 10762 | 1297 | 1298 | 1 | 20261109T204304Z_closeout_GM3 |
+| GM3 | joint_opt | 6526.3 | 6526.25 | 6526.35 | 0 | 5260 | 6522 | 6532 | 1 | 20261109T204304Z_closeout_GM3 |
+| GM4 | acrit_opt | 422.09 | 422.085 | 422.095 | 0 | 25462 | 422 | 423 | 1 | 20261109T204300Z_closeout_GM4 |
+| GM4 | nonlinear_opt | 521.38 | 521.375 | 521.385 | 0 | 20528 | 521 | 522 | 1 | 20261109T204300Z_closeout_GM4 |
+| GM4 | joint_opt | 7396.2 | 7396.15 | 7396.25 | 0 | 5152 | 7395 | 7400 | 1 | 20261109T204300Z_closeout_GM4 |
+| GM5 | acrit_opt | 261.42 | 261.415 | 261.425 | 0 | 41774 | 261 | 262 | 1 | 20261109T204300Z_closeout_GM5 |
+| GM5 | nonlinear_opt | 299.62 | 299.615 | 299.625 | 0 | 36867 | 299 | 300 | 1 | 20261109T204300Z_closeout_GM5 |
+| GM5 | joint_opt | 2247.1 | 2247.05 | 2247.15 | 0 | 9939 | 2247 | 2248 | 1 | 20261109T204300Z_closeout_GM5 |
 
 ## 2.2 Optimizer regression (tile_run against printed v1 optima)
 
@@ -63,16 +125,24 @@ _no results yet_
 
 | tile | n | max_absdiff_ratio_d8 | max_absdiff_ratio_dinf | max_absdiff_Ks_obs |
 |---|---|---|---|---|
-| AP1 | 25 | 4.987e-04 | 4.423e-04 | 4.674e-02 |
-| AP2 | 25 | 4.987e-02 | 5.967e-02 | 5.165e+00 |
-| AP3 | 25 | 4.760e-04 | 4.962e-04 | 4.915e-03 |
-| AP4 | 25 | 4.931e-04 | 4.966e-04 | 4.653e-03 |
-| AP5 | 25 | 3.462e-02 | 5.007e-02 | 4.522e-01 |
-| GM1 | 25 | 4.796e-04 | 4.686e-04 | 4.407e-04 |
-| GM2 | 25 | 4.656e-04 | 4.617e-04 | 4.522e-04 |
+| AP1 | 26 | 4.987e-04 | 4.423e-04 | 4.674e-02 |
+| AP2 | 26 | 1.378e-01 | 1.649e-01 | 1.666e+01 |
+| AP3 | 26 | 4.760e-04 | 4.962e-04 | 4.915e-03 |
+| AP4 | 26 | 5.530e-02 | 4.825e-02 | 1.429e+00 |
+| AP5 | 26 | 3.462e-02 | 5.007e-02 | 4.522e-01 |
+| GM1 | 26 | 4.796e-04 | 4.686e-04 | 4.407e-04 |
+| GM2 | 26 | 4.656e-04 | 4.617e-04 | 4.522e-04 |
 | GM3 | 25 | 4.741e-04 | 4.975e-04 | 4.841e-04 |
 | GM4 | 25 | 4.975e-04 | 4.899e-04 | 4.970e-04 |
 | GM5 | 25 | 4.604e-04 | 4.924e-04 | 4.946e-04 |
+
+Ratios outside the printed precision: **6 of 514** (3 (tile, dx) rows; both the D8 and the D-inf ratio of a row share Ks_obs, so a drifted Ks_obs moves both).
+
+| tile | dx | ratio_d8_v1 | ratio_d8_v2 | ratio_dinf_v1 | ratio_dinf_v2 | Ks_obs_v1 | Ks_obs_v2 | n_obs_v1 | n_obs_v2 |
+|---|---|---|---|---|---|---|---|---|---|
+| AP5 | 60.7 | 1.306 | 1.341 | 1.46 | 1.51 | 13.65 | 13.2 | 15 | 15 |
+| AP2 | 88.27 | 1.361 | 1.223 | 1.628 | 1.463 | 147.4 | 164.1 | 5 | 5 |
+| AP4 | 100 | 1.024 | 0.9687 | 0.995 | 0.9468 | 30.37 | 31.8 | 6 | 6 |
 
 ## 2.3b fig_slope_area regressions
 
@@ -120,30 +190,30 @@ _no results yet_
 
 ## 2.3d supp_fig5 local k_s summary
 
-| dx | median_v1 | median_v2 | q25_v1 | q25_v2 | q75_v1 | q75_v2 | n_v1 | n_v2 | rel_diff_median | run |
-|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | 96.6 | 96.56 | 88.8 | 88.79 | 99.7 | 99.75 | 121 | 121 | -0.000411 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 1.18 | 82.9 | 82.93 | 78.7 | 78.67 | 85.3 | 85.34 | 102 | 102 | 0.0003562 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 1.39 | 70.7 | 70.7 | 67.2 | 67.17 | 72.7 | 72.65 | 88 | 88 | 5.64e-05 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 1.65 | 59.5 | 59.49 | 56.8 | 56.81 | 61 | 60.98 | 74 | 74 | -0.0001487 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 1.95 | 49.9 | 49.89 | 47.7 | 47.72 | 51.1 | 51.06 | 64 | 64 | -0.000249 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 2.31 | 41.5 | 41.52 | 39.9 | 39.85 | 42.4 | 42.42 | 54 | 54 | 0.0004665 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 2.73 | 34.4 | 34.4 | 33.1 | 33.08 | 35.1 | 35.11 | 46 | 46 | -0.0001291 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 3.19 | 28.7 | 28.75 | 27.7 | 27.74 | 29.3 | 29.32 | 39 | 39 | 0.001628 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 3.75 | 23.9 | 23.91 | 22.9 | 22.91 | 24.4 | 24.35 | 34 | 34 | 0.0003411 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 4.41 | 19.8 | 19.83 | 18.9 | 18.93 | 20.1 | 20.14 | 28 | 28 | 0.001432 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 5.36 | 15.9 | 15.88 | 15.1 | 15.05 | 16.1 | 16.12 | 25 | 25 | -0.001455 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 6.25 | 13.2 | 13.19 | 12.5 | 12.52 | 13.4 | 13.39 | 21 | 21 | -0.0004188 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 7.5 | 10.7 | 10.71 | 10.1 | 10.15 | 10.9 | 10.86 | 18 | 18 | 0.0004898 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 8.82 | 8.86 | 8.863 | 8.4 | 8.401 | 8.98 | 8.979 | 16 | 16 | 0.0003943 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 10 | 7.56 | 7.564 | 7.26 | 7.255 | 7.66 | 7.655 | 12 | 12 | 0.0005583 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 11.5 | 6.39 | 6.394 | 6.12 | 6.124 | 6.46 | 6.459 | 11 | 11 | 0.0006478 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 13.6 | 5.36 | 5.362 | 5.18 | 5.184 | 5.41 | 5.41 | 9 | 9 | 0.0004196 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 16.7 | 4.38 | 4.379 | 4.21 | 4.215 | 4.42 | 4.416 | 9 | 9 | -0.0001618 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 18.8 | 3.83 | 3.829 | 3.72 | 3.718 | 3.85 | 3.853 | 7 | 7 | -0.0002244 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 21.4 | 3.26 | 3.257 | 3.19 | 3.187 | 3.31 | 3.306 | 7 | 7 | -0.0008483 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 25 | 2.85 | 2.85 | 2.79 | 2.795 | 2.87 | 2.875 | 6 | 6 | 8.831e-05 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 30 | 2.45 | 2.454 | 2.42 | 2.421 | 2.46 | 2.464 | 5 | 5 | 0.001656 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 37.5 | 2.07 | 2.071 | 2.05 | 2.05 | 2.08 | 2.078 | 4 | 4 | 0.0005746 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 50 | 1.72 | 1.717 | 1.7 | 1.702 | 1.72 | 1.717 | 3 | 3 | -0.001919 | 20261109T181011Z_synthetic_pe_supp_fig5 |
-| 50 | 1.72 | 1.717 | 1.7 | 1.702 | 1.72 | 1.717 | 3 | 3 | -0.001919 | 20261109T181011Z_synthetic_pe_supp_fig5 |
+| dx | median_v1 | median_v2 | q25_v1 | q25_v2 | q75_v1 | q75_v2 | n_v1 | n_v2 | rel_diff_median | run | note |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 96.6 | 96.56 | 88.8 | 88.79 | 99.7 | 99.75 | 121 | 121 | -0.000411 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 1.18 | 82.9 | 82.93 | 78.7 | 78.67 | 85.3 | 85.34 | 102 | 102 | 0.0003562 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 1.39 | 70.7 | 70.7 | 67.2 | 67.17 | 72.7 | 72.65 | 88 | 88 | 5.64e-05 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 1.65 | 59.5 | 59.49 | 56.8 | 56.81 | 61 | 60.98 | 74 | 74 | -0.0001487 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 1.95 | 49.9 | 49.89 | 47.7 | 47.72 | 51.1 | 51.06 | 64 | 64 | -0.000249 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 2.31 | 41.5 | 41.52 | 39.9 | 39.85 | 42.4 | 42.42 | 54 | 54 | 0.0004665 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 2.73 | 34.4 | 34.4 | 33.1 | 33.08 | 35.1 | 35.11 | 46 | 46 | -0.0001291 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 3.19 | 28.7 | 28.75 | 27.7 | 27.74 | 29.3 | 29.32 | 39 | 39 | 0.001628 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 3.75 | 23.9 | 23.91 | 22.9 | 22.91 | 24.4 | 24.35 | 34 | 34 | 0.0003411 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 4.41 | 19.8 | 19.83 | 18.9 | 18.93 | 20.1 | 20.14 | 28 | 28 | 0.001432 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 5.36 | 15.9 | 15.88 | 15.1 | 15.05 | 16.1 | 16.12 | 25 | 25 | -0.001455 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 6.25 | 13.2 | 13.19 | 12.5 | 12.52 | 13.4 | 13.39 | 21 | 21 | -0.0004188 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 7.5 | 10.7 | 10.71 | 10.1 | 10.15 | 10.9 | 10.86 | 18 | 18 | 0.0004898 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 8.82 | 8.86 | 8.863 | 8.4 | 8.401 | 8.98 | 8.979 | 16 | 16 | 0.0003943 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 10 | 7.56 | 7.564 | 7.26 | 7.255 | 7.66 | 7.655 | 12 | 12 | 0.0005583 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 11.5 | 6.39 | 6.394 | 6.12 | 6.124 | 6.46 | 6.459 | 11 | 11 | 0.0006478 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 13.6 | 5.36 | 5.362 | 5.18 | 5.184 | 5.41 | 5.41 | 9 | 9 | 0.0004196 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 16.7 | 4.38 | 4.379 | 4.21 | 4.215 | 4.42 | 4.416 | 9 | 9 | -0.0001618 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 18.8 | 3.83 | 3.829 | 3.72 | 3.718 | 3.85 | 3.853 | 7 | 7 | -0.0002244 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 21.4 | 3.26 | 3.257 | 3.19 | 3.187 | 3.31 | 3.306 | 7 | 7 | -0.0008483 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 25 | 2.85 | 2.85 | 2.79 | 2.795 | 2.87 | 2.875 | 6 | 6 | 8.831e-05 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 30 | 2.45 | 2.454 | 2.42 | 2.421 | 2.46 | 2.464 | 5 | 5 | 0.001656 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 37.5 | 2.07 | 2.071 | 2.05 | 2.05 | 2.08 | 2.078 | 4 | 4 | 0.0005746 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 50 | 1.72 | 1.717 | 1.7 | 1.702 | 1.72 | 1.717 | 3 | 3 | -0.001919 | 20261109T181011Z_synthetic_pe_supp_fig5 |  |
+| 50 | 1.72 | 1.717 | 1.7 | 1.702 | 1.72 | 1.717 | 3 | 3 | -0.001919 | 20261109T181011Z_synthetic_pe_supp_fig5 | same grid as the row above: two of the 25 target dx round to the same cell count |
