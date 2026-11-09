@@ -121,8 +121,20 @@ class RunRecorder:
     def __init__(self, step: str, label: str, run_id: str | None = None, root: Path | None = None):
         self.step = step
         self.label = label
-        self.run_id = run_id or new_run_id(step, label)
         self.root = Path(root) if root is not None else results_root()
+        if run_id is None:
+            # auto ids carry a one-second timestamp; two jobs of the same step and label starting in the
+            # same second (the per-stage optimizer jobs did) must not share a directory: add the Slurm job id,
+            # then a counter, until the name is free
+            base = new_run_id(step, label)
+            cand = base
+            job = os.environ.get("SLURM_JOB_ID")
+            k = 1
+            while (self.root / cand).exists() and any((self.root / cand).iterdir()):
+                cand = f"{base}_j{job}" if (job and k == 1) else f"{base}_{k}"
+                k += 1
+            run_id = cand
+        self.run_id = run_id
         self.dir = self.root / self.run_id
         if self.dir.exists() and any(self.dir.iterdir()):
             raise FileExistsError(f"run directory already exists and is not empty: {self.dir}")

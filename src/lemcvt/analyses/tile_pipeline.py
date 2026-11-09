@@ -106,6 +106,10 @@ def run_tile(
     td = load_tile(tile, crop=crop, sanity=crop is None)
     mp = td.cfg.model
     Z0, A, FD, dx, U = td.Z, td.A, td.FD, td.dx, mp.U
+    if run_id is None and len(stages) < len(STAGE_ORDER):
+        from lemcvt.results import new_run_id
+
+        run_id = new_run_id("tile_run", f"{tile}_{'-'.join(stages)}")   # one stage per job: name it
     rec = RunRecorder("tile_run", tile, run_id=run_id, root=results_root)
     rec.add_params("tile", tile)
     rec.add_params("optimizer", optimizer)
