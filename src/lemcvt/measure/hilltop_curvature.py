@@ -78,7 +78,9 @@ def basin_labels(area: np.ndarray, fd: np.ndarray, channel_mask: np.ndarray) -> 
     labels = np.zeros((ny, nx), dtype=np.int64)
     ch_rows, ch_cols = np.nonzero(channel_mask)
     labels[ch_rows, ch_cols] = np.arange(1, ch_rows.size + 1)
-    order = np.argsort(area, axis=None)[::-1]           # receivers before donors
+    # receivers before donors: area descending, equal areas in ascending flat index (numerics_changes.md, N4)
+    area_f = np.asarray(area, dtype=np.float64).ravel()
+    order = np.lexsort((np.arange(area_f.size), -area_f))
     rows, cols = np.unravel_index(order, (ny, nx))
     for r, c in zip(rows.tolist(), cols.tolist(), strict=True):
         if labels[r, c] == 0 and good[r, c]:
@@ -218,7 +220,7 @@ def measure_hilltop_curvature(z: np.ndarray, area: np.ndarray, fd: np.ndarray, A
 
 
 def _weighted_median(v: np.ndarray, w: np.ndarray) -> float:
-    order = np.argsort(v)
+    order = np.argsort(v, kind="stable")   # ties cannot change the returned value; stable for determinism (N5)
     cw = np.cumsum(w[order])
     if cw[-1] == 0:
         return np.nan

@@ -25,14 +25,19 @@ def flow_graph_main_stem(area: np.ndarray, fd: np.ndarray) -> tuple[np.ndarray, 
     """``(upstream_i, upstream_j, downstream_i, downstream_j)`` as TopoAnalysis builds them.
 
     Cells are visited in ascending area order (``argsort(axis=None)``); each sets
-    its receiver's upstream pointer, so the largest-area tributary wins.
+    its receiver's upstream pointer, so the largest-area tributary wins. Among
+    tributaries of equal area the one with the highest flat (row-major) index wins
+    (visited last); see ``docs/numerics_changes.md``, N3. TopoAnalysis left this to
+    numpy's unstable default sort, which is what produced the two drift rows of the
+    Phase 2 resolution sweep.
     """
     ny, nx = area.shape
     upstream_i = np.full((ny, nx), -1, dtype=np.int64)
     upstream_j = np.full((ny, nx), -1, dtype=np.int64)
     downstream_i = np.full((ny, nx), -1, dtype=np.int64)
     downstream_j = np.full((ny, nx), -1, dtype=np.int64)
-    order = np.asarray(area, dtype=np.float64).argsort(axis=None)
+    area_f = np.asarray(area, dtype=np.float64).ravel()
+    order = np.lexsort((np.arange(area_f.size), area_f))   # area ascending, ties by ascending flat index
     r_to, c_to, good = d8_receiver_arrays(fd)
     i_s, j_s = np.unravel_index(order, (ny, nx))
     for i, j in zip(i_s.tolist(), j_s.tolist(), strict=True):

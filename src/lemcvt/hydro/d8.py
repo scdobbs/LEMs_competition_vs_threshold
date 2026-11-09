@@ -125,12 +125,17 @@ def d8_area(fd: np.ndarray, z_filled: np.ndarray, dx: float) -> np.ndarray:
     filled grid, reversed) and each passes its accumulated area to its receiver.
     Every cell, NaN ones included, starts with ``dx**2``; NaN cells have code 0
     and therefore never pass anything on.
+
+    Tie-break (``docs/numerics_changes.md``, N1): cells of equal filled elevation are
+    processed in ascending flat index. TopoAnalysis left the tie order to numpy's
+    unstable default sort, which depends on the numpy version.
     """
     Z = np.asarray(z_filled, dtype=np.float64)
     fd = np.asarray(fd)
     ny, nx = fd.shape
     area = dx**2 * np.ones((ny, nx), dtype=np.float64)
-    order = Z.argsort(axis=None)[::-1]
+    Zf = Z.ravel()
+    order = np.lexsort((np.arange(Zf.size), -Zf))   # Z descending, ties by ascending flat index
     r_to, c_to, good = d8_receiver_arrays(fd)
     r_to_f = r_to.ravel()
     c_to_f = c_to.ravel()

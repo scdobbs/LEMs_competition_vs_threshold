@@ -137,7 +137,8 @@ def compute_dinf_area(
 
     valid_coords = np.argwhere(valid)
     elevations = Z[valid_coords[:, 0], valid_coords[:, 1]]
-    sort_order = np.argsort(-elevations)
+    # Z descending; equal elevations in ascending flat (row-major) index (numerics_changes.md, N2)
+    sort_order = np.lexsort((np.arange(elevations.size), -elevations))
     sorted_coords = valid_coords[sort_order]
 
     for idx in range(len(sorted_coords)):
