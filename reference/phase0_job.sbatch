@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=v2_phase0
-#SBATCH --time=03:00:00
+#SBATCH --time=02:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --output=/scratch/users/scdobbs/v2_jobs/phase0_%j.out
@@ -21,7 +21,7 @@ export PIP_CACHE_DIR=$SCRATCH/pip_cache
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK OPENBLAS_NUM_THREADS=$SLURM_CPUS_PER_TASK
 ENV=$GROUP_HOME/scdobbs-envs/lem-v1
 cd "$REPO" || exit 1
-echo "git: $(git rev-parse --short HEAD) $(git branch --show-current)"
+echo "git: $(git rev-parse --short HEAD) $(git rev-parse --abbrev-ref HEAD)"
 
 echo "=== [1] grid manifest + saved-grid MSE (lem-widths python) $(date -Is)"
 $GROUP_HOME/scdobbs-envs/lem-widths/bin/python reference/make_grid_manifest.py > "$LOG/manifest.log" 2>&1
@@ -60,7 +60,7 @@ from TopoAnalysis import dem as d
 e = d.Elevation.load("data/GM/tile1/GM_1m_best_tile_filled")
 print("TopoAnalysis Elevation.load OK:", e._griddata.shape, e._griddata.dtype,
       "dx=", e._georef_info.dx, "nx,ny=", e._georef_info.nx, e._georef_info.ny,
-      "geoTransform=", e._georef_info.geoTransform, "nodata=", e._nodata_value)
+      "geoTransform=", e._georef_info.geoTransform, "nodata=", getattr(e, "_nodata_value", "n/a"))
 a = d.Area.load("data/AP/tile1/AP_1m_best_tile_area")
 print("AP1 area: dx=", a._georef_info.dx, "geoTransform=", a._georef_info.geoTransform,
       "min/max=", np.nanmin(a._griddata), np.nanmax(a._griddata))

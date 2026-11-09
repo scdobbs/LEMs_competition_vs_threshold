@@ -1,5 +1,6 @@
 # Fallback for envs/lem-v1.yml if the strict solve fails: only the numerically
-# relevant pins are kept (python, numpy, scipy); everything else floats.
+# relevant pins are kept (python 3.10, numpy 1.26.4, scipy 1.15.3); everything
+# else floats.
 name: lem-v1
 channels:
   - conda-forge
@@ -7,15 +8,13 @@ channels:
 dependencies:
   - python=3.10.*
   - numpy=1.26.4
-  - scipy=1.15.3
   - pandas
   - matplotlib-base
-  - scikit-learn
-  - statsmodels
-  - numba
-  - scikit-image
   - gdal>=3.6
   - rasterio>=1.4
   - richdem
   - pytest
   - pip
+  - pip:
+      - scipy==1.15.3
+      - statsmodels

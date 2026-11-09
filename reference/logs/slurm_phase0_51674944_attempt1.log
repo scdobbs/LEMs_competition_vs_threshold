@@ -1,0 +1,46 @@
+host=sh04-01n26.int job=51674944 start=2026-11-09T08:50:25-0800
+error: unknown option `show-current'
+usage: git branch [options] [-r | -a] [--merged | --no-merged]
+   or: git branch [options] [-l] [-f] <branchname> [<start-point>]
+   or: git branch [options] [-r] (-d | -D) <branchname>...
+   or: git branch [options] (-m | -M) [<oldbranch>] <newbranch>
+
+Generic options
+    -v, --verbose         show hash and subject, give twice for upstream branch
+    -q, --quiet           suppress informational messages
+    -t, --track           set up tracking mode (see git-pull(1))
+    --set-upstream        change upstream info
+    -u, --set-upstream-to <upstream>
+                          change the upstream info
+    --unset-upstream      Unset the upstream info
+    --color[=<when>]      use colored output
+    -r, --remotes         act on remote-tracking branches
+    --contains <commit>   print only branches that contain the commit
+    --abbrev[=<n>]        use <n> digits to display SHA-1s
+
+Specific git-branch actions:
+    -a, --all             list both remote-tracking and local branches
+    -d, --delete          delete fully merged branch
+    -D                    delete branch (even if not merged)
+    -m, --move            move/rename a branch and its reflog
+    -M                    move/rename a branch, even if target exists
+    --list                list branch names
+    -l, --create-reflog   create the branch's reflog
+    --edit-description    edit the description for the branch
+    -f, --force           force creation (when already exists)
+    --no-merged <commit>  print only not merged branches
+    --merged <commit>     print only merged branches
+    --column[=<style>]    list branches in columns
+
+git: 52a3418 
+=== [1] grid manifest + saved-grid MSE (lem-widths python) 2026-11-09T08:50:25-0800
+manifest exit=0 ;   MSE GM/tile5 GM_1m_best_tile_Partitioned-model-a_crit-opt_elevation: 6.102212e+01 (n=1000000, nan_model=0) wrote reference/v1_saved_grid_mse.csv (40 rows) 
+=== [2] build lem-v1 2026-11-09T08:50:56-0800
+strict solve failed (rc=1); trying envs/lem-v1-relaxed.yml
+build exit=1 spec=relaxed
+critical libmamba The given prefix does not exist: "/home/groups/hilley/scdobbs-envs/lem-v1"
+=== [3] pytest tests/ in lem-v1 2026-11-09T08:51:29-0800
+pytest exit=1 ; critical libmamba The given prefix does not exist: "/home/groups/hilley/scdobbs-envs/lem-v1"
+=== [4] TopoAnalysis import + one grid load in lem-v1 2026-11-09T08:51:29-0800
+topoanalysis exit=1 ; critical libmamba The given prefix does not exist: "/home/groups/hilley/scdobbs-envs/lem-v1"
+=== done 2026-11-09T08:51:29-0800

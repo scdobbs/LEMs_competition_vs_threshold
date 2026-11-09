@@ -1,0 +1,9 @@
+c0d74f4d18bde593  analysis.py
+8a3a2b9dc06b591c  datasets.py
+dfc514725dde4c49  demMethods.py
+b9dce2af60a5fdd6  dem.py
+30ea8209f7de3252  demRecursionTools.py
+73f522992578a9f9  error.py
+3e6cf64791a7e3a7  gui_tools.py
+e3b0c44298fc1c14  __init__.py
+6288d9545dd2347d  plotting.py
