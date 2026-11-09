@@ -140,6 +140,7 @@ class RunRecorder:
             raise FileExistsError(f"run directory already exists and is not empty: {self.dir}")
         self.dir.mkdir(parents=True, exist_ok=True)
         self.t_start = time.time()
+        self.git_hash_start = git_hash()   # the code that was checked out when the run began (modules are imported then)
         self.params: dict[str, Any] = {}
         self._trajectories: list[Any] = []
         self.grids_written: list[str] = []
@@ -190,7 +191,8 @@ class RunRecorder:
             "label": self.label,
             "status": status,
             "lemcvt_version": __version__,
-            "git_hash": git_hash(),
+            "git_hash": self.git_hash_start,
+            "git_hash_at_finish": git_hash(),
             "env_lock_sha256": env_lock_sha256(),
             "python": sys.version.split()[0],
             "host": platform.node(),

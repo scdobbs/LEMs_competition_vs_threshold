@@ -80,7 +80,9 @@ def evaluate(td: TileData, spec: dict[str, Any], models_cache: dict[Any, Any]) -
     model = spec["model"]
     info: dict[str, Any] = {}
     if model == "AD":
-        f = models_cache.setdefault("AD", advection_diffusion_model(Z0, A, FD, dx, mp.m))
+        f = models_cache.get("AD")
+        if f is None:   # (setdefault evaluated its argument eagerly and rebuilt the model on every call)
+            f = models_cache["AD"] = advection_diffusion_model(Z0, A, FD, dx, mp.m)
         Z = f(spec["U"], spec["K"], spec["D"])
     elif model == "partitioned":
         key = ("partitioned", float(spec["K"]))

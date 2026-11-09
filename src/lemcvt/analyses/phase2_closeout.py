@@ -113,7 +113,9 @@ def _evaluate(td: TileData, spec: dict[str, Any], K: float, D: float, cache: dic
     """Z at (K, D) for the model of ``spec`` with the channel mask fixed by ``spec['A_crit']``."""
     mp = td.cfg.model
     if spec["model"] == "AD":
-        f = cache.setdefault("AD", advection_diffusion_model(td.Z, td.A, td.FD, td.dx, mp.m))
+        f = cache.get("AD")
+        if f is None:
+            f = cache["AD"] = advection_diffusion_model(td.Z, td.A, td.FD, td.dx, mp.m)
         return f(spec["U"], K, D)
     if spec["model"] == "partitioned":
         key = ("partitioned", float(K))
