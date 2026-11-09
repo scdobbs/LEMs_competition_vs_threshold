@@ -19,7 +19,7 @@ Every number below is tied to a run id (`$GROUP_HOME/lemcvt_results/<run id>`) o
 | 2.3 `n_diff_cells` replaced | by counts at 1e-9 and 1e-6 x relief and the rounding-interval count (code + tables) |
 | 2.4 Bookkeeping | 4 of 500 ratios drifted (2 rows x 2 routings); the duplicate dx = 50 row is v1's own (two targets round to the same 4 x 4 grid) |
 | 2.5 Tie-breaks | 5 sorts made deterministic (`docs/numerics_changes.md`, N1-N5); gate rerun: 84 rows identical, 163 rows change <= 1e-13 relative, 3 rows change where ties exist |
-| 2.6 D-inf partitioned model | **Diagnosed; fix proposed, not applied.** The D-inf channel integration builds channel elevations through hillslope cells and mixes different flow paths: on AP1 5948 of 6459 D-inf channel cells are integrated through cells below A_crit, 3928 are not higher than the receiver they were integrated from, channel elevations reach 5775 ft on a tile whose top is 1441 ft; only 847 channel cells connect to the boundary through channel cells. A synthetic V-valley reproduces it (identical to D8 when every angle is cardinal or diagonal; off by one relief when rotated 20 degrees). The AD D-inf model is unaffected because it solves a linear system instead of integrating |
+| 2.6 D-inf partitioned model | **Diagnosed; fix proposed, not applied.** The D-inf channel integration builds channel elevations through hillslope cells and mixes different flow paths: on AP1 5695 of 6459 D-inf channel cells are integrated through cells below A_crit, 985 are not higher than a receiver that carries weight, channel elevations reach 5775 ft on a tile whose top is 1441 ft; only 847 channel cells connect to the boundary through channel cells. A synthetic V-valley reproduces it (identical to D8 when every angle is cardinal or diagonal; off by one relief when rotated 20 degrees). The AD D-inf model is unaffected because it solves a linear system instead of integrating |
 | Found on the way | `data/manifest.csv` was a 3-entry stub (fixed, 270 entries, job 51695557); the Phase 2 `regression-report` could only show one stage per tile (fixed) |
 
 ## 0. Orientation and state check
@@ -290,7 +290,7 @@ a new test fixes the documented tie rule. Test job 51695841: 150 passed (149 + t
 
 ## 2.6 The D-inf partitioned model: diagnosis
 
-Run `20261109T204305Z_dinf_diagnostics_AP1_GM1` (job 51694667; `lemcvt closeout dinf --tiles AP1,GM1`,
+Run `20261109T210700Z_dinf_diagnostics_AP1_GM1` (job 51697246, the replay weighted by receiver coefficients; first run `20261109T204305Z_dinf_diagnostics_AP1_GM1`, job 51694667, gave the same MSEs and branch counts; `lemcvt closeout dinf --tiles AP1,GM1`,
 `src/lemcvt/analyses/dinf_diagnostics.py`), at the v1 `d8_vs_dinf` parameters (K0, D0 rounded
 to 2 s.f., A_crit = 5000 m^2; AP1 in feet as v1 ran). The partitioned-model MSEs reproduce the
 Phase 2 / v1 values (AP1: D8 2.1950e+03, D-inf 3.7650e+06 ft^2; GM1: 7.9204e+02,
@@ -325,9 +325,12 @@ gets z1 + S0 dx (cardinal) or z2 + S0 dx sqrt2 (diagonal). "Downstream path", dL
 therefore: a weighted average of two receivers' elevations (not a path), dL = dx / cos r along
 the facet direction (dx or dx sqrt2 in the fallbacks), and A = the D-inf area of the cell being
 integrated. The channel mask is A_dinf >= A_crit. A replay of this loop in the diagnostics
-reproduces the model's channel elevations exactly on GM1 (`trace_reproduces_model` true; on AP1
-the first replay differed in the last bit through the order of one multiplication, fixed in
-job 51697246).
+reproduces the model's channel elevations exactly on both tiles (`trace_reproduces_model` true,
+max difference 0.0e+00 and 0.0e+00). Algebraically the two-receiver step is
+z = (1 - tan r) z1 + tan r z2 + S0 dx / cos r, so a receiver with zero coefficient (r = 0: z2;
+r = pi/4: z1) is not counted as used in the statistics below; on the channel cells set by the
+two-receiver branch the fraction with both coefficients nonzero is 0.38 (AP1) and
+0.30 (GM1), median tan r 0.24 and 0.06.
 
 Measured on the channel cells (A_dinf >= 5000 m^2):
 
@@ -337,15 +340,15 @@ Measured on the channel cells (A_dinf >= 5000 m^2):
 | D-inf channel cells connected to the boundary through channel cells (via the receivers used) | 847 | 2896 |
 | ... not connected | 5612 | 3245 |
 | D8 channel cells whose receiver is a hillslope cell | 4 | 0 |
-| D-inf channel cells whose integration path passes a cell with A_dinf < A_crit | 5948 | 5841 |
-| D-inf channel cells integrated directly from a receiver of smaller area | 5142 | 5118 |
+| D-inf channel cells whose integration path passes a cell with A_dinf < A_crit | 5695 | 5671 |
+| D-inf channel cells integrated directly from a receiver of smaller area | 2156 | 1641 |
 | branch that set the value: both / cardinal-only / diagonal-only / boundary | 5150 / 225 / 589 / 495 | 5213 / 294 / 338 / 296 |
-| channel cells NOT higher than the receiver they were integrated from (monotonicity violated) | 3928 of 5964 | 3918 of 5845 |
-| median / min drop to the receiver used (z unit) | -2.05 / -1574 | -0.86 / -45 |
+| channel cells NOT higher than the receiver they were integrated from (monotonicity violated) | 985 of 5964 | 545 of 5845 |
+| median / min drop to the receiver used (z unit) | 0.31 / -597 | 0.12 / -21 |
 | max channel elevation, D-inf / D8 / observed max | 5775 / 1454 / 1441 | 596 / 400 / 425 |
 | channel cells more than one relief above the observed maximum | 4978 | 302 |
 | RMS error of the channel elevations against the DEM, D-inf / D8 | 2356 / 15.9 | 64 / 4.1 |
-| effective step dL = (z - z_ref)/S0: median / 1 % / min / count negative | 0.975 / -1477 / -9290 / 1690 | 1.000 / -83 / -355 / 1340 |
+| effective step dL = (z - z_ref)/S0: median / 1 % / min / count negative | 0.975 / -25 / -647 / 642 | 1.000 / -4 / -178 / 317 |
 | S0 at A_crit / S0 at one cell's area (z unit per m) | 1.15 / 141 | 0.265 / 6.68 |
 | cells never reached (NaN) | 0 | 0 |
 
@@ -355,16 +358,16 @@ Answers to the four questions of addendum 2 (2.6.2):
   847 of 6459 on AP1 and 2896 of 6141 on GM1. The D-inf receivers of a channel cell can have smaller
   D-inf area than the cell itself (flow is split), so A_dinf >= A_crit is not a connected
   network. Through any cells, yes: every cell is reached (0 NaN).
-- *Is channel elevation monotone upstream?* No: 3928 (AP1) and 3918 (GM1) of the integrated
-  channel cells are not higher than the receiver they were integrated from; the median "drop" is
-  negative. The mixing formula subtracts (z1 - z2) sin r / cos r, and when the two receivers lie
+- *Is channel elevation monotone upstream?* No: 985 (AP1) and 545 (GM1) of the integrated
+  channel cells (17 % and 9 %) are not higher than a receiver that carries a nonzero coefficient;
+  the median drop is 0.31 and 0.12 (z units) and the minimum -597 and -21. The mixing formula subtracts (z1 - z2) sin r / cos r, and when the two receivers lie
   on different flow paths their elevations differ by metres to hundreds of metres, which the
   formula interprets as a slope along the facet.
 - *How are the path, dL and A defined?* As above: no path, a two-receiver average; dL = dx/cos r
-  nominally, but the effective step (z - z_ref)/S0 ranges from -9290 to 622 m on AP1 (1690 negative);
+  nominally, but the effective step (z - z_ref)/S0 ranges from -647 to 622 m on AP1 (642 negative);
   A is the integrated cell's own D-inf area, but its receivers' elevations were themselves
-  integrated with S0 of **their** (often much smaller) areas: 5948 of 6459 AP1 channel cells
-  and 5841 of 6141 GM1 channel cells sit on an integration chain that passed through cells
+  integrated with S0 of **their** (often much smaller) areas: 5695 of 6459 AP1 channel cells
+  and 5671 of 6141 GM1 channel cells sit on an integration chain that passed through cells
   below A_crit, where S0 is up to 123 x (AP1) and 25 x (GM1) larger than at A_crit.
   This is what lifts the channel elevations to 5775 ft on a tile whose highest point is 1441 ft.
 - *Does any path fail to terminate at the boundary?* No cell is left NaN; every chain ends at
@@ -414,8 +417,8 @@ D-inf integration, not to D-inf routing.
    receivers' already-integrated elevations and the cell's own S0, for every cell of the grid.
    Because D-inf area is not monotone along either receiver link, channel cells are built on
    top of hillslope cells whose S0 is 25-120 x larger (2.6.2, "passes a cell with A < A_crit":
-   92-95 % of channel cells), and the two receivers often belong to different flow paths, so
-   the (z1 - z2) term adds or removes metres per step (negative effective steps on 1340-1690
+   88-92 % of channel cells), and the two receivers often belong to different flow paths, so
+   the (z1 - z2) term adds or removes metres per step (negative effective steps on 317-642
    channel cells; channel elevations up to 4 relief above the DEM). Evidence: branch trace
    reproducing the model, monotonicity and connectivity counts, channel RMS error 2452 ft /
    64 m against 16 ft / 4 m with D8, the rotated-V synthetic (1.08 relief) against the aligned
