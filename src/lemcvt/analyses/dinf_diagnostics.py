@@ -72,6 +72,7 @@ def trace_dinf_integration(gd: dict, m: float, U: float, K: float, r_facet: np.n
     path_min_area = np.full(n, np.nan)            # smallest A_dinf on the receiver chain used (incl. self)
     through_smaller = np.zeros(n, dtype=bool)     # a receiver used has smaller area than this cell
     depth = np.full(n, -1, dtype=np.int64)
+    w_both = np.full(n, np.nan)                   # weight of the diagonal receiver (tan r) in the two-receiver branch
 
     boundary_mask = make_boundary_mask(valid)
     for j_b, i_b in zip(*np.where(boundary_mask), strict=True):
@@ -115,8 +116,14 @@ def trace_dinf_integration(gd: dict, m: float, U: float, K: float, r_facet: np.n
                 continue
             if z1k and z2k and cos_r > 1e-12:
                 z = Z[k1] + (s * dx - (Z[k1] - Z[k2]) * sin_r) / cos_r
-                b, ka, kb = BRANCH["both"], k1, k2
-                zref = Z[k1]
+                # algebraically z = (1 - tan r) z1 + tan r z2 + s dx / cos r: a receiver whose weight is zero
+                # (r = 0 -> z2; r = pi/4 -> z1) is recorded as not used
+                tan_r = sin_r / cos_r
+                b = BRANCH["both"]
+                ka = k1 if (1.0 - tan_r) > 1e-12 else -1
+                kb = k2 if tan_r > 1e-12 else -1
+                zref = Z[k1] if ka >= 0 else Z[k2]
+                w_both[ku] = tan_r
             elif z1k:
                 z = Z[k1] + s * dx
                 b, ka, kb = BRANCH["cardinal_only"], k1, -1
@@ -141,7 +148,7 @@ def trace_dinf_integration(gd: dict, m: float, U: float, K: float, r_facet: np.n
             queue.append(ku)
     return {"Z": Z, "branch": branch, "k1_used": k1_used, "k2_used": k2_used, "step_len": step_len,
             "path_min_area": path_min_area, "through_smaller": through_smaller, "depth": depth, "S0": S0,
-            "A_flat": A_flat}
+            "A_flat": A_flat, "w_both": w_both}
 
 
 def _class_errors(err: np.ndarray, classes: dict[str, np.ndarray]) -> dict[str, Any]:
@@ -206,6 +213,13 @@ def diagnose_tile(td, cfg: dict[str, Any], rec: RunRecorder, save_grids: bool = 
     res["integration_branches_all_cells"] = {k: int(np.sum(b == v)) for k, v in BRANCH.items()}
     res["integration_branches_channel_cells"] = {k: int(np.sum((b == v) & ch)) for k, v in BRANCH.items()}
     res["n_cells"], res["n_channel_dinf"], res["n_channel_d8"] = int(n), int(ch.sum()), int(mask_d8.sum())
+    wb = tr["w_both"][ch & (b == BRANCH["both"])]
+    wb = wb[np.isfinite(wb)]
+    res["two_receiver_mixing_weight_channel"] = {
+        "n": int(wb.size), "frac_pure_cardinal_tan_r_lt_1e-12": float(np.mean(wb < 1e-12)) if wb.size else None,
+        "frac_pure_diagonal_tan_r_gt_1-1e-12": float(np.mean(wb > 1 - 1e-12)) if wb.size else None,
+        "frac_mixed": float(np.mean((wb >= 1e-12) & (wb <= 1 - 1e-12))) if wb.size else None,
+        "median_tan_r": float(np.median(wb)) if wb.size else None}
 
     # 2a connectivity: channel cells reachable from boundary channel cells through channel-only receiver links
     k1u, k2u = tr["k1_used"], tr["k2_used"]
