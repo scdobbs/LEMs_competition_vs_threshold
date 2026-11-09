@@ -1,0 +1,33 @@
+# lemcvt runtime environment for Sherlock (Phase 1 of refactor_v2_directive.md).
+# Lean: no Jupyter. Built with micromamba into $GROUP_HOME/scdobbs-envs/lemcvt by
+# envs/build_lemcvt_env.sbatch; the exact resolved package list is committed as
+# envs/sherlock.lock.txt (micromamba explicit spec) and its sha256 is recorded in
+# every run.json as env_lock_sha256.
+#
+# Module loads: none required (micromamba is self-contained). The job scripts
+# rendered by `lemcvt slurm submit` activate the env with
+#   $GROUP_HOME/scdobbs-envs/bin/micromamba run -p $GROUP_HOME/scdobbs-envs/lemcvt
+name: lemcvt
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.12
+  - numpy>=2.0
+  - scipy>=1.14
+  - pandas>=2.2
+  - pyarrow>=16
+  - pyyaml>=6
+  - click>=8.1
+  - rasterio>=1.4
+  - gdal>=3.9
+  - matplotlib-base>=3.9
+  - numba>=0.60
+  - scikit-sparse
+  - pytest>=8
+  - pytest-cov
+  - ruff
+  - mypy
+  - types-PyYAML
+  - pandas-stubs
+  - pip

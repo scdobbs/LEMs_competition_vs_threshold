@@ -1,4 +1,4 @@
-"""Tests for src/models.py — locks down current behaviour before refactoring."""
+"""Tests for lemcvt.models (ported from v1 tests/test_models.py — locks down current behaviour before refactoring."""
 
 import sys
 from pathlib import Path
@@ -6,15 +6,25 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-# Make src importable
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from models import (
-    advection_diffusion_model,
-    partitioned_threshold_model,
-    partitioned_threshold_model_nonlinear,
-    _find_boundary_value,
-)
+from lemcvt.models import ad as _ad, partitioned as _p, partitioned_nonlinear as _pn
+from lemcvt.models.common import find_boundary_value as _find_boundary_value
+
+
+def _arrs(dem, area, fd):
+    return dem._griddata, area._griddata, fd._griddata, dem._georef_info.dx
+
+
+def advection_diffusion_model(dem, area, fd, m):
+    return _ad.advection_diffusion_model(*_arrs(dem, area, fd), m)
+
+
+def partitioned_threshold_model(dem, area, fd, m, U, K):
+    return _p.partitioned_threshold_model(*_arrs(dem, area, fd), m, U, K)
+
+
+def partitioned_threshold_model_nonlinear(dem, area, fd, m, U, K):
+    return _pn.partitioned_threshold_model_nonlinear(*_arrs(dem, area, fd), m, U, K)
 
 
 # ── advection_diffusion_model ───────────────────────────────────────────────

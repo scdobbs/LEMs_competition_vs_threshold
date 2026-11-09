@@ -11,3 +11,10 @@ Thumbs.db
 
 # Phase 0 reference logs are evidence; keep them
 !reference/logs/*.log
+
+# v2: grids live outside git (LEMCVT_DATA; see data/manifest.csv and configs/data.yaml)
+data/AP/
+data/GM/
+# run outputs
+results/
+*.egg-info/

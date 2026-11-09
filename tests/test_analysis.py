@@ -1,4 +1,4 @@
-"""Tests for src/analysis.py — regression on synthetic power-law data."""
+"""Tests for lemcvt.measure.slope_area (ported from v1 tests/test_analysis.py — regression on synthetic power-law data."""
 
 import sys
 from pathlib import Path
@@ -6,9 +6,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from analysis import (
+from lemcvt.measure.slope_area import (
     compute_iqr_errors,
     weighted_r2,
     fit_slope_area,

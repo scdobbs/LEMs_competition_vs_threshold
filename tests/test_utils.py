@@ -1,113 +1,48 @@
-"""Tests for src/utils.py."""
-
-import sys
-from pathlib import Path
+"""Tests for lemcvt.utils (ported from v1 tests/test_utils.py; crop/resample now on Grid)."""
 
 import numpy as np
 import pytest
+from rasterio.transform import Affine
 
-# Make src importable
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-
-
-# ---------------------------------------------------------------------------
-# Mock objects for crop()
-# ---------------------------------------------------------------------------
-
-class _MockGeorefInfo:
-    def __init__(self, dx=1.0):
-        self.dx = dx
+from lemcvt.io.grids import Grid, crop_grid
+from lemcvt.utils import compute_slope_magnitude, nanaware_zoom, resample_from_1m
 
 
-class _MockRaster:
-    """Mimics a TopoAnalysis raster object for testing crop()."""
+def _grid(data, dx=1.0):
+    return Grid(data=data, transform=Affine(dx, 0, 0, 0, -dx, data.shape[0] * dx), crs=None)
 
-    def __init__(self, data: np.ndarray, dx: float = 1.0):
-        self._griddata = data.copy()
-        self._georef_info = _MockGeorefInfo(dx)
-        self._nodata_value = np.nan
-        self._dx = dx
-        self._shape = data.shape
-
-    def _rowscols_to_xy(self, rowscols_list):
-        results = []
-        for rc in rowscols_list:
-            row, col = rc
-            x = col * self._dx
-            y = (self._shape[0] - row) * self._dx
-            results.append((x, y))
-        return results
-
-    def clip_to_extent(self, extent):
-        xmin, xmax, ymin, ymax = extent
-        dx = self._dx
-        Ny = self._shape[0]
-        col_min = max(0, int(round(xmin / dx)))
-        col_max = min(self._shape[1], int(round(xmax / dx)))
-        row_max = min(Ny, int(round((Ny * dx - ymin) / dx)))
-        row_min = max(0, int(round((Ny * dx - ymax) / dx)))
-        clipped_data = self._griddata[row_min:row_max, col_min:col_max]
-        return _MockRaster(clipped_data, dx=dx)
-
-
-def _make_mock_rasters(Ny=1000, Nx=1000, dx=1.0):
-    dem = _MockRaster(np.random.RandomState(0).rand(Ny, Nx) * 100, dx=dx)
-    area = _MockRaster(np.random.RandomState(1).rand(Ny, Nx) * 1e6, dx=dx)
-    fd = _MockRaster(np.full((Ny, Nx), 4.0), dx=dx)
-    return dem, area, fd
-
-
-# ---------------------------------------------------------------------------
-# Tests: crop()
-# ---------------------------------------------------------------------------
 
 class TestCrop:
 
-    def test_returns_tuple_of_three(self):
-        from utils import crop
-        dem, area, fd = _make_mock_rasters()
-        result = crop(dem, area, fd)
-        assert isinstance(result, tuple)
-        assert len(result) == 3
+    def test_shape_and_transform(self):
+        g = _grid(np.random.RandomState(0).rand(1000, 1000) * 100)
+        c = crop_grid(g, 100, 300, 100, 300)
+        assert c.shape == (200, 200)
+        assert c.transform.c == 100.0
+        assert c.transform.f == 1000.0 - 100.0
 
-    def test_default_extent(self):
-        from utils import crop
-        dem, area, fd = _make_mock_rasters()
-        dem_c, area_c, fd_c = crop(dem, area, fd)
-        assert dem_c._griddata.shape[0] <= 1000
-        assert dem_c._griddata.shape[1] <= 1000
+    def test_default_like_v1_extent(self):
+        g = _grid(np.random.RandomState(0).rand(1000, 1000))
+        c = crop_grid(g, 200, 800, 200, 800)
+        assert c.shape == (600, 600)
+        np.testing.assert_array_equal(c.data, g.data[200:800, 200:800])
 
-    def test_custom_extent(self):
-        from utils import crop
-        dem, area, fd = _make_mock_rasters()
-        dem_c, area_c, fd_c = crop(dem, area, fd, extent_indexes=(100, 300, 100, 300))
-        assert dem_c._griddata.shape[0] <= 1000
-        assert dem_c._griddata.shape[1] <= 1000
-
-
-# ---------------------------------------------------------------------------
-# Tests: compute_slope_magnitude()
-# ---------------------------------------------------------------------------
 
 class TestComputeSlopeMagnitude:
 
     def test_flat_surface_zero_slope(self):
-        from utils import compute_slope_magnitude
         Z = np.ones((20, 20)) * 100.0
         S = compute_slope_magnitude(Z)
         assert S.shape == (20, 20)
         np.testing.assert_allclose(S, 0.0, atol=1e-12)
 
     def test_tilted_plane_uniform_slope(self):
-        from utils import compute_slope_magnitude
         j, i = np.meshgrid(np.arange(20), np.arange(20), indexing="ij")
-        Z = 100.0 + 0.1 * j  # gradient of 0.1 in j direction
+        Z = 100.0 + 0.1 * j
         S = compute_slope_magnitude(Z)
-        # Interior cells should have slope ~0.1
         np.testing.assert_allclose(S[1:-1, 1:-1], 0.1, atol=1e-10)
 
     def test_mask_applied(self):
-        from utils import compute_slope_magnitude
         Z = np.random.RandomState(0).rand(20, 20)
         mask = np.zeros((20, 20), dtype=bool)
         mask[5:15, 5:15] = True
@@ -116,110 +51,53 @@ class TestComputeSlopeMagnitude:
         assert np.all(np.isfinite(S[mask]))
 
     def test_shape_preserved(self):
-        from utils import compute_slope_magnitude
         Z = np.random.RandomState(1).rand(30, 40)
         S = compute_slope_magnitude(Z)
         assert S.shape == (30, 40)
 
 
-# ---------------------------------------------------------------------------
-# Tests: find_project_root()
-# ---------------------------------------------------------------------------
-
-class TestFindProjectRoot:
-
-    def test_finds_repo_root(self, tmp_path):
-        from utils import find_project_root
-        # Create a mock directory tree: tmp_path/data/
-        (tmp_path / "data").mkdir()
-        (tmp_path / "notebooks").mkdir()
-        start = tmp_path / "notebooks"
-        root = find_project_root(start=str(start))
-        assert root == tmp_path
-
-    def test_raises_when_not_found(self, tmp_path):
-        from utils import find_project_root
-        with pytest.raises(FileNotFoundError):
-            find_project_root(start=str(tmp_path), marker_dir="nonexistent_dir")
-
-    def test_custom_marker(self, tmp_path):
-        from utils import find_project_root
-        (tmp_path / "my_marker").mkdir()
-        root = find_project_root(start=str(tmp_path), marker_dir="my_marker")
-        assert root == tmp_path
-
-
-# ---------------------------------------------------------------------------
-# Tests: _nanaware_zoom
-# ---------------------------------------------------------------------------
-
 class TestNanawareZoom:
 
     def test_shape_changes_with_zoom(self):
-        from utils import _nanaware_zoom
         grid = np.random.RandomState(0).rand(100, 100)
-        out = _nanaware_zoom(grid, (0.5, 0.5), order=1)
-        assert out.shape[0] == 50
-        assert out.shape[1] == 50
+        out = nanaware_zoom(grid, (0.5, 0.5), order=1)
+        assert out.shape == (50, 50)
 
     def test_nan_handling(self):
-        from utils import _nanaware_zoom
         grid = np.ones((20, 20))
         grid[5:10, 5:10] = np.nan
-        out = _nanaware_zoom(grid, (0.5, 0.5), order=1)
-        # Output should still have NaN in approximately the right region
+        out = nanaware_zoom(grid, (0.5, 0.5), order=1)
         assert np.any(np.isnan(out))
-        # But also have valid values elsewhere
         assert np.any(np.isfinite(out))
 
-
-# ---------------------------------------------------------------------------
-# Tests: _infer_dx_from_georef
-# ---------------------------------------------------------------------------
-
-class TestInferDxFromGeoref:
-
-    def test_from_geotransform(self):
-        from utils import _infer_dx_from_georef
-
-        class MockGI:
-            geoTransform = (0.0, 5.0, 0.0, 100.0, 0.0, -5.0)
-
-        dx, dy = _infer_dx_from_georef(MockGI())
-        assert dx == 5.0
-        assert dy == 5.0
-
-    def test_from_dx_attribute(self):
-        from utils import _infer_dx_from_georef
-
-        class MockGI:
-            geoTransform = 0
-            dx = 3.0
-
-        dx, dy = _infer_dx_from_georef(MockGI())
-        assert dx == 3.0
-        assert dy == 3.0
-
-
-# ---------------------------------------------------------------------------
-# Tests: resample_from_1m
-# ---------------------------------------------------------------------------
 
 class TestResampleFrom1m:
 
     def test_shape_changes(self):
-        from utils import resample_from_1m
+        g = _grid(np.random.RandomState(0).rand(100, 100), dx=1.0)
+        r = resample_from_1m(g, dx_target=5.0, order=1)
+        assert r.shape == (20, 20)
+        assert r.dx == 5.0
+        assert r.dy == 5.0
 
-        class MockGI:
-            geoTransform = (0.0, 1.0, 0.0, 100.0, 0.0, -1.0)
-            dx = 1.0
-            nx = 100
-            ny = 100
+    def test_origin_preserved(self):
+        g = _grid(np.random.RandomState(0).rand(100, 100), dx=1.0)
+        r = resample_from_1m(g, dx_target=4.0)
+        assert r.transform.c == g.transform.c
+        assert r.transform.f == g.transform.f
 
-        class MockDEM:
-            _griddata = np.random.RandomState(0).rand(100, 100)
-            _georef_info = MockGI()
+    def test_v1_zoom_factor(self):
+        """v1 used zoom = dx_old / dx_target with scipy.ndimage.zoom; same array here."""
+        from scipy.ndimage import zoom
 
-        result = resample_from_1m(MockDEM(), dx_target=5.0, order=1)
-        assert result._griddata.shape[0] == 20
-        assert result._griddata.shape[1] == 20
+        data = np.random.RandomState(2).rand(60, 60)
+        g = _grid(data, dx=1.0)
+        r = resample_from_1m(g, dx_target=3.0, order=1)
+        ref = zoom(data, zoom=(1 / 3, 1 / 3), order=1, mode="nearest", prefilter=False)
+        np.testing.assert_allclose(r.data, ref)
+
+
+@pytest.mark.parametrize("order", [0, 1])
+def test_zoom_order_runs(order):
+    out = nanaware_zoom(np.random.RandomState(3).rand(30, 30), (0.5, 0.5), order=order)
+    assert out.shape == (15, 15)

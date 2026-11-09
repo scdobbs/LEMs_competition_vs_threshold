@@ -7,19 +7,41 @@ Uses conftest.py fixtures (MockGrid, synthetic grids).
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 import numpy as np
 import pytest
 
 from conftest import MockGrid, _build_d8_flow, _build_drainage_area
-from dinf import compute_dinf_flow_direction, compute_dinf_area
-from models_dinf import (
+from lemcvt.hydro.dinf import compute_dinf_flow_direction, compute_dinf_area
+from lemcvt.models import dinf_models as _dm
+from lemcvt.models.ad import advection_diffusion_model as _ad
+
+
+def _arrs(dem, area, fd):
+    return dem._griddata, area._griddata, fd._griddata, dem._georef_info.dx
+
+
+def advection_diffusion_model(dem, area, fd, m):
+    return _ad(*_arrs(dem, area, fd), m)
+
+
+def advection_diffusion_model_dinf(dem, area, fd, m, *rest):
+    return _dm.advection_diffusion_model_dinf(*_arrs(dem, area, fd), m, *rest)
+
+
+def partitioned_threshold_model_dinf(dem, area, fd, m, U, K, *rest):
+    return _dm.partitioned_threshold_model_dinf(*_arrs(dem, area, fd), m, U, K, *rest)
+
+
+def partitioned_threshold_model_nonlinear_dinf(dem, area, fd, m, U, K, *rest):
+    return _dm.partitioned_threshold_model_nonlinear_dinf(*_arrs(dem, area, fd), m, U, K, *rest)
+
+
+_unused = (
     advection_diffusion_model_dinf,
     partitioned_threshold_model_dinf,
     partitioned_threshold_model_nonlinear_dinf,
 )
-from models import advection_diffusion_model
 
 
 # ---------------------------------------------------------------------------

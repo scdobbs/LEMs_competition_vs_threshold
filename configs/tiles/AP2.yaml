@@ -1,0 +1,42 @@
+# Tile AP2: values as run in v1 (reference/v1_reference.json). Phase 1/2 reproduce v1;
+# Phase 5 sets reproduce_v1_units: false and rescales the AP bounds.
+tile: AP2
+site: AP
+grids:
+  filled: AP/tile2/AP_1m_best_tile_filled.tif
+  area: AP/tile2/AP_1m_best_tile_area.tif
+  fd: AP/tile2/AP_1m_best_tile_fd.tif
+  sha256: {filled: dbe47c64c8d6e4c9f9109949ad73cde068782dc50c04de1c2964447b4fadfaa3,
+    area: 96354947cb9351cf0d3c8f8ba84d5f57e2f7a662fb08663909f257cba96ccee4, fd: 92d2f77ade0c95da7ff9bbdd8210543e83258125f1837872abb248d5bb8cb71f}
+  shape: [1015, 1015]
+  dx: 0.9751997044335207
+  dy: 0.9751305418722148
+  crs_epsg: 26917
+units: {z_units: ftUS, xy_units: m, reproduce_v1_units: true}
+measured_v1: {theta: 0.592, ks: 190.918, hilltop_curvature: 0.01944, units_note: ks
+    and hilltop_curvature measured with z in feet (AP); divide by 3.2808 for metres,
+  source: legacy/measurement_notebooks/updated_best_fit_tile_finder.ipynb cells 11
+    (chi batch) and 12 (curvature)}
+model:
+  m: 0.592
+  S_c: 1.27
+  K0_ad: U/ks
+  K0_partitioned: U/ks
+  D0: U/C_ht
+  K_bounds: [1.0e-12, 0.02]
+  D_bounds: [4.0e-07, 0.05]
+  A_crit_0: 5000
+  A_crit_bounds: [100.0, 100000.0]
+  nonlinear_max_iter: 50
+  nonlinear_tol: 1.0e-06
+  methods: {ad: L-BFGS-B, acrit: Nelder-Mead, nonlinear: Nelder-Mead, joint: Nelder-Mead}
+v1_reference:
+  notebook: notebooks/model_runs/allegheny_tile2_complete.ipynb
+  stages:
+    ad: {duration_s: 12857.872, K: 6.9594e-06, D: 0.00066607, MSE: 381.49}
+    acrit: {duration_s: 711.166, A_crit: 2337.8, MSE: 4227.4}
+    nonlinear: {duration_s: 39815.786, A_crit: 6165.9, MSE: 630.32}
+    joint: {duration_s: 5859.872, K: 3.5072e-07, D: 0.0070857, A_crit: 7645.6, MSE: 233.5}
+  saved_grids: {ad_no_opt: AP/tile2/outputs/AP_1m_best_tile_AD-no-opt_elevation.tif,
+    ad_opt: AP/tile2/outputs/AP_1m_best_tile_AD-opt_elevation.tif, acrit_opt: AP/tile2/outputs/AP_1m_best_tile_Partitioned-model-a_crit-opt_elevation.tif,
+    joint_opt: AP/tile2/outputs/AP_1m_best_tile_Partitioned-model-a_crit-k-d-opt_elevation.tif}

@@ -1,0 +1,35 @@
+# Slurm settings for `lemcvt slurm submit`. Partition/account/QoS: Sherlock has no
+# --account; `partition: null` means "omit -p and take the scheduler default (normal)".
+# Steve has not yet confirmed partition/QoS (Phase 0 report, section 0, item 2).
+partition: null
+account: null
+qos: null
+micromamba: $GROUP_HOME/scdobbs-envs/bin/micromamba
+env_prefix: $GROUP_HOME/scdobbs-envs/lemcvt
+log_dir: $SCRATCH/lemcvt_jobs
+threads_env: [OMP_NUM_THREADS, MKL_NUM_THREADS, OPENBLAS_NUM_THREADS]
+defaults:
+  time: "04:00:00"
+  cpus: 4
+  mem: 32G
+steps:
+  tile_run:           # four stages, one tile, v1 optimizer: ~10-45 h per tile in v1
+    time: "2-00:00:00"
+    cpus: 4
+    mem: 48G
+    core_hours_estimate_per_task: 120
+  tile_forward:
+    time: "01:00:00"
+    cpus: 4
+    mem: 32G
+    core_hours_estimate_per_task: 2
+  sweep_resolution:
+    time: "12:00:00"
+    cpus: 4
+    mem: 48G
+    core_hours_estimate_per_task: 24
+  measure:
+    time: "04:00:00"
+    cpus: 4
+    mem: 32G
+    core_hours_estimate_per_task: 8

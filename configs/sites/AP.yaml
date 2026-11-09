@@ -1,0 +1,22 @@
+# Allegheny Plateau (Greene County, Pennsylvania). Grids: PAMAP lidar, 3.2 ft cell
+# reprojected to NAD83 / UTM 17N (EPSG:26917), 0.9752 x 0.97513 m pixels; z stored in
+# US survey feet (see reports/directives/ap_vertical_units_fix_directive.md).
+site: AP
+name: Allegheny Plateau (Greene County, PA)
+U: 5.5e-5              # m/yr; v1 used this value as metres with z in feet
+n: 1.0
+S_c: 1.27              # critical slope of the nonlinear hillslope model (v1)
+z_range_m: [200.0, 600.0]   # plausible metre elevations; the tiles span ~318-464 m
+max_median_slope: 0.6       # soil-mantled landscape; the feet grids have median slope 0.88
+crs_epsg: 26917
+regional:
+  # Regional parameters typed into the legacy notebooks (legacy/measurement_notebooks,
+  # labelled "Taylor et al. (2006)" there) and into landscape-optimizer/AlleghenyExploration.ipynb
+  # as "Perron et al. (2012)". NOT yet verified against the paper (Phase 6 item 2).
+  source: legacy notebooks TAYLOR_REF / AlleghenyExploration.ipynb; verify against Perron et al. (2012)
+  K: 1.25e-5           # 1/yr (12.5 /Myr)
+  D: 1.0e-2            # m^2/yr (100 cm^2/yr)
+  m: 0.37
+  A_crit: 5.04e4       # m^2
+  hilltop_curvature: 5.5e-3   # 1/m
+  U: 5.5e-5

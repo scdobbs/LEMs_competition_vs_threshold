@@ -1,4 +1,4 @@
-"""Tests for src/synthetic.py — planform grid and solver verification."""
+"""Tests for lemcvt.models.synthetic (ported from v1 tests/test_synthetic.py — planform grid and solver verification."""
 
 import sys
 from pathlib import Path
@@ -6,9 +6,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from synthetic import (
+from lemcvt.models.synthetic import (
     compute_area_planform,
     downstream_link,
     solve_advection_diffusion_planform,

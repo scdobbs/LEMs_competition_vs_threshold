@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lemcvt"
+version = "2.0.0a0"
+description = "Steady-state landscape evolution model calibration: advection-diffusion versus threshold-partitioned hillslope-channel models (Dobbs & Hilley)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Stephen C. Dobbs" }, { name = "George E. Hilley" }]
+dependencies = [
+  "numpy>=2.0",
+  "scipy>=1.14",
+  "pandas>=2.2",
+  "pyarrow>=16",
+  "pyyaml>=6",
+  "click>=8.1",
+  "rasterio>=1.4",
+  "matplotlib>=3.9",
+]
+
+[project.optional-dependencies]
+fast = ["numba>=0.60"]
+dev = ["pytest>=8", "pytest-cov", "ruff", "mypy", "types-PyYAML", "pandas-stubs"]
+
+[project.scripts]
+lemcvt = "lemcvt.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+lemcvt = ["py.typed", "slurm/*.sbatch.j2"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "fulltile: runs on a full 1000x1000 tile (slow; excluded from CI)",
+  "slow: slower than a few seconds",
+]
+addopts = "-m 'not fulltile'"
+filterwarnings = ["ignore::DeprecationWarning:rasterio.*"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "NPY"]
+ignore = ["E741", "B008", "B023", "NPY002"]
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["lemcvt"]
+mypy_path = "src"
+ignore_missing_imports = true
+warn_unused_ignores = false
+check_untyped_defs = false

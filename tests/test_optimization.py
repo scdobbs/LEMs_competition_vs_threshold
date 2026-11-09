@@ -1,4 +1,4 @@
-"""Tests for src/optimization.py."""
+"""Tests for lemcvt.optimize.v1 (ported from v1 tests/test_optimization.py."""
 
 import sys
 from pathlib import Path
@@ -6,9 +6,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from optimization import (
+from lemcvt.optimize.v1 import (
     optimize_advection_diffusion,
     optimize_threshold_acrit,
     optimize_threshold_acrit_nonlinear,

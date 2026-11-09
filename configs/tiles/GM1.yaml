@@ -1,0 +1,41 @@
+# Tile GM1: values as run in v1 (reference/v1_reference.json). Phase 1/2 reproduce v1;
+# Phase 5 sets reproduce_v1_units: false and rescales the AP bounds.
+tile: GM1
+site: GM
+grids:
+  filled: GM/tile1/GM_1m_best_tile_filled.tif
+  area: GM/tile1/GM_1m_best_tile_area.tif
+  fd: GM/tile1/GM_1m_best_tile_fd.tif
+  sha256: {filled: 52daf99982213446a15b7d31058277f10c88f8daf5c83f194b1d64e090b319ea,
+    area: 6d6e692e1ec679f0ff3d5a60b719febc43f76baa116788f882acebe49287601f, fd: 5f981034af33bb298d2e8abedb8c85d49d69bf2b883d5faf2868df615da9fb93}
+  shape: [1000, 1000]
+  dx: 1.0
+  dy: 1.0
+  crs_epsg: 32610
+units: {z_units: m, xy_units: m, reproduce_v1_units: false}
+measured_v1: {theta: 0.379, ks: 6.539, hilltop_curvature: 0.01442, units_note: z in
+    metres, source: legacy/measurement_notebooks/updated_best_fit_tile_finder.ipynb
+    cells 11 (chi batch) and 12 (curvature)}
+model:
+  m: 0.379
+  S_c: 1.27
+  K0_ad: U/ks
+  K0_partitioned: U/ks
+  D0: U/C_ht
+  K_bounds: [7.0e-12, 0.02]
+  D_bounds: [4.0e-10, 0.05]
+  A_crit_0: 5000
+  A_crit_bounds: [100.0, 100000.0]
+  nonlinear_max_iter: 50
+  nonlinear_tol: 1.0e-06
+  methods: {ad: L-BFGS-B, acrit: Nelder-Mead, nonlinear: Nelder-Mead, joint: Nelder-Mead}
+v1_reference:
+  notebook: notebooks/model_runs/gabilan_tile1_complete.ipynb
+  stages:
+    ad: {duration_s: 15377.172, K: 0.0004461, D: 0.028844, MSE: 168.65}
+    acrit: {duration_s: 1479.924, A_crit: 423.49, MSE: 100.96}
+    nonlinear: {duration_s: 18860.152, A_crit: 474.21, MSE: 77.073}
+    joint: {duration_s: 6188.065, K: 2.1649e-05, D: 0.028368, A_crit: 8092.4, MSE: 33.865}
+  saved_grids: {ad_no_opt: GM/tile1/outputs/GM_1m_best_tile_AD-no-opt_elevation.tif,
+    ad_opt: GM/tile1/outputs/GM_1m_best_tile_AD-opt_elevation.tif, acrit_opt: GM/tile1/outputs/GM_1m_best_tile_Partitioned-model-a_crit-opt_elevation.tif,
+    joint_opt: GM/tile1/outputs/GM_1m_best_tile_Partitioned-model-a_crit-k-d-opt_elevation.tif}

@@ -1,5 +1,5 @@
-"""
-Shared test fixtures for the Dobbs & Hilley landscape evolution models.
+"""Shared test fixtures (v1 conftest kept verbatim; the mock grids are adapted to array
+interfaces inside the ported test modules).
 
 Provides small synthetic grids (20×20) that mimic the DEM/area/flow_direction
 objects used by the models. Uses mock objects with _griddata, _georef_info,

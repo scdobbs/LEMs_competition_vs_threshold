@@ -1,0 +1,44 @@
+# Tile AP3: values as run in v1 (reference/v1_reference.json). Phase 1/2 reproduce v1;
+# Phase 5 sets reproduce_v1_units: false and rescales the AP bounds.
+# NOTE: v1 did not re-instate K0 = U/ks before the partitioned stages on this tile, so
+# K0_partitioned is the AD-stage override 1e-6 (reports/v2/00_reference.md section 3.5).
+tile: AP3
+site: AP
+grids:
+  filled: AP/tile3/AP_1m_best_tile_filled.tif
+  area: AP/tile3/AP_1m_best_tile_area.tif
+  fd: AP/tile3/AP_1m_best_tile_fd.tif
+  sha256: {filled: f678027286ec71443b7fb678afaa4b88f56625afc04a9bb20ae9dc0c5a755bed,
+    area: 63559ad63e1783f2087df169f87a6948f89d923524da4aaa777f8c1fbcc86bdd, fd: dcffdf9b6e3a62ec5caa0f1c0ddd7103631fb4b13827927c9aaf417612d38a28}
+  shape: [1015, 1014]
+  dx: 0.9751752465483466
+  dy: 0.9751305418722148
+  crs_epsg: 26917
+units: {z_units: ftUS, xy_units: m, reproduce_v1_units: true}
+measured_v1: {theta: 0.542, ks: 111.454, hilltop_curvature: 0.0206, units_note: ks
+    and hilltop_curvature measured with z in feet (AP); divide by 3.2808 for metres,
+  source: legacy/measurement_notebooks/updated_best_fit_tile_finder.ipynb cells 11
+    (chi batch) and 12 (curvature)}
+model:
+  m: 0.542
+  S_c: 1.27
+  K0_ad: 1.0e-06
+  K0_partitioned: 1.0e-06
+  D0: U/C_ht
+  K_bounds: [1.0e-12, 0.002]
+  D_bounds: [4.0e-10, 0.01]
+  A_crit_0: 5000
+  A_crit_bounds: [100.0, 100000.0]
+  nonlinear_max_iter: 50
+  nonlinear_tol: 1.0e-06
+  methods: {ad: L-BFGS-B, acrit: Nelder-Mead, nonlinear: Nelder-Mead, joint: Nelder-Mead}
+v1_reference:
+  notebook: notebooks/model_runs/allegheny_tile3_complete.ipynb
+  stages:
+    ad: {duration_s: 17508.143, K: 1.115e-05, D: 0.00066442, MSE: 1237.9}
+    acrit: {duration_s: 1450.111, A_crit: 1722.1, MSE: 1356.0}
+    nonlinear: {duration_s: 88361.7, A_crit: 10233.0, MSE: 650.85}
+    joint: {duration_s: 8564.969, K: 6.3145e-07, D: 0.006905, A_crit: 9741.5, MSE: 505.23}
+  saved_grids: {ad_no_opt: AP/tile3/outputs/AP_1m_best_tile_AD-no-opt_elevation.tif,
+    ad_opt: AP/tile3/outputs/AP_1m_best_tile_AD-opt_elevation.tif, acrit_opt: AP/tile3/outputs/AP_1m_best_tile_Partitioned-model-a_crit-opt_elevation.tif,
+    joint_opt: AP/tile3/outputs/AP_1m_best_tile_Partitioned-model-a_crit-k-d-opt_elevation.tif}
