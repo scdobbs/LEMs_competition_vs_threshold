@@ -4,11 +4,56 @@
 
 | tile | key | exact_params | max_dz_over_relief | rel_mse_diff | pass_dz_1e-6 | pass_mse_1e-8 | wall_s_run |
 |---|---|---|---|---|---|---|---|
+| AP1 | ad_no_opt | True | 7.307e-13 | 2.218e-13 | True | True | 2.091e+03 |
+| AP1 | ad_opt | False | 1.867e-06 | 1.664e-10 | False | True | 2.091e+03 |
+| AP1 | acrit_opt | False | 1.042e-12 | 1.405e-12 | True | True | 2.091e+03 |
+| AP1 | nonlinear_opt | False |  |  |  |  | 2.091e+03 |
+| AP1 | joint_opt | False | 7.106e-06 | 2.678e-09 | False | True | 2.091e+03 |
+| AP2 | ad_no_opt | True | 4.827e-13 | 9.132e-14 | True | True | 2.056e+03 |
+| AP2 | ad_opt | False | 4.749e-07 | 9.431e-12 | True | True | 2.056e+03 |
+| AP2 | acrit_opt | False | 8.243e-13 | 2.871e-12 | True | True | 2.056e+03 |
+| AP2 | nonlinear_opt | False |  |  |  |  | 2.056e+03 |
+| AP2 | joint_opt | False | 1.753e-06 | 3.294e-09 | False | True | 2.056e+03 |
+| AP3 | ad_no_opt | True | 5.656e-13 | 2.080e-13 | True | True | 2.007e+03 |
+| AP3 | ad_opt | False | 6.366e-06 | 1.732e-09 | False | True | 2.007e+03 |
+| AP3 | acrit_opt | False | 6.445e-13 | 2.695e-13 | True | True | 2.007e+03 |
+| AP3 | nonlinear_opt | False |  |  |  |  | 2.007e+03 |
+| AP3 | joint_opt | False | 2.165e-06 | 4.265e-09 | False | True | 2.007e+03 |
+| AP4 | ad_no_opt | True | 9.650e-13 | 2.924e-13 | True | True | 1.968e+03 |
+| AP4 | ad_opt | False | 2.020e-06 | 1.650e-10 | False | True | 1.968e+03 |
+| AP4 | acrit_opt | False | 2.143e-12 | 6.466e-12 | True | True | 1.968e+03 |
+| AP4 | nonlinear_opt | False |  |  |  |  | 1.968e+03 |
+| AP4 | joint_opt | False | 2.201e-06 | 6.143e-10 | False | True | 1.968e+03 |
+| AP5 | ad_no_opt | True | 9.747e-13 | 3.393e-13 | True | True | 3.301e+03 |
+| AP5 | ad_opt | False | 3.121e-05 | 1.626e-08 | False | False | 3.301e+03 |
+| AP5 | acrit_opt | False | 6.187e-13 | 4.880e-13 | True | True | 3.301e+03 |
+| AP5 | nonlinear_opt | False |  |  |  |  | 3.301e+03 |
+| AP5 | joint_opt | False | 3.213e-06 | 7.752e-09 | False | True | 3.301e+03 |
 | GM1 | ad_no_opt | True | 9.253e-13 | 1.578e-13 | True | True | 1.120e+03 |
 | GM1 | ad_opt | False | 1.986e-05 | 8.074e-09 | False | True | 1.120e+03 |
 | GM1 | acrit_opt | False | 4.126e-13 | 2.317e-12 | True | True | 1.120e+03 |
 | GM1 | nonlinear_opt | False |  |  |  |  | 1.120e+03 |
 | GM1 | joint_opt | False | 7.593e-06 | 1.246e-08 | False | False | 1.120e+03 |
+| GM2 | ad_no_opt | True | 1.715e-12 | 4.392e-13 | True | True | 6.098e+02 |
+| GM2 | ad_opt | False | 2.593e-05 | 1.971e-08 | False | False | 6.098e+02 |
+| GM2 | acrit_opt | False | 2.116e-13 | 1.099e-13 | True | True | 6.098e+02 |
+| GM2 | nonlinear_opt | False |  |  |  |  | 6.098e+02 |
+| GM2 | joint_opt | False | 1.651e-06 | 1.506e-09 | False | True | 6.098e+02 |
+| GM3 | ad_no_opt | True | 1.399e-12 | 4.593e-13 | True | True | 5.736e+02 |
+| GM3 | ad_opt | False | 2.291e-05 | 1.061e-08 | False | False | 5.736e+02 |
+| GM3 | acrit_opt | False | 5.242e-13 | 1.709e-12 | True | True | 5.736e+02 |
+| GM3 | nonlinear_opt | False |  |  |  |  | 5.736e+02 |
+| GM3 | joint_opt | False | 1.718e-05 | 1.781e-09 | False | True | 5.736e+02 |
+| GM4 | ad_no_opt | True | 1.933e-12 | 3.560e-13 | True | True | 6.970e+02 |
+| GM4 | ad_opt | False | 2.452e-06 | 9.682e-11 | False | True | 6.970e+02 |
+| GM4 | acrit_opt | False | 9.007e-14 | 2.665e-13 | True | True | 6.970e+02 |
+| GM4 | nonlinear_opt | False |  |  |  |  | 6.970e+02 |
+| GM4 | joint_opt | False | 9.153e-06 | 1.594e-08 | False | False | 6.970e+02 |
+| GM5 | ad_no_opt | True | 7.939e-13 | 1.377e-13 | True | True | 6.527e+02 |
+| GM5 | ad_opt | False | 3.434e-05 | 4.926e-08 | False | False | 6.527e+02 |
+| GM5 | acrit_opt | False | 3.721e-13 | 1.158e-12 | True | True | 6.527e+02 |
+| GM5 | nonlinear_opt | False |  |  |  |  | 6.527e+02 |
+| GM5 | joint_opt | False | 9.145e-06 | 6.025e-06 | False | False | 6.527e+02 |
 
 ## 2.2 Optimizer regression (tile_run against printed v1 optima)
 
@@ -60,7 +105,18 @@ _no results yet_
 
 ## 2.3c D8 vs D-inf MSE table
 
-_no results yet_
+| tile | quantity | v1 | v2 | rel_diff | run |
+|---|---|---|---|---|---|
+| AP1 | mse_ad_d8 | 6.9581e+05 | 6.9581e+05 | -1.2683e-06 | 20261109T185154Z_d8_vs_dinf_AP1_GM1 |
+| AP1 | mse_ad_dinf | 7.0133e+05 | 7.0133e+05 | -1.9124e-06 | 20261109T185154Z_d8_vs_dinf_AP1_GM1 |
+| AP1 | mse_pt_d8 | 2195 | 2195 | -1.1298e-05 | 20261109T185154Z_d8_vs_dinf_AP1_GM1 |
+| AP1 | mse_pt_dinf | 3.765e+06 | 3.765e+06 | -1.306e-05 | 20261109T185154Z_d8_vs_dinf_AP1_GM1 |
+| AP1 | A_dinf_max | 7.6647e+05 | 7.6647e+05 | 2.8509e-08 | 20261109T185154Z_d8_vs_dinf_AP1_GM1 |
+| GM1 | mse_ad_d8 | 3.2286e+05 | 3.2286e+05 | 8.6035e-06 | 20261109T185154Z_d8_vs_dinf_AP1_GM1 |
+| GM1 | mse_ad_dinf | 3.1845e+05 | 3.1845e+05 | -1.0154e-06 | 20261109T185154Z_d8_vs_dinf_AP1_GM1 |
+| GM1 | mse_pt_d8 | 792.04 | 792.04 | 1.4251e-07 | 20261109T185154Z_d8_vs_dinf_AP1_GM1 |
+| GM1 | mse_pt_dinf | 4239.5 | 4239.5 | 3.7754e-06 | 20261109T185154Z_d8_vs_dinf_AP1_GM1 |
+| GM1 | A_dinf_max | 2.4738e+05 | 2.4738e+05 | 1.8386e-07 | 20261109T185154Z_d8_vs_dinf_AP1_GM1 |
 
 ## 2.3d supp_fig5 local k_s summary
 

@@ -46,7 +46,20 @@ by v1, so it has no grid to compare with; its MSE is listed against the printed 
 
 Results (full table: `02_regression_tables.md`, section 2.1):
 
-RESULTS_FORWARD_TABLE
+| tile | run | AD-no-opt dz/relief | AD-no-opt dMSE | AD-opt dz/relief | AD-opt dMSE | A_crit-opt dz/relief | A_crit-opt dMSE | nonlinear MSE v2 / v1 printed | joint dz/relief | joint dMSE | wall (min) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| AP1 | 20261109T190329Z_tile_forward_AP1 | 7.31e-13 | 2.22e-13 | 1.87e-06 | 1.66e-10 | 1.04e-12 | 1.41e-12 | 202.86 / 202.86 | 7.11e-06 | 2.68e-09 | 35 |
+| AP2 | 20261109T190332Z_tile_forward_AP2 | 4.83e-13 | 9.13e-14 | 4.75e-07 | 9.43e-12 | 8.24e-13 | 2.87e-12 | 630.32 / 630.32 | 1.75e-06 | 3.29e-09 | 34 |
+| AP3 | 20261109T190708Z_tile_forward_AP3 | 5.66e-13 | 2.08e-13 | 6.37e-06 | 1.73e-09 | 6.44e-13 | 2.69e-13 | 650.85 / 650.85 | 2.17e-06 | 4.27e-09 | 33 |
+| AP4 | 20261109T190708Z_tile_forward_AP4 | 9.65e-13 | 2.92e-13 | 2.02e-06 | 1.65e-10 | 2.14e-12 | 6.47e-12 | 310.6 / 310.6 | 2.20e-06 | 6.14e-10 | 33 |
+| AP5 | 20261109T182914Z_tile_forward_AP5 | 9.75e-13 | 3.39e-13 | 3.12e-05 | 1.63e-08 | 6.19e-13 | 4.88e-13 | 261.38 / 261.38 | 3.21e-06 | 7.75e-09 | 55 |
+| GM1 | 20261109T181246Z_tile_forward_GM1 | 9.25e-13 | 1.58e-13 | 1.99e-05 | 8.07e-09 | 4.13e-13 | 2.32e-12 | 77.073 / 77.073 | 7.59e-06 | 1.25e-08 | 19 |
+| GM2 | 20261109T190708Z_tile_forward_GM2 | 1.71e-12 | 4.39e-13 | 2.59e-05 | 1.97e-08 | 2.12e-13 | 1.10e-13 | 47.533 / 47.533 | 1.65e-06 | 1.51e-09 | 10 |
+| GM3 | 20261109T190708Z_tile_forward_GM3 | 1.40e-12 | 4.59e-13 | 2.29e-05 | 1.06e-08 | 5.24e-13 | 1.71e-12 | 58.985 / 58.985 | 1.72e-05 | 1.78e-09 | 10 |
+| GM4 | 20261109T190708Z_tile_forward_GM4 | 1.93e-12 | 3.56e-13 | 2.45e-06 | 9.68e-11 | 9.01e-14 | 2.67e-13 | 72.773 / 72.773 | 9.15e-06 | 1.59e-08 | 12 |
+| GM5 | 20261109T190708Z_tile_forward_GM5 | 7.94e-13 | 1.38e-13 | 3.43e-05 | 4.93e-08 | 3.72e-13 | 1.16e-12 | 54.813 / 54.813 | 9.14e-06 | 6.03e-06 | 11 |
+
+Exact-parameter runs (AD-no-opt and A_crit-opt) passing both tolerances: 20 of 20. dMSE is the relative MSE difference against the saved grid.
 
 The exact-parameter runs agree to about 1e-10 in elevation (1e-12 of relief) on every
 tile, which is the level of floating-point reordering between BLAS/SuperLU builds; the
@@ -102,7 +115,20 @@ required by the directive before continuing on that basis.
 
 ### d8_vs_dinf_comparison (AP1, GM1)
 
-RESULTS_D8DINF
+| tile | quantity | v1 printed | v2 | relative difference |
+|---|---|---|---|---|
+| AP1 | mse_ad_d8 | 6.9581e+05 | 6.9581e+05 | -1.3e-06 |
+| AP1 | mse_ad_dinf | 7.0133e+05 | 7.0133e+05 | -1.9e-06 |
+| AP1 | mse_pt_d8 | 2195 | 2195 | -1.1e-05 |
+| AP1 | mse_pt_dinf | 3.765e+06 | 3.765e+06 | -1.3e-05 |
+| AP1 | A_dinf_max | 7.6647e+05 | 7.6647e+05 | 2.9e-08 |
+| GM1 | mse_ad_d8 | 3.2286e+05 | 3.2286e+05 | 8.6e-06 |
+| GM1 | mse_ad_dinf | 3.1845e+05 | 3.1845e+05 | -1.0e-06 |
+| GM1 | mse_pt_d8 | 792.04 | 792.04 | 1.4e-07 |
+| GM1 | mse_pt_dinf | 4239.5 | 4239.5 | 3.8e-06 |
+| GM1 | A_dinf_max | 2.4738e+05 | 2.4738e+05 | 1.8e-07 |
+
+Run: `20261109T185154Z_d8_vs_dinf_AP1_GM1`. v1 printed four decimals in scientific notation (5 s.f.); all relative differences are below the printed precision.
 
 ### Visual comparison of regenerated figures
 
@@ -126,7 +152,16 @@ required `lem-v1` to explain a model or optimizer result.
 
 ## Wall times
 
-RESULTS_WALLTIMES
+| step | runs | median wall (min) | max wall (min) |
+|---|---|---|---|
+| d8_vs_dinf | 1 | 18.1 | 18.1 |
+| measure | 20 | 0.6 | 1.0 |
+| slope_area | 1 | 0.4 | 0.4 |
+| sweep_resolution | 10 | 0.7 | 0.8 |
+| synthetic_pe | 1 | 5.4 | 5.4 |
+| tile_forward | 10 | 25.7 | 55.0 |
+
+Forward runs include the nonlinear optimum (up to 50 Picard iterations with v1's per-cell Python assembly), which dominates their wall time; 4 CPUs, default partition.
 
 Phase 1 kept the v1 algorithms, so the stage run times of v1 (`00_reference.md` 3.4) are
 the expectation for the optimizer regression; Phase 3 changes this.
