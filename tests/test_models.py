@@ -327,3 +327,43 @@ class TestPhase3ChiNetwork:
                 Z2, m2 = g(A_crit, D, K)
                 np.testing.assert_array_equal(m1, m2)
                 assert np.nanmax(np.abs(Z1 - Z2)) <= 1e-12 * relief
+
+
+class TestPhase3ChannelNetworkBFS:
+    """Phase 3 step 5: vectorised receiver tables + compiled BFS reproduce the v1 construction bit for bit."""
+
+    def test_channel_network_identical(self):
+        from tests.synthetic_tile import hydro_from_padded, synthetic_dem
+
+        from lemcvt.models.common import extract_grid_data, precompute_channel_network, precompute_channel_network_v1
+
+        z = synthetic_dem(80, 80, 1.0, seed=7)
+        zf, fd, area = hydro_from_padded(z, 1.0)
+        gd = extract_grid_data(zf, area, fd, 1.0)
+        a = precompute_channel_network_v1(gd, 0.4, 1.47e-4, 2e-5)
+        b = precompute_channel_network(gd, 0.4, 1.47e-4, 2e-5)
+        np.testing.assert_array_equal(np.isnan(a[0]), np.isnan(b[0]))
+        ok = np.isfinite(a[0])
+        np.testing.assert_array_equal(a[0][ok], b[0][ok])
+        np.testing.assert_array_equal(a[1], b[1])
+        assert a[2] == b[2]
+        np.testing.assert_array_equal(np.sort(a[3]), np.sort(b[3]))
+        np.testing.assert_array_equal(a[4], b[4])
+
+    def test_d8_area_accumulation_identical(self):
+        from tests.synthetic_tile import synthetic_dem
+
+        import lemcvt.hydro.d8 as d8m
+        from lemcvt.hydro.fill import priority_flood_fill
+
+        z = synthetic_dem(70, 70, 1.0, seed=3)
+        zf = priority_flood_fill(np.pad(z, 5, mode="reflect"), 1.0)
+        fd = d8m.d8_flow_direction(zf)
+        a1 = d8m.d8_area(fd, zf, 1.0)
+        saved = d8m._accumulate
+        try:
+            d8m._accumulate = d8m._accumulate_py
+            a2 = d8m.d8_area(fd, zf, 1.0)
+        finally:
+            d8m._accumulate = saved
+        np.testing.assert_array_equal(a1, a2)

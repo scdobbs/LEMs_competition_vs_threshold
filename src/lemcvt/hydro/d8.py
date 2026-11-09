@@ -137,14 +137,34 @@ def d8_area(fd: np.ndarray, z_filled: np.ndarray, dx: float) -> np.ndarray:
     Zf = Z.ravel()
     order = np.lexsort((np.arange(Zf.size), -Zf))   # Z descending, ties by ascending flat index
     r_to, c_to, good = d8_receiver_arrays(fd)
-    r_to_f = r_to.ravel()
-    c_to_f = c_to.ravel()
-    good_f = good.ravel()
-    area_f = area.ravel()  # view
-    for k in order:
-        if good_f[k]:
-            area_f[r_to_f[k] * nx + c_to_f[k]] += area_f[k]
+    target = np.where(good.ravel(), r_to.ravel() * nx + c_to.ravel(), -1)
+    _accumulate(order, target, area.ravel())           # in place on the view
     return area
+
+
+def _accumulate_py(order, target, area_f):
+    """Reference loop: pass accumulated area to the receiver, highest cell first (Phase 3 step 5 keeps this order)."""
+    for k in order:
+        t = target[k]
+        if t >= 0:
+            area_f[t] += area_f[k]
+    return area_f
+
+
+try:
+    import numba as _nb
+
+    @_nb.njit(cache=True)
+    def _accumulate_nb(order, target, area_f):  # pragma: no cover (compiled)
+        for k in order:
+            t = target[k]
+            if t >= 0:
+                area_f[t] += area_f[k]
+        return area_f
+
+    _accumulate = _accumulate_nb
+except Exception:  # noqa: BLE001
+    _accumulate = _accumulate_py
 
 
 def d8_divides(fd: np.ndarray) -> np.ndarray:

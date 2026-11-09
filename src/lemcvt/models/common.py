@@ -81,11 +81,130 @@ def find_boundary_value(Z0: np.ndarray, i: int, j: int, Nx: int, Ny: int) -> flo
     return np.nan
 
 
-def precompute_channel_network(gd: dict, m: float, U: float, K: float):
-    """Integrate S0 = (U/K)/A^m upstream from the boundary along D8 (v1 BFS).
+def _receivers_vectorised(gd: dict) -> tuple[np.ndarray, np.ndarray]:
+    """``downstream_of`` (flat valid index of the D8 receiver, -1 if none) and ``dL`` per cell."""
+    Ny, Nx, n = gd["Ny"], gd["Nx"], gd["n"]
+    idx_map, rev_i, rev_j, dx = gd["idx_map"], gd["rev_i"], gd["rev_j"], gd["dx"]
+    codes = gd["FD_flat"].astype(int)
+    di_arr = np.zeros(n, dtype=np.int64)
+    dj_arr = np.zeros(n, dtype=np.int64)
+    has = np.zeros(n, dtype=bool)
+    for code, (di, dj) in D8_OFFSETS.items():
+        sel = codes == code
+        di_arr[sel], dj_arr[sel], has[sel] = di, dj, True
+    ni, nj = rev_i + di_arr, rev_j + dj_arr
+    inside = has & (ni >= 0) & (ni < Nx) & (nj >= 0) & (nj < Ny)
+    downstream_of = np.full(n, -1, dtype=np.int64)
+    downstream_of[inside] = idx_map[nj[inside], ni[inside]]
+    dL = np.where((di_arr != 0) & (dj_arr != 0), dx * np.sqrt(2.0), dx)
+    return downstream_of, dL
 
-    Returns ``(Z_channel_all, downstream_of, k_out, bc_boundary_inds, bc_boundary_vals)``.
+
+def _upstream_csr(downstream_of: np.ndarray, n: int) -> tuple[np.ndarray, np.ndarray]:
+    """Donors of every cell in CSR form: ``donors[starts[k]:starts[k+1]]`` in ascending donor index (v1's list order)."""
+    order = np.argsort(downstream_of, kind="stable")
+    donors = order[downstream_of[order] >= 0]
+    recv = downstream_of[donors]
+    starts = np.searchsorted(recv, np.arange(n + 1))
+    return donors, starts
+
+
+def _bfs_integrate_py(seeds, donors, starts, step, z):
+    """Breadth-first upstream integration z[u] = z[c] + step[u] (reference Python loop; v1 queue order)."""
+    queue = deque(seeds.tolist())
+    while queue:
+        kc = queue.popleft()
+        for ku in donors[starts[kc]:starts[kc + 1]].tolist():
+            if not np.isnan(z[ku]):
+                continue
+            st = step[ku]
+            if not np.isfinite(st):
+                continue
+            z_here = z[kc] + st
+            if not np.isfinite(z_here):
+                continue
+            z[ku] = z_here
+            queue.append(ku)
+    return z
+
+
+try:  # Phase 3 step 5: the same loop compiled with numba when available
+    import numba as _nb
+
+    @_nb.njit(cache=True)
+    def _bfs_integrate_nb(seeds, donors, starts, step, z):  # pragma: no cover (compiled)
+        n = z.shape[0]
+        queue = np.empty(n, dtype=np.int64)
+        head = 0
+        tail = 0
+        for s_ in seeds:
+            queue[tail] = s_
+            tail += 1
+        while head < tail:
+            kc = queue[head]
+            head += 1
+            for p_ in range(starts[kc], starts[kc + 1]):
+                ku = donors[p_]
+                if not np.isnan(z[ku]):
+                    continue
+                st = step[ku]
+                if not np.isfinite(st):
+                    continue
+                z_here = z[kc] + st
+                if not np.isfinite(z_here):
+                    continue
+                z[ku] = z_here
+                queue[tail] = ku
+                tail += 1
+        return z
+
+    _bfs_integrate = _bfs_integrate_nb
+    HAVE_NUMBA = True
+except Exception:  # noqa: BLE001
+    _bfs_integrate = _bfs_integrate_py
+    HAVE_NUMBA = False
+
+
+def _boundary_anchor(gd: dict):
+    Z0, Ny, Nx = gd["Z0"], gd["Ny"], gd["Nx"]
+    valid, idx_map = gd["valid"], gd["idx_map"]
+    boundary_mask = make_boundary_mask(valid)
+    jb, ib = np.where(boundary_mask)
+    bc_boundary_inds = idx_map[jb, ib]
+    vals = Z0[jb, ib].astype(float)
+    bad = ~np.isfinite(vals)
+    for t in np.nonzero(bad)[0].tolist():
+        vals[t] = find_boundary_value(Z0, int(ib[t]), int(jb[t]), Nx, Ny)
+    bc_boundary_vals = np.zeros(gd["n"], dtype=float)
+    bc_boundary_vals[bc_boundary_inds] = vals
+    j_out, i_out = np.unravel_index(np.nanargmax(gd["A"]), (Ny, Nx))
+    k_out = int(idx_map[j_out, i_out])
+    return bc_boundary_inds, bc_boundary_vals, k_out
+
+
+def precompute_channel_network(gd: dict, m: float, U: float, K: float):
+    """Integrate S0 = (U/K)/A^m upstream from the boundary along D8 (v1 BFS; Phase 3 step 5 implementation).
+
+    Same arithmetic as v1 (``z_up = z_down + S0_up * dL_up`` in breadth-first order from the
+    boundary cells) with the receiver table, the donor lists and the queue seeds built with
+    numpy and the loop compiled with numba when available (``_bfs_integrate_py`` is the
+    reference). Returns ``(Z_channel_all, downstream_of, k_out, bc_boundary_inds, bc_boundary_vals)``.
     """
+    n = gd["n"]
+    S0_flat = (U / K) / (gd["A_flat"]**m)
+    downstream_of, dL = _receivers_vectorised(gd)
+    bc_boundary_inds, bc_boundary_vals, k_out = _boundary_anchor(gd)
+    Z_channel_all = np.full(n, np.nan)
+    Z_channel_all[bc_boundary_inds] = bc_boundary_vals[bc_boundary_inds]
+    donors, starts = _upstream_csr(downstream_of, n)
+    step = S0_flat * dL
+    Z_channel_all = _bfs_integrate(np.asarray(bc_boundary_inds, dtype=np.int64), donors, starts, step, Z_channel_all)
+    logger.debug("Channel propagation: %d NaNs remaining out of %d", int(np.sum(np.isnan(Z_channel_all))), n)
+    return Z_channel_all, downstream_of.astype(int), k_out, np.asarray(bc_boundary_inds), bc_boundary_vals
+
+
+def precompute_channel_network_v1(gd: dict, m: float, U: float, K: float):
+    """v1 per-cell Python construction and BFS, kept as the reference for the tests."""
     Z0 = gd["Z0"]
     dx = gd["dx"]
     Ny, Nx = gd["Ny"], gd["Nx"]
@@ -163,6 +282,7 @@ def precompute_channel_network(gd: dict, m: float, U: float, K: float):
     return Z_channel_all, downstream_of, k_out, bc_boundary_inds, bc_boundary_vals
 
 
+
 def precompute_chi_network(gd: dict, m: float):
     """chi_D8 = sum A^-m dL and the anchor elevation of every cell's D8 path (Phase 3, step 4).
 
@@ -171,63 +291,19 @@ def precompute_chi_network(gd: dict, m: float):
     the last bit (the sum is scaled once instead of term by term; ``docs/numerics_changes.md``
     N6). Returns ``(chi_all, z_anchor_all, downstream_of, k_out, bc_boundary_inds, bc_boundary_vals)``.
     """
-    Z0 = gd["Z0"]
-    dx = gd["dx"]
-    Ny, Nx = gd["Ny"], gd["Nx"]
     n = gd["n"]
-    valid = gd["valid"]
-    idx_map = gd["idx_map"]
-    rev_i, rev_j = gd["rev_i"], gd["rev_j"]
-    A_flat, FD_flat = gd["A_flat"], gd["FD_flat"]
-
-    a_pow = 1.0 / (A_flat**m)
-    # receivers, vectorised
-    codes = FD_flat.astype(int)
-    di_arr = np.zeros(n, dtype=np.int64)
-    dj_arr = np.zeros(n, dtype=np.int64)
-    has = np.zeros(n, dtype=bool)
-    for code, (di, dj) in D8_OFFSETS.items():
-        sel = codes == code
-        di_arr[sel], dj_arr[sel], has[sel] = di, dj, True
-    ni, nj = rev_i + di_arr, rev_j + dj_arr
-    inside = has & (ni >= 0) & (ni < Nx) & (nj >= 0) & (nj < Ny)
-    downstream_of = np.full(n, -1, dtype=int)
-    downstream_of[inside] = idx_map[nj[inside], ni[inside]]
-    dL = np.where((di_arr != 0) & (dj_arr != 0), dx * np.sqrt(2.0), dx)
-
-    boundary_mask = make_boundary_mask(valid)
-    z_anchor = np.full(n, np.nan)
+    downstream_of, dL = _receivers_vectorised(gd)
+    bc_boundary_inds, bc_boundary_vals, k_out = _boundary_anchor(gd)
+    donors, starts = _upstream_csr(downstream_of, n)
+    step = (1.0 / (gd["A_flat"]**m)) * dL
     chi = np.full(n, np.nan)
-    bc_boundary_vals = np.zeros(n, dtype=float)
-    jb, ib = np.where(boundary_mask)
-    bc_boundary_inds = idx_map[jb, ib]
-    for k, j_b, i_b in zip(bc_boundary_inds.tolist(), jb.tolist(), ib.tolist(), strict=True):
-        elev = Z0[j_b, i_b] if np.isfinite(Z0[j_b, i_b]) else find_boundary_value(Z0, i_b, j_b, Nx, Ny)
-        z_anchor[k] = elev
-        chi[k] = 0.0
-        bc_boundary_vals[k] = elev
-
-    j_out, i_out = np.unravel_index(np.nanargmax(gd["A"]), (Ny, Nx))
-    k_out = idx_map[j_out, i_out]
-
-    # BFS upstream from the boundary (order-independent on a tree)
-    order = np.argsort(downstream_of, kind="stable")
-    ups_sorted = order[downstream_of[order] >= 0]
-    recv_sorted = downstream_of[ups_sorted]
-    starts = np.searchsorted(recv_sorted, np.arange(n + 1))
-    queue = deque(bc_boundary_inds.tolist())
-    while queue:
-        kc = queue.popleft()
-        for ku in ups_sorted[starts[kc]:starts[kc + 1]].tolist():
-            if not np.isnan(chi[ku]):
-                continue
-            step = a_pow[ku] * dL[ku]
-            if not np.isfinite(step):
-                continue
-            chi[ku] = chi[kc] + step
-            z_anchor[ku] = z_anchor[kc]
-            queue.append(ku)
-    return chi, z_anchor, downstream_of, k_out, bc_boundary_inds, bc_boundary_vals
+    chi[bc_boundary_inds] = 0.0
+    chi = _bfs_integrate(np.asarray(bc_boundary_inds, dtype=np.int64), donors, starts, step, chi)
+    # anchor elevation: propagate the boundary value along the same tree (zero step)
+    z_anchor = np.full(n, np.nan)
+    z_anchor[bc_boundary_inds] = bc_boundary_vals[bc_boundary_inds]
+    z_anchor = _bfs_integrate(np.asarray(bc_boundary_inds, dtype=np.int64), donors, starts, np.where(np.isfinite(step), 0.0, np.nan), z_anchor)
+    return chi, z_anchor, downstream_of.astype(int), k_out, np.asarray(bc_boundary_inds), bc_boundary_vals
 
 
 def build_diffusion_stencil(gd: dict) -> lil_matrix:
