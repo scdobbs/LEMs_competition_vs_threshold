@@ -18,7 +18,7 @@ import numpy as np
 
 from lemcvt.hydro.d8 import d8_receiver_arrays
 
-THRESHOLD_LADDER = (1e3, 2e3, 5e3, 1e4, 2e4, 5e4)
+THRESHOLD_LADDER = (1e2, 2e2, 5e2, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4, 1e5)
 
 
 @dataclass
@@ -72,3 +72,18 @@ def slope_area_rollover(z: np.ndarray, area: np.ndarray, fd: np.ndarray, dx: flo
     j = int(np.argmax(sm))
     note = "" if 0 < j < sm.size - 1 else "rollover at the edge of the area range"
     return Rollover(float(10 ** centers[j]), centers, med, sm.tolist(), counts, note)
+
+
+def theta_plateau_threshold(ladder_fits: dict, tol: float = 0.02) -> tuple[float | None, str]:
+    """Smallest ladder threshold above which theta* stops changing.
+
+    ``ladder_fits`` maps threshold -> fit dict with ``theta_star``. Returns the smallest
+    A_c such that |theta*(next) - theta*(A_c)| <= tol and |theta*(next2) - theta*(next)| <= tol
+    (two consecutive stable steps), or ``None`` with a note when no plateau exists.
+    """
+    items = sorted((float(a), f.get("theta_star")) for a, f in ladder_fits.items() if f.get("theta_star") is not None)
+    th = [t for _, t in items]
+    for i in range(len(items) - 2):
+        if abs(th[i + 1] - th[i]) <= tol and abs(th[i + 2] - th[i + 1]) <= tol:
+            return items[i][0], ""
+    return None, "theta* does not plateau along the threshold ladder"

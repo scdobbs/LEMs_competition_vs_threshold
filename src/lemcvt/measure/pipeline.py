@@ -31,7 +31,7 @@ from lemcvt.measure.concavity import DEFAULT_THETAS, fit_chi, ks_at_theta
 from lemcvt.measure.hilltop_curvature import measure_hilltop_curvature
 from lemcvt.measure.legacy_v1 import legacy_chi, legacy_curvature
 from lemcvt.measure.slope_area import slope_area_regression_binned, weighted_r2
-from lemcvt.measure.thresholds import THRESHOLD_LADDER, slope_area_rollover
+from lemcvt.measure.thresholds import THRESHOLD_LADDER, slope_area_rollover, theta_plateau_threshold
 from lemcvt.results import RunRecorder
 
 logger = logging.getLogger(__name__)
@@ -79,6 +79,20 @@ def measure_tile(tile: str, force_metres: bool = True, n_boot: int = 200, thetas
     out["chi_fits"] = fits
     primary = fits["primary"]
     theta_star = primary.get("theta_star", np.nan)
+    ladder_fits = {k: v for k, v in fits.items() if k != "primary"}
+    a_plateau, note_plateau = theta_plateau_threshold(ladder_fits)
+    out["thresholds"]["A_c_theta_plateau"] = a_plateau
+    out["thresholds"]["theta_plateau_note"] = note_plateau
+    out["thresholds"]["theta_vs_threshold"] = [
+        {"A_c": float(k), "theta_star": v.get("theta_star"), "ks": v.get("ks_pooled"), "n_basins": v.get("n_basins_used"),
+         "theta_ci68": v.get("theta_ci68")} for k, v in sorted(ladder_fits.items(), key=lambda kv: float(kv[0]))
+    ]
+    if a_plateau is not None:
+        fp = fits[f"{a_plateau:g}"]
+        out["chi_fits_plateau"] = fp
+        logger.info("%s: theta plateau from A_c=%g: theta*=%.3f ks=%.4g", tile, a_plateau, fp["theta_star"], fp["ks_pooled"])
+    else:
+        logger.info("%s: %s", tile, note_plateau)
 
     # 3. binned slope-area cross-check at A_c*
     try:
@@ -180,10 +194,17 @@ def run_measure(tiles: Sequence[str], force_metres: bool = True, n_boot: int = 2
     for tile, r in results.items():
         p = r["chi_fits"]["primary"]
         c = r.get("curvature", {})
-        summary.append({"tile": tile, "A_c": r["thresholds"]["A_c_primary"], "theta": p.get("theta_star"),
-                        "theta_ci68": p.get("theta_ci68"), "ks": p.get("ks_pooled"), "ks_ci68": p.get("ks_ci68"),
+        fp = r.get("chi_fits_plateau", {})
+        summary.append({"tile": tile, "A_c_rollover": r["thresholds"]["A_c_primary"], "theta_rollover": p.get("theta_star"),
+                        "theta_ci68_rollover": p.get("theta_ci68"), "ks_rollover": p.get("ks_pooled"),
+                        "ks_ci68_rollover": p.get("ks_ci68"),
+                        "A_c_theta_plateau": r["thresholds"].get("A_c_theta_plateau"), "theta_plateau": fp.get("theta_star"),
+                        "theta_ci68_plateau": fp.get("theta_ci68"), "ks_plateau": fp.get("ks_pooled"),
+                        "ks_ci68_plateau": fp.get("ks_ci68"), "n_basins_plateau": fp.get("n_basins_used"),
                         "C_ht": c.get("C_ht"), "C_ht_ci68": c.get("C_ht_ci68"), "L_star_m": c.get("L_star_m"),
-                        "D0": c.get("D0"), "D0_ci68": c.get("D0_ci68"), "K0": r["U"] / p["ks_pooled"] if p.get("ks_pooled") else None})
+                        "D0": c.get("D0"), "D0_ci68": c.get("D0_ci68"),
+                        "K0_rollover": r["U"] / p["ks_pooled"] if p.get("ks_pooled") else None,
+                        "K0_plateau": r["U"] / fp["ks_pooled"] if fp.get("ks_pooled") else None})
     rec.add_params("summary", summary)
     rec.finalize({"tiles": snaps, "crop": crop})
     return rec
