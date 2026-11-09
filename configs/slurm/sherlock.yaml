@@ -59,3 +59,8 @@ steps:
     cpus: 2
     mem: 32G
     core_hours_estimate_per_task: 12
+  profile:            # Phase 3 step 1: one tile per task, every stage once, 2 Picard iterations
+    time: "02:00:00"
+    cpus: 2
+    mem: 51G
+    core_hours_estimate_per_task: 4

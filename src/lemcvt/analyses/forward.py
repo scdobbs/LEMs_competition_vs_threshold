@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,9 @@ logger = logging.getLogger(__name__)
 
 TOL_DZ_REL_RELIEF = 1e-6
 TOL_MSE_REL = 1e-8
+# Phase 3 gate (addendum 2, section 7): new code against the Phase 2 v2 outputs at identical parameters
+TOL_DZ_REL_RELIEF_PHASE3 = 1e-8
+TOL_MSE_REL_PHASE3 = 1e-10
 
 
 def v1_forward_params(td: TileData) -> dict[str, dict[str, Any]]:
@@ -139,32 +143,80 @@ def compare_with_saved(td: TileData, key: str, Z: np.ndarray, spec: dict[str, An
     }
 
 
+def compare_with_run(td: TileData, key: str, Z: np.ndarray, ref_run: Path,
+                     tol_dz: float = TOL_DZ_REL_RELIEF_PHASE3, tol_mse: float = TOL_MSE_REL_PHASE3) -> dict[str, Any] | None:
+    """Compare a forward grid with the grid of the same run key in another ``tile_forward`` run directory.
+
+    This is the Phase 3 gate: Phase 3 code against the Phase 2 v2 outputs at identical parameters,
+    max |dz| <= 1e-8 x relief and relative MSE difference <= 1e-10 (addendum 2, section 7).
+    """
+    prefix = f"{td.cfg.site}_1m_best_tile_{V1_PREFIX.get(key, key)}"
+    path = Path(ref_run) / f"{prefix}_elevation.tif"
+    if not path.exists():
+        return {"reference_grid": str(path), "status": "missing"}
+    ref = read_geotiff(path).data
+    Z0 = td.Z
+    relief = float(np.nanmax(Z0) - np.nanmin(Z0))
+    diff = Z - ref
+    max_abs = float(np.nanmax(np.abs(diff)))
+    mse_new, mse_ref = mse(Z, Z0), mse(ref, Z0)
+    rel_mse = abs(mse_new - mse_ref) / mse_ref
+    return {
+        "reference_grid": str(path), "relief": relief, "max_abs_dz": max_abs, "max_abs_dz_over_relief": max_abs / relief,
+        "mse_new": mse_new, "mse_reference": mse_ref, "rel_mse_diff": rel_mse,
+        "n_dz_gt_1e-9_relief": int(np.nansum(np.abs(diff) > 1e-9 * relief)),
+        "n_dz_gt_1e-8_relief": int(np.nansum(np.abs(diff) > 1e-8 * relief)),
+        "tol_dz_rel_relief": tol_dz, "tol_mse_rel": tol_mse,
+        "pass_dz": bool(max_abs <= tol_dz * relief), "pass_mse": bool(rel_mse <= tol_mse),
+    }
+
+
 def run_forward(tile: str, params: str | Path = "v1", compare: bool = False, save_grids: bool = True,
                 derived_grids: bool = False, keys: list[str] | None = None,
                 crop: tuple[int, int, int, int] | None = None, run_id: str | None = None,
-                results_root=None) -> RunRecorder:
-    """Forward runs for one tile; ``params="v1"`` uses the tile config's v1 reference."""
+                results_root=None, reference_run: str | Path | None = None) -> RunRecorder:
+    """Forward runs for one tile; ``params="v1"`` uses the tile config's v1 reference.
+
+    ``reference_run`` (a ``tile_forward`` run directory, or ``"phase2"`` for the latest run of the tile
+    made before this one) adds the Phase 3 comparison against that run's grids.
+    """
     td = load_tile(tile, crop=crop, sanity=crop is None)
     specs = v1_forward_params(td) if str(params) == "v1" else params_from_run(Path(params))
     if keys:
         specs = {k: v for k, v in specs.items() if k in keys}
+    ref_dir: Path | None = None
+    if reference_run is not None:
+        if str(reference_run) == "phase2":
+            from lemcvt.results import find_runs
+
+            cands = [r for r in find_runs("tile_forward", tile) if r.name < "20261109T20"]
+            if not cands:
+                raise FileNotFoundError(f"no Phase 2 tile_forward run for {tile}")
+            ref_dir = cands[-1]
+        else:
+            ref_dir = Path(reference_run)
     rec = RunRecorder("tile_forward", tile, run_id=run_id, root=results_root)
     rec.add_params("tile", tile)
     rec.add_params("params_source", str(params))
+    rec.add_params("reference_run", str(ref_dir) if ref_dir else None)
     rec.add_params("inputs", td.provenance())
     cache: dict[Any, Any] = {}
     runs = []
     for key, spec in specs.items():
+        t0 = time.perf_counter()
         Z, info = evaluate(td, spec, cache)
-        entry = {"key": key, "params": spec, "mse": mse(Z, td.Z), **info}
+        entry = {"key": key, "params": spec, "mse": mse(Z, td.Z), "wall_s": time.perf_counter() - t0, **info}
         if save_grids:
             prefix = f"{td.cfg.site}_1m_best_tile_{V1_PREFIX.get(key, key)}"
             entry["files"] = write_model_outputs(rec, td.filled, Z, prefix, derived=derived_grids)
         if compare and crop is None:
             entry["comparison"] = compare_with_saved(td, key, Z, spec)
+        if ref_dir is not None and crop is None:
+            entry["comparison_phase2"] = compare_with_run(td, key, Z, ref_dir)
         runs.append(entry)
-        logger.info("forward %s %s: MSE=%.6e %s", tile, key, entry["mse"],
-                    ("cmp " + json.dumps(entry.get("comparison"), default=str)) if compare else "")
+        logger.info("forward %s %s: MSE=%.6e (%.0f s) %s %s", tile, key, entry["mse"], entry["wall_s"],
+                    ("cmp " + json.dumps(entry.get("comparison"), default=str)) if compare else "",
+                    ("cmp-phase2 " + json.dumps(entry.get("comparison_phase2"), default=str)) if ref_dir else "")
     rec.add_params("forward_runs", runs)
-    rec.finalize(config_snapshot(td.cfg, {"compare": compare, "crop": crop}))
+    rec.finalize(config_snapshot(td.cfg, {"compare": compare, "crop": crop, "reference_run": str(ref_dir) if ref_dir else None}))
     return rec

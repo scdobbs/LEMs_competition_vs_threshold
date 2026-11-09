@@ -158,13 +158,16 @@ def tile_run(tile_id, stages, optimizer, no_grids, no_derived, exploration, crop
 @click.option("--keys", default=None, help="Comma list of run keys (ad_no_opt,ad_opt,acrit_opt,nonlinear_opt,joint_opt)")
 @click.option("--no-grids", is_flag=True)
 @click.option("--derived", is_flag=True, help="Also write the derived grids.")
+@click.option("--reference-run", default=None,
+              help="Phase 3 gate: compare with this tile_forward run directory ('phase2' = latest Phase 2 run of the tile).")
 @click.option("--crop", default=None)
 @click.option("--run-id", default=None)
-def tile_forward(tile_id, params, compare, keys, no_grids, derived, crop, run_id) -> None:
+def tile_forward(tile_id, params, compare, keys, no_grids, derived, reference_run, crop, run_id) -> None:
     from lemcvt.analyses.forward import run_forward
 
     rec = run_forward(tile_id, params=params, compare=compare, save_grids=not no_grids, derived_grids=derived,
-                      keys=keys.split(",") if keys else None, crop=_parse_crop(crop), run_id=run_id)
+                      keys=keys.split(",") if keys else None, crop=_parse_crop(crop), run_id=run_id,
+                      reference_run=reference_run)
     click.echo(f"results: {rec.dir}")
 
 
@@ -254,6 +257,18 @@ def measure(tiles, metres, n_boot, no_legacy, crop, run_id) -> None:
 
     rec = run_measure(_parse_tiles(tiles), force_metres=metres, n_boot=n_boot, run_id=run_id, run_legacy=not no_legacy,
                       crop=_parse_crop(crop))
+    click.echo(f"results: {rec.dir}")
+
+
+@main.command("profile")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--picard-iters", default=2, show_default=True)
+@click.option("--run-id", default=None)
+def profile(tile_id, picard_iters, run_id) -> None:
+    """Phase 3 step 1: cProfile + line_profiler of every model stage on a full tile."""
+    from lemcvt.analyses.profiling import run_profile
+
+    rec = run_profile(tile_id, picard_iters=picard_iters, run_id=run_id)
     click.echo(f"results: {rec.dir}")
 
 
@@ -347,7 +362,7 @@ def slurm() -> None:
 
 @slurm.command("submit")
 @click.argument("step", type=click.Choice(["tile_run", "tile_forward", "sweep_resolution", "measure", "closeout",
-                                           "dinf_diagnostics", "measure_diagnostics", "custom"]))
+                                           "dinf_diagnostics", "measure_diagnostics", "profile", "custom"]))
 @click.option("--tiles", default="all", show_default=True)
 @click.option("--labels", default=None, help="custom step: comma list of array labels (default: one task 'all')")
 @click.option("--command", "command_", default=None, help="custom step: command with $LABEL, e.g. \"lemcvt -v slope-area --tiles AP1,GM2\"")
@@ -355,14 +370,15 @@ def slurm() -> None:
 @click.option("--optimizer", default="v1", show_default=True)
 @click.option("--params", default="v1", show_default=True, help="tile_forward only")
 @click.option("--compare", is_flag=True, help="tile_forward only")
+@click.option("--reference-run", default=None, help="tile_forward only: Phase 3 gate against this run ('phase2')")
 @click.option("--routing", default="d8,dinf", show_default=True, help="sweep_resolution only")
 @click.option("--time", "time_", default=None, help="Override wall time (D-HH:MM:SS).")
 @click.option("--cpus", default=None, type=int)
 @click.option("--mem", default=None)
 @click.option("--dry-run", is_flag=True, help="Render and print the script and estimate; do not submit.")
 @click.option("--approved", is_flag=True, help="Steve approved a submission above the core-hour limit (300).")
-def slurm_submit(step, tiles, labels, command_, stages, optimizer, params, compare, routing, time_, cpus, mem, dry_run,
-                 approved):
+def slurm_submit(step, tiles, labels, command_, stages, optimizer, params, compare, reference_run, routing, time_, cpus,
+                 mem, dry_run, approved):
     from lemcvt.slurm import build_spec, estimate_text, render, submit
 
     labels = _parse_tiles(tiles) if step != "custom" else ([s.strip() for s in labels.split(",")] if labels else ["all"])
@@ -373,7 +389,8 @@ def slurm_submit(step, tiles, labels, command_, stages, optimizer, params, compa
     elif step == "tile_run":
         cmd = f"lemcvt -v tile run --tile $LABEL --stages {stages} --optimizer {optimizer}"
     elif step == "tile_forward":
-        cmd = f"lemcvt -v tile forward --tile $LABEL --params {params}" + (" --compare" if compare else "")
+        cmd = (f"lemcvt -v tile forward --tile $LABEL --params {params}" + (" --compare" if compare else "")
+               + (f" --reference-run {reference_run}" if reference_run else ""))
     elif step == "sweep_resolution":
         cmd = f"lemcvt -v sweep resolution --tiles $LABEL --routing {routing}"
     elif step == "closeout":
@@ -384,6 +401,8 @@ def slurm_submit(step, tiles, labels, command_, stages, optimizer, params, compa
     elif step == "measure_diagnostics":
         cmd = f"lemcvt -v measure-diagnostics --tiles {tiles}"
         labels = ["all"]
+    elif step == "profile":
+        cmd = "lemcvt -v profile --tile $LABEL"
     else:
         cmd = "lemcvt -v measure --tile $LABEL"
     spec = build_spec(step, labels, cmd, time=time_, cpus=cpus, mem=mem)

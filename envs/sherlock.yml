@@ -31,3 +31,5 @@ dependencies:
   - types-PyYAML
   - pandas-stubs
   - pip
+  - pip:
+      - line_profiler   # Phase 3 profiling; added 2026-11-09 with `pip install --no-deps` (not in the explicit lock)
