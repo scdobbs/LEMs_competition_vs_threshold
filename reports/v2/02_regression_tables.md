@@ -4,56 +4,56 @@
 
 | tile | key | exact_params | max_dz_over_relief | rel_mse_diff | pass_dz_1e-6 | pass_mse_1e-8 | n_dz_gt_1e-9_relief | n_dz_gt_1e-6_relief | n_mask_may_differ | wall_s_run |
 |---|---|---|---|---|---|---|---|---|---|---|
-| AP1 | ad_no_opt | True | 7.307e-13 | 2.218e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 2.091e+03 |
-| AP1 | ad_opt | False | 1.867e-06 | 1.664e-10 | False | True | 1.026e+06 | 2.315e+05 |  | 2.091e+03 |
-| AP1 | acrit_opt | False | 1.042e-12 | 1.405e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 2.091e+03 |
-| AP1 | nonlinear_opt | False |  |  |  |  |  |  |  | 2.091e+03 |
-| AP1 | joint_opt | False | 7.106e-06 | 2.678e-09 | False | True | 1.025e+06 | 5.365e+05 | 0.000e+00 | 2.091e+03 |
-| AP2 | ad_no_opt | True | 4.827e-13 | 9.132e-14 | True | True | 0.000e+00 | 0.000e+00 |  | 2.056e+03 |
-| AP2 | ad_opt | False | 4.749e-07 | 9.431e-12 | True | True | 1.018e+06 | 0.000e+00 |  | 2.056e+03 |
-| AP2 | acrit_opt | False | 8.243e-13 | 2.871e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 2.056e+03 |
-| AP2 | nonlinear_opt | False |  |  |  |  |  |  |  | 2.056e+03 |
-| AP2 | joint_opt | False | 1.753e-06 | 3.294e-09 | False | True | 1.022e+06 | 2.841e+04 | 0.000e+00 | 2.056e+03 |
-| AP3 | ad_no_opt | True | 5.656e-13 | 2.080e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 2.007e+03 |
-| AP3 | ad_opt | False | 6.366e-06 | 1.732e-09 | False | True | 1.025e+06 | 8.208e+05 |  | 2.007e+03 |
-| AP3 | acrit_opt | False | 6.445e-13 | 2.695e-13 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 2.007e+03 |
-| AP3 | nonlinear_opt | False |  |  |  |  |  |  |  | 2.007e+03 |
-| AP3 | joint_opt | False | 2.165e-06 | 4.265e-09 | False | True | 1.025e+06 | 4.355e+05 | 0.000e+00 | 2.007e+03 |
-| AP4 | ad_no_opt | True | 9.650e-13 | 2.924e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 1.968e+03 |
-| AP4 | ad_opt | False | 2.020e-06 | 1.650e-10 | False | True | 1.026e+06 | 2.484e+05 |  | 1.968e+03 |
-| AP4 | acrit_opt | False | 2.143e-12 | 6.466e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 1.968e+03 |
-| AP4 | nonlinear_opt | False |  |  |  |  |  |  |  | 1.968e+03 |
-| AP4 | joint_opt | False | 2.201e-06 | 6.143e-10 | False | True | 1.024e+06 | 4.673e+05 | 0.000e+00 | 1.968e+03 |
-| AP5 | ad_no_opt | True | 9.747e-13 | 3.393e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 3.301e+03 |
-| AP5 | ad_opt | False | 3.121e-05 | 1.626e-08 | False | False | 1.026e+06 | 9.980e+05 |  | 3.301e+03 |
-| AP5 | acrit_opt | False | 6.187e-13 | 4.880e-13 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 3.301e+03 |
-| AP5 | nonlinear_opt | False |  |  |  |  |  |  |  | 3.301e+03 |
-| AP5 | joint_opt | False | 3.213e-06 | 7.752e-09 | False | True | 1.026e+06 | 5.094e+05 | 0.000e+00 | 3.301e+03 |
-| GM1 | ad_no_opt | True | 9.253e-13 | 1.578e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 1.120e+03 |
-| GM1 | ad_opt | False | 1.986e-05 | 8.074e-09 | False | True | 9.960e+05 | 9.072e+05 |  | 1.120e+03 |
-| GM1 | acrit_opt | False | 4.126e-13 | 2.317e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 1.120e+03 |
-| GM1 | nonlinear_opt | False |  |  |  |  |  |  |  | 1.120e+03 |
-| GM1 | joint_opt | False | 7.593e-06 | 1.246e-08 | False | False | 9.950e+05 | 4.838e+05 | 0.000e+00 | 1.120e+03 |
-| GM2 | ad_no_opt | True | 1.715e-12 | 4.392e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 6.098e+02 |
-| GM2 | ad_opt | False | 2.593e-05 | 1.971e-08 | False | False | 9.960e+05 | 9.695e+05 |  | 6.098e+02 |
-| GM2 | acrit_opt | False | 2.116e-13 | 1.099e-13 | True | True | 0.000e+00 | 0.000e+00 | 1.028e+03 | 6.098e+02 |
-| GM2 | nonlinear_opt | False |  |  |  |  |  |  |  | 6.098e+02 |
-| GM2 | joint_opt | False | 1.651e-06 | 1.506e-09 | False | True | 9.923e+05 | 1.004e+04 | 0.000e+00 | 6.098e+02 |
-| GM3 | ad_no_opt | True | 1.399e-12 | 4.593e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 5.736e+02 |
-| GM3 | ad_opt | False | 2.291e-05 | 1.061e-08 | False | False | 9.960e+05 | 9.457e+05 |  | 5.736e+02 |
-| GM3 | acrit_opt | False | 5.242e-13 | 1.709e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 5.736e+02 |
-| GM3 | nonlinear_opt | False |  |  |  |  |  |  |  | 5.736e+02 |
-| GM3 | joint_opt | False | 1.718e-05 | 1.781e-09 | False | True | 9.960e+05 | 9.124e+05 | 0.000e+00 | 5.736e+02 |
-| GM4 | ad_no_opt | True | 1.933e-12 | 3.560e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 6.970e+02 |
-| GM4 | ad_opt | False | 2.452e-06 | 9.682e-11 | False | True | 9.956e+05 | 3.158e+05 |  | 6.970e+02 |
-| GM4 | acrit_opt | False | 9.007e-14 | 2.665e-13 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 6.970e+02 |
-| GM4 | nonlinear_opt | False |  |  |  |  |  |  |  | 6.970e+02 |
-| GM4 | joint_opt | False | 9.153e-06 | 1.594e-08 | False | False | 9.960e+05 | 8.674e+05 | 0.000e+00 | 6.970e+02 |
-| GM5 | ad_no_opt | True | 7.939e-13 | 1.377e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 6.527e+02 |
-| GM5 | ad_opt | False | 3.434e-05 | 4.926e-08 | False | False | 9.960e+05 | 9.785e+05 |  | 6.527e+02 |
-| GM5 | acrit_opt | False | 3.721e-13 | 1.158e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 6.527e+02 |
-| GM5 | nonlinear_opt | False |  |  |  |  |  |  |  | 6.527e+02 |
-| GM5 | joint_opt | False | 9.145e-06 | 6.025e-06 | False | False | 9.960e+05 | 8.568e+05 | 0.000e+00 | 6.527e+02 |
+| AP1 | ad_no_opt | True | 8.553e-13 | 2.709e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 3.836e+02 |
+| AP1 | ad_opt | False | 1.867e-06 | 1.664e-10 | False | True | 1.026e+06 | 2.315e+05 |  | 3.836e+02 |
+| AP1 | acrit_opt | False | 6.200e-13 | 1.105e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 3.836e+02 |
+| AP1 | nonlinear_opt | False |  |  |  |  |  |  |  | 3.836e+02 |
+| AP1 | joint_opt | False | 7.106e-06 | 2.678e-09 | False | True | 1.025e+06 | 5.365e+05 | 0.000e+00 | 3.836e+02 |
+| AP2 | ad_no_opt | True | 5.605e-13 | 1.143e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 4.195e+02 |
+| AP2 | ad_opt | False | 4.749e-07 | 9.446e-12 | True | True | 1.018e+06 | 0.000e+00 |  | 4.195e+02 |
+| AP2 | acrit_opt | False | 6.734e-13 | 2.124e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 4.195e+02 |
+| AP2 | nonlinear_opt | False |  |  |  |  |  |  |  | 4.195e+02 |
+| AP2 | joint_opt | False | 1.753e-06 | 3.294e-09 | False | True | 1.022e+06 | 2.841e+04 | 0.000e+00 | 4.195e+02 |
+| AP3 | ad_no_opt | True | 5.656e-13 | 2.080e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 3.745e+02 |
+| AP3 | ad_opt | False | 6.366e-06 | 1.732e-09 | False | True | 1.025e+06 | 8.208e+05 |  | 3.745e+02 |
+| AP3 | acrit_opt | False | 6.445e-13 | 2.695e-13 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 3.745e+02 |
+| AP3 | nonlinear_opt | False |  |  |  |  |  |  |  | 3.745e+02 |
+| AP3 | joint_opt | False | 2.165e-06 | 4.265e-09 | False | True | 1.025e+06 | 4.355e+05 | 0.000e+00 | 3.745e+02 |
+| AP4 | ad_no_opt | True | 1.897e-12 | 7.262e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 4.775e+02 |
+| AP4 | ad_opt | False | 2.020e-06 | 1.650e-10 | False | True | 1.026e+06 | 2.484e+05 |  | 4.775e+02 |
+| AP4 | acrit_opt | False | 1.980e-12 | 5.674e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 4.775e+02 |
+| AP4 | nonlinear_opt | False |  |  |  |  |  |  |  | 4.775e+02 |
+| AP4 | joint_opt | False | 2.201e-06 | 6.142e-10 | False | True | 1.024e+06 | 4.673e+05 | 0.000e+00 | 4.775e+02 |
+| AP5 | ad_no_opt | True | 1.350e-12 | 4.828e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 3.565e+02 |
+| AP5 | ad_opt | False | 3.121e-05 | 1.626e-08 | False | False | 1.026e+06 | 9.980e+05 |  | 3.565e+02 |
+| AP5 | acrit_opt | False | 1.129e-12 | 1.674e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 3.565e+02 |
+| AP5 | nonlinear_opt | False |  |  |  |  |  |  |  | 3.565e+02 |
+| AP5 | joint_opt | False | 3.213e-06 | 7.753e-09 | False | True | 1.026e+06 | 5.094e+05 | 0.000e+00 | 3.565e+02 |
+| GM1 | ad_no_opt | True | 9.271e-13 | 1.580e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 1.065e+02 |
+| GM1 | ad_opt | False | 1.986e-05 | 8.074e-09 | False | True | 9.960e+05 | 9.072e+05 |  | 1.065e+02 |
+| GM1 | acrit_opt | False | 4.126e-13 | 2.317e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 1.065e+02 |
+| GM1 | nonlinear_opt | False |  |  |  |  |  |  |  | 1.065e+02 |
+| GM1 | joint_opt | False | 7.593e-06 | 1.246e-08 | False | False | 9.950e+05 | 4.838e+05 | 0.000e+00 | 1.065e+02 |
+| GM2 | ad_no_opt | True | 1.715e-12 | 4.392e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 7.718e+01 |
+| GM2 | ad_opt | False | 2.593e-05 | 1.971e-08 | False | False | 9.960e+05 | 9.695e+05 |  | 7.718e+01 |
+| GM2 | acrit_opt | False | 2.116e-13 | 1.099e-13 | True | True | 0.000e+00 | 0.000e+00 | 1.028e+03 | 7.718e+01 |
+| GM2 | nonlinear_opt | False |  |  |  |  |  |  |  | 7.718e+01 |
+| GM2 | joint_opt | False | 1.651e-06 | 1.506e-09 | False | True | 9.923e+05 | 1.004e+04 | 0.000e+00 | 7.718e+01 |
+| GM3 | ad_no_opt | True | 1.399e-12 | 4.593e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 7.656e+01 |
+| GM3 | ad_opt | False | 2.291e-05 | 1.061e-08 | False | False | 9.960e+05 | 9.457e+05 |  | 7.656e+01 |
+| GM3 | acrit_opt | False | 5.242e-13 | 1.709e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 7.656e+01 |
+| GM3 | nonlinear_opt | False |  |  |  |  |  |  |  | 7.656e+01 |
+| GM3 | joint_opt | False | 1.718e-05 | 1.781e-09 | False | True | 9.960e+05 | 9.124e+05 | 0.000e+00 | 7.656e+01 |
+| GM4 | ad_no_opt | True | 1.933e-12 | 3.560e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 1.097e+02 |
+| GM4 | ad_opt | False | 2.452e-06 | 9.682e-11 | False | True | 9.956e+05 | 3.158e+05 |  | 1.097e+02 |
+| GM4 | acrit_opt | False | 9.007e-14 | 2.665e-13 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 1.097e+02 |
+| GM4 | nonlinear_opt | False |  |  |  |  |  |  |  | 1.097e+02 |
+| GM4 | joint_opt | False | 9.153e-06 | 1.594e-08 | False | False | 9.960e+05 | 8.674e+05 | 0.000e+00 | 1.097e+02 |
+| GM5 | ad_no_opt | True | 7.939e-13 | 1.377e-13 | True | True | 0.000e+00 | 0.000e+00 |  | 9.917e+01 |
+| GM5 | ad_opt | False | 3.434e-05 | 4.926e-08 | False | False | 9.960e+05 | 9.785e+05 |  | 9.917e+01 |
+| GM5 | acrit_opt | False | 3.721e-13 | 1.158e-12 | True | True | 0.000e+00 | 0.000e+00 | 0.000e+00 | 9.917e+01 |
+| GM5 | nonlinear_opt | False |  |  |  |  |  |  |  | 9.917e+01 |
+| GM5 | joint_opt | False | 9.145e-06 | 6.025e-06 | False | False | 9.960e+05 | 8.568e+05 | 0.000e+00 | 9.917e+01 |
 
 Counts: cells with |dz| > 1e-9 x relief and > 1e-6 x relief; `n_mask_may_differ` = cells whose D8 area lies in the rounding interval of the printed A_crit (the only cells whose channel membership can differ from the saved grid; v1 saved no mask). Blank where the run has no saved-grid comparison.
 
@@ -119,7 +119,12 @@ Counts: cells with |dz| > 1e-9 x relief and > 1e-6 x relief; `n_mask_may_differ`
 
 ## 2.2 Optimizer regression (tile_run against printed v1 optima)
 
-_no results yet_
+| tile | stage | quantity | v1 | v2 | rel_diff | pass_1pct | wall_s_v2 | wall_s_v1 | run | pass_0.5pct |
+|---|---|---|---|---|---|---|---|---|---|---|
+| AP5 | acrit | A_crit | 1130 | 1130 | 3.85e-05 | True | 135.6 | 1323 | 20261109T214309Z_tile_run_AP5_acrit |  |
+| AP5 | acrit | MSE | 359.3 | 359.3 | 1.785e-06 |  | 135.6 | 1323 | 20261109T214309Z_tile_run_AP5_acrit | True |
+| GM1 | acrit | A_crit | 423.5 | 423.5 | 8.076e-06 | True | 122.1 | 1480 | 20261109T214306Z_tile_run_GM1_acrit |  |
+| GM1 | acrit | MSE | 101 | 101 | 2.353e-05 |  | 122.1 | 1480 | 20261109T214306Z_tile_run_GM1_acrit | True |
 
 ## 2.3a Resolution sweep (ratios against the printed [OK] rows; v1 printed 3 decimals)
 

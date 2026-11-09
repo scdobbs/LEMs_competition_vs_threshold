@@ -7,9 +7,12 @@
 #         nodes seen: 24 cores/384 GB (sh02-10n6x), 24 cores/191 GB (sh02-16n0x),
 #         32 cores/256 GB (sh03-04n4x).
 # Concurrency: keep total concurrent CPUs <= 300 (SDSS guidance); every array is throttled with %N.
-# Resources below come from measurements of the Phase 2 forward runs (sacct, jobs 51680757 and
-# 51683792): TotalCPU/Elapsed = 0.98-1.0 (single-threaded solves), MaxRSS 32.2-33.9 GB
-# (full tile, AD model with LIL assembly + partitioned + nonlinear). Memory = 1.5 x MaxRSS.
+# Resources below come from measurements (sacct). Phase 2 code (jobs 51680757, 51683792, 51698701):
+# TotalCPU/Elapsed = 0.95-1.0 (single-threaded solves), MaxRSS 32.2-33.9 GB (LIL assembly of the AD
+# model). Phase 3 code (gates, jobs 51700403/51700404/51700412; optimizer stages 51701025/51701029):
+# MaxRSS 3.0-3.5 GB for a full-tile forward run with all five models, 2.2-2.6 GB for an optimizer
+# stage; TotalCPU/Elapsed 0.93-0.98. Memory = 1.5 x MaxRSS rounded up; 1 CPU (the solver is SuperLU,
+# single-threaded; BLAS threads are pinned to the CPU count).
 partition: serc
 account: null
 qos: null
@@ -21,19 +24,19 @@ log_dir: $SCRATCH/lemcvt_jobs
 threads_env: [OMP_NUM_THREADS, MKL_NUM_THREADS, OPENBLAS_NUM_THREADS]
 defaults:
   time: "04:00:00"
-  cpus: 2
-  mem: 51G
+  cpus: 1
+  mem: 8G
 steps:
   tile_run:           # one stage per job (see `lemcvt slurm submit-stages`); time = 1.5 x v1 stage time
     time: "2-00:00:00"
-    cpus: 2
-    mem: 51G
-    core_hours_estimate_per_task: 96
-  tile_forward:       # measured 10-55 min, 32-34 GB
-    time: "01:30:00"
-    cpus: 2
-    mem: 51G
-    core_hours_estimate_per_task: 3
+    cpus: 1
+    mem: 8G
+    core_hours_estimate_per_task: 48
+  tile_forward:       # Phase 3: 2-8 min, 3.0-3.5 GB (Phase 2 code: 10-55 min, 32-34 GB)
+    time: "00:45:00"
+    cpus: 1
+    mem: 8G
+    core_hours_estimate_per_task: 1
   sweep_resolution:   # measured ~1 min per tile (coarse grids only), 24G requested
     time: "01:00:00"
     cpus: 2
@@ -44,16 +47,16 @@ steps:
     cpus: 2
     mem: 32G
     core_hours_estimate_per_task: 2
-  closeout:           # linearized recovery: ~10 full-tile solves per tile (AD LIL assembly dominates memory)
-    time: "03:00:00"
-    cpus: 2
-    mem: 51G
-    core_hours_estimate_per_task: 6
+  closeout:           # linearized recovery: ~10 full-tile solves per tile (Phase 3 code: a few GB)
+    time: "02:00:00"
+    cpus: 1
+    mem: 8G
+    core_hours_estimate_per_task: 2
   dinf_diagnostics:   # two tiles with D-inf routing (pure-Python loops) + synthetic cases
     time: "03:00:00"
-    cpus: 2
-    mem: 51G
-    core_hours_estimate_per_task: 6
+    cpus: 1
+    mem: 16G
+    core_hours_estimate_per_task: 3
   measure_diagnostics:  # ten tiles in one job: 3 ladders x 31 steps with basin bootstraps, breaks, synthetic ridges
     time: "06:00:00"
     cpus: 2
@@ -61,6 +64,6 @@ steps:
     core_hours_estimate_per_task: 12
   profile:            # Phase 3 step 1: one tile per task, every stage once, 2 Picard iterations
     time: "02:00:00"
-    cpus: 2
-    mem: 51G
-    core_hours_estimate_per_task: 4
+    cpus: 1
+    mem: 8G
+    core_hours_estimate_per_task: 2
