@@ -98,8 +98,17 @@ def evaluate(td: TileData, spec: dict[str, Any], models_cache: dict[Any, Any]) -
     return Z, info
 
 
-def compare_with_saved(td: TileData, key: str, Z: np.ndarray) -> dict[str, Any] | None:
-    """Compare a forward grid with the saved v1 grid of the same run key, if it exists."""
+def compare_with_saved(td: TileData, key: str, Z: np.ndarray, spec: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    """Compare a forward grid with the saved v1 grid of the same run key, if it exists.
+
+    Besides max|dz| and the MSE difference, the comparison counts cells with
+    |dz| > 1e-9 x relief and |dz| > 1e-6 x relief, and, for A_crit-bearing runs, the
+    cells whose D8 area lies inside the rounding interval of the printed A_crit (the
+    only cells whose channel membership can differ between the saved grid and this run;
+    v1 saved no mask). These replace the former ``n_diff_cells`` (addendum 2, 2.3).
+    """
+    from lemcvt.analyses.phase2_closeout import difference_counts
+
     saved = td.cfg.v1_reference.get("saved_grids", {})
     if key not in saved:
         return None
@@ -115,6 +124,7 @@ def compare_with_saved(td: TileData, key: str, Z: np.ndarray) -> dict[str, Any] 
     max_abs = float(np.nanmax(np.abs(diff)))
     mse_new, mse_ref = mse(Z, Z0), mse(ref, Z0)
     rel_mse = abs(mse_new - mse_ref) / mse_ref
+    a_crit = float(spec["A_crit"]) if spec and "A_crit" in spec else None
     return {
         "saved_grid": str(path),
         "relief": relief,
@@ -123,7 +133,7 @@ def compare_with_saved(td: TileData, key: str, Z: np.ndarray) -> dict[str, Any] 
         "mse_new": mse_new,
         "mse_saved": mse_ref,
         "rel_mse_diff": rel_mse,
-        "n_diff_cells": int(np.sum(np.abs(diff) > 0)),
+        **difference_counts(Z, ref, relief, td.A, a_crit),
         "pass_dz": bool(max_abs <= TOL_DZ_REL_RELIEF * relief),
         "pass_mse": bool(rel_mse <= TOL_MSE_REL),
     }
@@ -151,7 +161,7 @@ def run_forward(tile: str, params: str | Path = "v1", compare: bool = False, sav
             prefix = f"{td.cfg.site}_1m_best_tile_{V1_PREFIX.get(key, key)}"
             entry["files"] = write_model_outputs(rec, td.filled, Z, prefix, derived=derived_grids)
         if compare and crop is None:
-            entry["comparison"] = compare_with_saved(td, key, Z)
+            entry["comparison"] = compare_with_saved(td, key, Z, spec)
         runs.append(entry)
         logger.info("forward %s %s: MSE=%.6e %s", tile, key, entry["mse"],
                     ("cmp " + json.dumps(entry.get("comparison"), default=str)) if compare else "")

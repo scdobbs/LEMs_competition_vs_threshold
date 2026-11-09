@@ -39,6 +39,10 @@ def _dx_targets():
 
 
 def _grid_dims(dx_t, Lx, Ly):
+    """Cell counts for a target dx. Note (addendum 2, 2.4): the grid can only hold an integer number of
+    cells, so distinct targets can give the same (Nx, Ny); with Lx = Ly = 150 m the two coarsest of the 25
+    log-spaced targets (55 and 46.7 m) both give Nx = Ny = 4 and an actual dx of 50 m. v1 printed that row
+    twice and so does v2 (the row is a faithful duplicate, not a bug)."""
     Nx = int(round(Lx / dx_t)) + 1
     Ny = int(round(Ly / dx_t)) + 1
     if Nx % 2 == 0:

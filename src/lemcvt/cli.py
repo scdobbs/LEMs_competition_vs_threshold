@@ -257,6 +257,40 @@ def measure(tiles, metres, n_boot, no_legacy, crop, run_id) -> None:
     click.echo(f"results: {rec.dir}")
 
 
+# -------------------------------------------------------------------------------- closeout (addendum 2, section 2)
+@main.group()
+def closeout() -> None:
+    """Phase 2 close-out diagnostics (addendum 2): rounding recovery, D-infinity diagnostics."""
+
+
+@closeout.command("linearized")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--keys", default="ad_opt,joint_opt", show_default=True)
+@click.option("--rel-step", default=1e-6, show_default=True)
+@click.option("--forward-run", type=click.Path(path_type=Path), default=None,
+              help="tile_forward run directory to take the Phase 2 grids from (default: latest for the tile)")
+@click.option("--run-id", default=None)
+def closeout_linearized(tile_id, keys, rel_step, forward_run, run_id) -> None:
+    """Linearized recovery of the printed-parameter rounding, rounding-interval and difference counts."""
+    from lemcvt.analyses.phase2_closeout import run_closeout
+
+    rec = run_closeout(tile_id, keys=tuple(k.strip() for k in keys.split(",")), rel_step=rel_step, run_id=run_id,
+                       forward_run=forward_run)
+    click.echo(f"results: {rec.dir}")
+
+
+@closeout.command("dinf")
+@click.option("--tiles", default="AP1,GM1", show_default=True)
+@click.option("--no-synthetic", is_flag=True)
+@click.option("--run-id", default=None)
+def closeout_dinf(tiles, no_synthetic, run_id) -> None:
+    """Diagnose the D-infinity partitioned model (addendum 2, 2.6); changes no model code."""
+    from lemcvt.analyses.dinf_diagnostics import run_dinf_diagnostics
+
+    rec = run_dinf_diagnostics(_parse_tiles(tiles) if tiles else (), synthetic=not no_synthetic, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
 # -------------------------------------------------------------------------------- figures / tables
 @main.command("figures")
 @click.argument("which", default="all")
@@ -299,7 +333,8 @@ def slurm() -> None:
 
 
 @slurm.command("submit")
-@click.argument("step", type=click.Choice(["tile_run", "tile_forward", "sweep_resolution", "measure", "custom"]))
+@click.argument("step", type=click.Choice(["tile_run", "tile_forward", "sweep_resolution", "measure", "closeout",
+                                           "dinf_diagnostics", "custom"]))
 @click.option("--tiles", default="all", show_default=True)
 @click.option("--labels", default=None, help="custom step: comma list of array labels (default: one task 'all')")
 @click.option("--command", "command_", default=None, help="custom step: command with $LABEL, e.g. \"lemcvt -v slope-area --tiles AP1,GM2\"")
@@ -312,7 +347,7 @@ def slurm() -> None:
 @click.option("--cpus", default=None, type=int)
 @click.option("--mem", default=None)
 @click.option("--dry-run", is_flag=True, help="Render and print the script and estimate; do not submit.")
-@click.option("--approved", is_flag=True, help="Steve approved a submission above 200 core-hours.")
+@click.option("--approved", is_flag=True, help="Steve approved a submission above the core-hour limit (300).")
 def slurm_submit(step, tiles, labels, command_, stages, optimizer, params, compare, routing, time_, cpus, mem, dry_run,
                  approved):
     from lemcvt.slurm import build_spec, estimate_text, render, submit
@@ -328,6 +363,11 @@ def slurm_submit(step, tiles, labels, command_, stages, optimizer, params, compa
         cmd = f"lemcvt -v tile forward --tile $LABEL --params {params}" + (" --compare" if compare else "")
     elif step == "sweep_resolution":
         cmd = f"lemcvt -v sweep resolution --tiles $LABEL --routing {routing}"
+    elif step == "closeout":
+        cmd = "lemcvt -v closeout linearized --tile $LABEL"
+    elif step == "dinf_diagnostics":
+        cmd = f"lemcvt -v closeout dinf --tiles {tiles}"
+        labels = ["all"]
     else:
         cmd = "lemcvt -v measure --tile $LABEL"
     spec = build_spec(step, labels, cmd, time=time_, cpus=cpus, mem=mem)
@@ -339,6 +379,28 @@ def slurm_submit(step, tiles, labels, command_, stages, optimizer, params, compa
     except PermissionError as exc:
         raise click.ClickException(str(exc)) from exc
     click.echo(f"{'rendered' if dry_run else 'submitted'} {script} -> {job}")
+
+
+@slurm.command("submit-stages")
+@click.option("--tiles", default="GM1,AP5", show_default=True)
+@click.option("--stages", default=",".join(STAGES), show_default=True)
+@click.option("--optimizer", default="v1", show_default=True)
+@click.option("--dry-run", is_flag=True)
+@click.option("--approved", is_flag=True)
+def slurm_submit_stages(tiles, stages, optimizer, dry_run, approved):
+    """Optimizer regression: one serc job per (tile, stage), time = 1.5 x the v1 stage time (addendum 2, section 3)."""
+    import json as _json
+
+    from lemcvt.slurm import submit_stages
+
+    try:
+        jobs = submit_stages(_parse_tiles(tiles), tuple(s.strip() for s in stages.split(",")), optimizer=optimizer,
+                             dry_run=dry_run, approved=approved)
+    except (PermissionError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    for j in jobs:
+        click.echo(f"{'rendered' if dry_run else 'submitted'} {j['tile']} {j['stage']} time={j['time']} -> {j['job_id']}")
+    click.echo(_json.dumps(jobs, indent=1))
 
 
 if __name__ == "__main__":  # pragma: no cover
