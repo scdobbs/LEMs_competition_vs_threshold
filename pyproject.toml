@@ -44,13 +44,13 @@ addopts = "-m 'not fulltile'"
 filterwarnings = ["ignore::DeprecationWarning:rasterio.*"]
 
 [tool.ruff]
-line-length = 110
+line-length = 120
 target-version = "py311"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "NPY"]
-ignore = ["E741", "B008", "B023", "NPY002"]
+ignore = ["E741", "B008", "B023", "NPY002", "UP033", "E501"]
 
 [tool.mypy]
 python_version = "3.11"

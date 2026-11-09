@@ -1,25 +1,21 @@
+# ruff: noqa: F841  (verbatim v1 port)
 """
 Tests for D-infinity flow routing (src/dinf.py).
 
 Uses small synthetic grids — no data dependencies.
 """
 
-import sys
-from pathlib import Path
 
 
 import numpy as np
 import pytest
 
 from lemcvt.hydro.dinf import (
-    FACETS,
-    D8_CODE_TO_DINF,
+    compute_dinf,
+    compute_dinf_area,
     compute_dinf_flow_direction,
     get_receivers,
-    compute_dinf_area,
-    compute_dinf,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helper: build small synthetic grids

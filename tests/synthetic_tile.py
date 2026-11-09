@@ -37,6 +37,29 @@ def synthetic_dem(ny: int = 100, nx: int = 100, dx: float = 1.0, seed: int = 0,
     return z
 
 
+def hydro_from_padded(z: np.ndarray, dx: float, pad: int = 12) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Fill, D8 and area computed on a padded copy and cropped back.
+
+    The v1 tiles were clipped from mosaics after routing, so their edge rows carry
+    proper flow directions. Computing D8 on the bare tile instead triggers
+    TopoAnalysis's edge convention (the last two rows/columns get no south/east
+    comparisons), which routes flow along the edges and creates 2-cycles. Padding by
+    mirrored, slightly lowered margins and cropping reproduces the clipped-mosaic case.
+    """
+    ny, nx = z.shape
+    zp = np.pad(z, pad, mode="reflect")
+    # tilt the margins down so that flow leaves through them
+    yy, xx = np.indices(zp.shape)
+    dist = np.maximum.reduce([np.maximum(pad - yy, 0), np.maximum(yy - (ny + pad - 1), 0),
+                              np.maximum(pad - xx, 0), np.maximum(xx - (nx + pad - 1), 0)])
+    zp = zp - 2.0 * dist * dx
+    zf = priority_flood_fill(zp, dx)
+    fd = d8_flow_direction(zf)
+    area = d8_area(fd, zf, dx)
+    sl = (slice(pad, pad + ny), slice(pad, pad + nx))
+    return zf[sl].copy(), fd[sl].copy(), area[sl].copy()
+
+
 def make_synthetic_tile(root: Path, tile: str = "GM1", site: str = "GM", ny: int = 100, nx: int = 100,
                         dx: float = 1.0, z_units: str = "m", reproduce_v1_units: bool = False,
                         seed: int = 0) -> dict:
@@ -48,9 +71,7 @@ def make_synthetic_tile(root: Path, tile: str = "GM1", site: str = "GM", ny: int
         d.mkdir(parents=True, exist_ok=True)
 
     z = synthetic_dem(ny, nx, dx, seed, z_units)
-    zf = priority_flood_fill(z, dx)
-    fd = d8_flow_direction(zf)
-    area = d8_area(fd, zf, dx)
+    zf, fd, area = hydro_from_padded(z, dx)
     transform = Affine(dx, 0, 700000.0, 0, -dx, 3980000.0)
     crs = CRS.from_epsg(32610 if site == "GM" else 26917)
     idx = int(tile[2:])

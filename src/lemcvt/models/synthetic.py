@@ -11,7 +11,6 @@ import numpy as np
 from scipy.sparse import lil_matrix
 from scipy.sparse.linalg import spsolve
 
-
 # ---------------------------------------------------------------------------
 # Planform grid construction
 # ---------------------------------------------------------------------------

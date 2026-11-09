@@ -245,12 +245,15 @@ def slope_area(tiles, run_id) -> None:
 @click.option("--metres/--stored-units", default=True, show_default=True,
               help="Measure on metre grids (converts AP from feet regardless of reproduce_v1_units).")
 @click.option("--n-boot", default=200, show_default=True)
+@click.option("--no-legacy", is_flag=True, help="Skip the re-run of the v1 method (slow on full tiles).")
+@click.option("--crop", default=None, help="row0,row1,col0,col1 (smoke tests only)")
 @click.option("--run-id", default=None)
-def measure(tiles, metres, n_boot, run_id) -> None:
+def measure(tiles, metres, n_boot, no_legacy, crop, run_id) -> None:
     """Measure theta, k_s, hilltop curvature and D0 = U/C_ht from the tile's own grid."""
     from lemcvt.measure.pipeline import run_measure
 
-    rec = run_measure(_parse_tiles(tiles), force_metres=metres, n_boot=n_boot, run_id=run_id)
+    rec = run_measure(_parse_tiles(tiles), force_metres=metres, n_boot=n_boot, run_id=run_id, run_legacy=not no_legacy,
+                      crop=_parse_crop(crop))
     click.echo(f"results: {rec.dir}")
 
 
@@ -286,8 +289,10 @@ def slurm() -> None:
 
 
 @slurm.command("submit")
-@click.argument("step", type=click.Choice(["tile_run", "tile_forward", "sweep_resolution", "measure"]))
+@click.argument("step", type=click.Choice(["tile_run", "tile_forward", "sweep_resolution", "measure", "custom"]))
 @click.option("--tiles", default="all", show_default=True)
+@click.option("--labels", default=None, help="custom step: comma list of array labels (default: one task 'all')")
+@click.option("--command", "command_", default=None, help="custom step: command with $LABEL, e.g. \"lemcvt -v slope-area --tiles AP1,GM2\"")
 @click.option("--stages", default=",".join(STAGES), show_default=True, help="tile_run only")
 @click.option("--optimizer", default="v1", show_default=True)
 @click.option("--params", default="v1", show_default=True, help="tile_forward only")
@@ -298,11 +303,16 @@ def slurm() -> None:
 @click.option("--mem", default=None)
 @click.option("--dry-run", is_flag=True, help="Render and print the script and estimate; do not submit.")
 @click.option("--approved", is_flag=True, help="Steve approved a submission above 200 core-hours.")
-def slurm_submit(step, tiles, stages, optimizer, params, compare, routing, time_, cpus, mem, dry_run, approved):
+def slurm_submit(step, tiles, labels, command_, stages, optimizer, params, compare, routing, time_, cpus, mem, dry_run,
+                 approved):
     from lemcvt.slurm import build_spec, estimate_text, render, submit
 
-    labels = _parse_tiles(tiles)
-    if step == "tile_run":
+    labels = _parse_tiles(tiles) if step != "custom" else ([s.strip() for s in labels.split(",")] if labels else ["all"])
+    if step == "custom":
+        if not command_:
+            raise click.BadParameter("custom step needs --command")
+        cmd = command_
+    elif step == "tile_run":
         cmd = f"lemcvt -v tile run --tile $LABEL --stages {stages} --optimizer {optimizer}"
     elif step == "tile_forward":
         cmd = f"lemcvt -v tile forward --tile $LABEL --params {params}" + (" --compare" if compare else "")

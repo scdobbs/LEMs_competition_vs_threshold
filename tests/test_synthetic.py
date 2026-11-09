@@ -1,27 +1,23 @@
 """Tests for lemcvt.models.synthetic (ported from v1 tests/test_synthetic.py — planform grid and solver verification."""
 
-import sys
-from pathlib import Path
 
 import numpy as np
 import pytest
 
-
 from lemcvt.models.synthetic import (
-    compute_area_planform,
-    downstream_link,
-    solve_advection_diffusion_planform,
-    solve_advection_diffusion_planform_noflux,
-    inlet_area_from_Pe,
-    channel_slope_centerline,
     A_top_for_target_inlet_area,
     D_from_Pe,
     Pe_from_D_Ain,
-    laplacian_2d,
+    channel_slope_centerline,
+    compute_area_planform,
+    downstream_link,
+    inlet_area_from_Pe,
     interior_slice,
     interior_slice_indices,
+    laplacian_2d,
+    solve_advection_diffusion_planform,
+    solve_advection_diffusion_planform_noflux,
 )
-
 
 # ---------------------------------------------------------------------------
 # Tests: compute_area_planform

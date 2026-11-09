@@ -1,20 +1,16 @@
+# ruff: noqa: F841  (verbatim v1 port)
 """Tests for lemcvt.measure.slope_area (ported from v1 tests/test_analysis.py — regression on synthetic power-law data."""
 
-import sys
-from pathlib import Path
 
 import numpy as np
-import pytest
-
 
 from lemcvt.measure.slope_area import (
     compute_iqr_errors,
-    weighted_r2,
     fit_slope_area,
-    ks_local_from_SA,
     ks_from_loglog_fixed_theta,
+    ks_local_from_SA,
+    weighted_r2,
 )
-
 
 # ---------------------------------------------------------------------------
 # Tests: weighted_r2

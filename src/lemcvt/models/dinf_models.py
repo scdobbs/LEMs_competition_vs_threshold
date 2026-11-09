@@ -1,3 +1,4 @@
+# ruff: noqa: B905, F841, B007  (verbatim v1 port)
 """D-infinity landscape evolution models for steady-state topography (verbatim port of v1
 ``src/models_dinf.py``; factories take arrays ``(Z0, A_d8, FD, dx, ...)``).
 
@@ -25,9 +26,17 @@ from scipy.sparse.linalg import spsolve
 from lemcvt.hydro.dinf import FACETS, get_receivers  # noqa: F401
 from lemcvt.models.common import (  # noqa: F401
     D8_OFFSETS,
+)
+from lemcvt.models.common import (
     extract_grid_data as _extract_grid_data,
+)
+from lemcvt.models.common import (
     find_boundary_value as _find_boundary_value,
+)
+from lemcvt.models.common import (
     make_boundary_mask as _make_boundary_mask,
+)
+from lemcvt.models.common import (
     solve_hillslope_diffusion as _solve_hillslope_diffusion,
 )
 

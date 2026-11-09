@@ -4,15 +4,13 @@ Tests for D-infinity model factories (src/models_dinf.py).
 Uses conftest.py fixtures (MockGrid, synthetic grids).
 """
 
-import sys
-from pathlib import Path
 
 
 import numpy as np
 import pytest
 
 from conftest import MockGrid, _build_d8_flow, _build_drainage_area
-from lemcvt.hydro.dinf import compute_dinf_flow_direction, compute_dinf_area
+from lemcvt.hydro.dinf import compute_dinf_area, compute_dinf_flow_direction
 from lemcvt.models import dinf_models as _dm
 from lemcvt.models.ad import advection_diffusion_model as _ad
 

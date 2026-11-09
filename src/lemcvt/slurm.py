@@ -69,6 +69,8 @@ def build_spec(step: str, labels: list[str], command_template: str, time: str | 
     cfg = load_slurm_config()
     stepcfg = dict(cfg["defaults"])
     stepcfg.update(cfg["steps"].get(step, {}))
+    if step == "custom":
+        step = re.sub(r"[^A-Za-z0-9_]+", "_", (command_template.split()[2] if len(command_template.split()) > 2 else "custom"))[:24]
     return JobSpec(
         step=step, labels=list(labels), command_template=command_template,
         time=time or str(stepcfg["time"]), cpus=int(cpus or stepcfg["cpus"]), mem=str(mem or stepcfg["mem"]),

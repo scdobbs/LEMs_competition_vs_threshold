@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import numpy as np
+from rasterio.transform import Affine
 from scipy.ndimage import zoom
 
 from lemcvt.io.grids import Grid
-from rasterio.transform import Affine
 
 
 def compute_slope_magnitude(Z: np.ndarray, mask: np.ndarray | None = None) -> np.ndarray:

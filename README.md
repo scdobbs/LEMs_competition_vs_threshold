@@ -1,122 +1,131 @@
-# Steady-State Landscape Evolution Modeling
+# lemcvt: steady-state landscape evolution model calibration
 
-## Overview
+Supplemental code for Dobbs & Hilley, "competition versus threshold" models of
+hillslope-channel landscapes. The package calibrates a coupled advection-diffusion
+model and threshold-partitioned (linear and nonlinear hillslope) models against
+1 m lidar tiles from the Allegheny Plateau (AP) and Gabilan Mesa (GM) by minimising
+the mean squared elevation misfit, and measures the input parameters (θ, k_s, hilltop
+curvature) from the tiles themselves.
 
-This repository contains supplemental code for a manuscript on steady-state landscape evolution modeling. The code calibrates coupled advection-diffusion and threshold-partitioned hillslope-channel models against 1-m LiDAR topography from the Allegheny Plateau (Pennsylvania) and Gabilan Mesa (California). Model parameters -- erodibility (*K*), diffusivity (*D*), and hillslope-channel transition area (*A_crit*) -- are estimated by minimizing the mean squared error between modeled and observed elevation fields.
+Version 2 (branch `v2`) replaces the v1 notebooks with a package and command-line
+tool. Phase 1 of the v2 directive ports every v1 computation without changing any
+numerical operation; the ports are checked against TopoAnalysis bit for bit
+(`tests/test_hydro.py`) and against the saved v1 grids (`lemcvt tile forward --compare`).
+The v1 notebooks, code and tests are kept unchanged under `legacy/`; `docs/v1_to_v2.md`
+maps every notebook cell to its v2 command.
 
-Three model variants are implemented:
-
-1. **Advection-diffusion** -- solves the coupled PDE `0 = U - K A^m dz/dx + D nabla^2 z` over the entire domain.
-2. **Threshold-partitioned (linear)** -- partitions the landscape into channels (`A >= A_crit`) governed by the stream-power law and hillslopes governed by linear diffusion.
-3. **Threshold-partitioned (nonlinear)** -- same partitioning with slope-dependent (nonlinear) hillslope diffusion `D_eff = D / (1 - (|nabla z| / S_c)^2)`.
-
-All three variants are available with both **D8** and **D-infinity** (Tarboton 1997) flow routing. The D-inf implementation computes a continuous flow angle from 8 triangular facets and distributes flow to two receivers proportionally, eliminating D8's 45-degree quantization. This allows side-by-side comparison to determine whether non-convergent model behavior is intrinsic to the physics or an artifact of D8's discrete flow directions.
-
-## Repository Structure
+## Layout
 
 ```
-.
-├── src/                      # Shared Python modules
-│   ├── models.py             # D8 PDE model factories (advection-diffusion, threshold-partitioned)
-│   ├── models_dinf.py        # D-infinity model factories (same 3 variants, D-inf stencil)
-│   ├── dinf.py               # D-infinity flow routing (Tarboton 1997)
-│   ├── optimization.py       # scipy.optimize wrappers with log-space params + LRU caching
-│   ├── analysis.py           # Slope-area regression, channel steepness (ks), concavity (theta)
-│   ├── synthetic.py          # Synthetic planform solvers for Peclet-number analysis
-│   ├── utils.py              # Data I/O, cropping, slope computation, DEM resampling
-│   └── plotting.py           # Nature-style figures, elevation/slope-area comparison plots
-├── notebooks/
-│   ├── model_runs/           # 10 notebooks: {allegheny,gabilan}_tile{1..5}.ipynb
-│   └── figures/              # 5 notebooks: fig_slope_area, supp_fig5, supp_fig6,
-│                             #   d8_vs_dinf_comparison, resolution_study_dinf
-├── tests/                    # pytest suite (105 tests)
-├── scripts/                  # Notebook transformation utilities
-├── data/
-│   ├── AP/tile{1..5}/        # Allegheny Plateau LiDAR tiles
-│   └── GM/tile{1..5}/        # Gabilan Mesa LiDAR tiles
-├── docs/                     # Documentation
-│   ├── api.md                # API reference for all src/ modules
-│   ├── workflow.md           # Scientific workflow guide
-│   └── development.md        # Developer guide
-└── environment.yml           # Conda environment specification
+pyproject.toml            package lemcvt (Python >= 3.11)
+envs/sherlock.yml         lean conda environment; envs/sherlock.lock.txt is the explicit lock
+envs/lem-v1.yml           Linux rebuild of the v1 environment (drift checks only)
+src/lemcvt/
+  io/        GeoTIFF read/write, units (ftUS/m), data manifest
+  hydro/     priority-flood fill, D8, D-infinity, channel-slope smoothing, hillshade
+  models/    advection-diffusion, partitioned (linear, nonlinear), D-inf variants, synthetic
+  measure/   theta, k_s (chi), hilltop curvature, slope-area, legacy v1 method
+  optimize/  v1 (exact port of the notebook optimizers); v2 arrives in Phase 4
+  analyses/  tile pipeline, forward runs, resolution sweep, synthetic Peclet, D8 vs D-inf, ...
+  figures/   manuscript and SI figures, built from results only
+  tables/    Table 1 (LaTeX booktabs/siunitx + CSV)
+  cli.py     the `lemcvt` command
+configs/
+  sites/{AP,GM}.yaml       U, S_c, sanity ranges, regional parameters
+  tiles/{AP,GM}{1..5}.yaml grid paths + sha256, units, v1 measured values, bounds, K0/D0, optimizer settings
+  slurm/sherlock.yaml      partition/account/QoS and per-step resources
+  data.yaml                where the grids come from
+slurm/                     job-array template rendered by `lemcvt slurm submit`
+data/manifest.csv          sha256 of every grid (grids themselves live outside git)
+reference/                 frozen v1 reference (Phase 0): printed numbers, grid manifest, saved-grid MSEs
+reports/                   directives and phase reports
+legacy/                    v1 notebooks, src, tests, scripts, docs, run logs, environment
+tests/                     pytest suite (fast; full-tile tests are marked `fulltile`)
 ```
 
-## Installation
+## Installation on Sherlock
 
-1. Create the Conda environment:
+The environment is built once into group storage (job `envs/build_lemcvt_env.sbatch`):
 
 ```bash
-conda env create -f environment.yml
-conda activate TopoAnalysis
+export MAMBA_ROOT_PREFIX=$GROUP_HOME/micromamba_root
+$GROUP_HOME/scdobbs-envs/bin/micromamba create -y -p $GROUP_HOME/scdobbs-envs/lemcvt -f envs/sherlock.yml
+$GROUP_HOME/scdobbs-envs/bin/micromamba run -p $GROUP_HOME/scdobbs-envs/lemcvt python -m pip install -e . --no-deps
 ```
 
-2. Clone the [TopoAnalysis](https://github.com/stgl/TopoAnalysis) dependency and ensure it is importable (e.g., add it to your `PYTHONPATH` or install it in the environment).
-
-## Quick Start
-
-Each model-run notebook is self-contained. To run a single tile:
-
-1. Open `notebooks/model_runs/allegheny_tile1.ipynb` in Jupyter.
-2. The notebook loads the LiDAR data, builds the model, runs four optimization stages (AD, threshold A_crit, nonlinear A_crit, full K-D-A_crit), and generates comparison plots.
-3. Set `SAVE = True` in the configuration cell to write model outputs to `data/AP/tile1/outputs/`.
-
-All notebooks import shared functions from `src/` via:
-
-```python
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path("../../src")))
-```
-
-## Running Tests
+Always run the environment with `PYTHONNOUSERSITE=1` (a user-site numpy under
+`~/.local` otherwise shadows the environment's). Point the tool at the data and a
+results directory:
 
 ```bash
-python3 -m pytest tests/ -v
+export PYTHONNOUSERSITE=1
+export LEMCVT_DATA=$GROUP_HOME/lemcvt_data/v1
+export LEMCVT_RESULTS=$GROUP_HOME/lemcvt_results
+alias lemcvt="$GROUP_HOME/scdobbs-envs/bin/micromamba run -p $GROUP_HOME/scdobbs-envs/lemcvt lemcvt"
+lemcvt info
 ```
 
-All 105 tests run without the TopoAnalysis dependency (mocked where needed).
+Elsewhere: `pip install -e ".[dev]"` in a Python 3.11/3.12 environment with GDAL, then
+`lemcvt data fetch` with `configs/data.yaml` pointing at a copy of the grids.
 
-## Notebooks Guide
+## Data
 
-| Notebook | Location | Purpose | Key Outputs |
-|----------|----------|---------|-------------|
-| `allegheny_tile{1..5}.ipynb` | `notebooks/model_runs/` | Calibrate all three model variants against Allegheny Plateau tiles | Optimized K, D, A_crit; elevation/slope-area comparison plots; saved rasters |
-| `gabilan_tile{1..5}.ipynb` | `notebooks/model_runs/` | Calibrate all three model variants against Gabilan Mesa tiles | Same as above for Gabilan Mesa |
-| `fig_slope_area.ipynb` | `notebooks/figures/` | Generate main-text slope-area regression figures | Publication-quality slope-area plots |
-| `supp_fig5.ipynb` | `notebooks/figures/` | Peclet-number sensitivity analysis on synthetic V-shaped planform grids | Supplementary Figure 5 |
-| `supp_fig6.ipynb` | `notebooks/figures/` | Resolution dependence of channel steepness (ks) estimation | Supplementary Figure 6 |
-| `d8_vs_dinf_comparison.ipynb` | `notebooks/figures/` | Side-by-side D8 vs D-infinity comparison for AP tile 1 and GM tile 1 | 4-panel elevation maps, area scatter, slope-area overlays, MSE table |
-| `resolution_study_dinf.ipynb` | `notebooks/figures/` | Resolution study with both D8 and D-infinity flow routing | Ks ratio vs. dx curves for D8 and D-inf on same axes |
+The ten tiles (filled elevation, D8 flow direction, drainage area) and the v1 model
+output grids are GeoTIFFs under `$LEMCVT_DATA/<site>/tile<n>/`. They are not in git.
+`data/manifest.csv` lists every file with its sha256; `lemcvt data verify` checks the
+files on disk and every loader call verifies the three input grids before use.
 
-## D-infinity Flow Routing
+Units are explicit in each tile config (`z_units`, `xy_units`). The AP tiles store z in
+US survey feet; the loader converts to metres unless `reproduce_v1_units: true`
+(Phase 1/2 regression only, with a loud warning). The loader refuses grids whose
+declared units fail the site sanity checks (elevation range, median slope).
 
-The D-infinity implementation (Tarboton 1997) provides a parallel set of model factories for diagnostic comparison with D8. Key differences:
+## Reproducing the analyses
 
-- **Flow direction**: D-inf evaluates 8 triangular facets to compute a continuous flow angle, distributing flow to two receivers proportionally. D8 routes all flow to a single steepest neighbor in one of 8 cardinal/diagonal directions.
-- **Drainage area**: D-inf distributes area proportionally to two receivers instead of entirely to one.
-- **Advection stencil**: The D-inf stencil distributes the incision term across two receivers weighted by `cos(r)` and `sin(r)`, where `r` is the within-facet angle.
-- **Flat-cell handling**: For PriorityFlood-filled DEMs with flat regions, the D8 flow direction is used as a fallback to ensure no cell receives a NaN flow angle.
+Everything runs through `lemcvt`; each command writes a run directory
+`$LEMCVT_RESULTS/<timestamp>_<step>_<label>/` with `params.json`, `trajectory.parquet`
+(every misfit evaluation), GeoTIFF outputs and `run.json` (git hash, config snapshot,
+environment lock hash).
 
-Usage:
-
-```python
-from dinf import compute_dinf_from_dem
-from models_dinf import advection_diffusion_model_dinf
-
-# Compute D-inf routing (passing D8 fd for flat-cell fallback)
-angles, r_facet, facet_idx, A_dinf = compute_dinf_from_dem(dem, fd)
-
-# Build D-inf AD solver (same interface as D8 version)
-solver = advection_diffusion_model_dinf(
-    dem, area, fd, m, angles, r_facet, facet_idx, A_dinf
-)
-Z_dinf = solver(U, K, D)
+```bash
+lemcvt tile run --tile GM1 --stages ad,acrit,nonlinear,joint --optimizer v1   # one tile, ~10-45 h
+lemcvt tile forward --tile GM1 --params v1 --compare                           # Phase 2.1 regression
+lemcvt sweep resolution --sites AP,GM --routing d8,dinf                        # supp_fig6 + D-inf study
+lemcvt synthetic pe                                                            # supp_fig5
+lemcvt d8-vs-dinf --tiles AP1,GM1
+lemcvt slope-area --tiles AP1,GM2
+lemcvt perron-forward --tiles all                                              # Fig. 2 forward runs
+lemcvt measure --tile all                                                      # theta, k_s, C_ht, D0
+lemcvt figures all && lemcvt tables all                                        # from results only
 ```
 
-Same physical parameters (K, D, U, m) as D8 -- no re-optimization needed.
+On Sherlock, submit job arrays instead of running on a login node:
 
-## Documentation
+```bash
+lemcvt slurm submit tile_forward --tiles all --compare
+lemcvt slurm submit tile_run --tiles GM1,AP5 --dry-run     # prints the core-hour estimate first
+lemcvt slurm submit custom --command "lemcvt -v slope-area --tiles AP1,GM2"
+```
 
-- [API Reference](docs/api.md) -- function signatures and descriptions for all `src/` modules
-- [Scientific Workflow Guide](docs/workflow.md) -- narrative explanation of the modeling pipeline
-- [Developer Guide](docs/development.md) -- architecture, testing patterns, and contribution guide
+Submissions above 200 core-hours stop until `--approved` is passed.
+
+## Tests and checks
+
+```bash
+PYTHONNOUSERSITE=1 PYTHONPATH=$GROUP_HOME/opt pytest -q     # TopoAnalysis equivalence tests run when importable
+ruff check src tests && mypy src/lemcvt
+```
+
+## Run times
+
+Phase 1 keeps the v1 numerics and therefore the v1 run times (per tile, v1 hardware):
+AD stage 3.4-8.8 h, A_crit stage 0.1-0.4 h, nonlinear A_crit stage 3-28 h, joint
+stage 1.4-3.7 h (`reports/v2/00_reference.md`, section 3.4). The Phase 3 table of
+speedups replaces this paragraph.
+
+## Documents
+
+- `reports/directives/refactor_v2_directive.md` and `refactor_v2_addendum_1.md`: the plan
+- `reports/v2/00_reference.md`: Phase 0 checkpoint (what v1 did, exactly)
+- `docs/v1_to_v2.md`: notebook cell to v2 command mapping
+- `docs/measurement_methods.md`: how θ, k_s and C_ht are measured and why

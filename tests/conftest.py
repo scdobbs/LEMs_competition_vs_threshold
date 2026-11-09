@@ -9,7 +9,6 @@ _nodata_value attributes — no real data files or TopoAnalysis needed.
 import numpy as np
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Lightweight mock classes that replicate the TopoAnalysis interface
 # ---------------------------------------------------------------------------
