@@ -88,9 +88,9 @@ class Grid:
         a = self.data.astype(np.float64, copy=False)
         finite = np.isfinite(a)
         return {
-            "min": float(a[finite].min()) if finite.any() else float("nan"),
-            "max": float(a[finite].max()) if finite.any() else float("nan"),
-            "mean": float(a[finite].mean()) if finite.any() else float("nan"),
+            "min": float(np.min(a[finite])) if finite.any() else float("nan"),
+            "max": float(np.max(a[finite])) if finite.any() else float("nan"),
+            "mean": float(np.mean(a[finite])) if finite.any() else float("nan"),
             "n_finite": int(finite.sum()),
             "n_nan": int(np.isnan(a).sum()),
         }

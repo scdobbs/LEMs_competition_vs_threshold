@@ -85,7 +85,7 @@ def fit_chi(net: ChannelNetwork, thetas: np.ndarray = DEFAULT_THETAS, min_pixels
     zrel = relative_elevation(net)
     groups = _basin_groups(net, min_pixels_per_basin)
     nb = len(groups)
-    notes = []
+    notes: list[str] = []
     if nb == 0:
         raise ValueError(f"no basin with >= {min_pixels_per_basin} channel pixels at A_c={net.A_c:g}")
     k = thetas.size

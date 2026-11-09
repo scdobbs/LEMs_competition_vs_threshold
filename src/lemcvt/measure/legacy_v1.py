@@ -128,17 +128,17 @@ def legacy_chi(z: np.ndarray, area: np.ndarray, fd: np.ndarray, dx: float, site:
     refine = np.linspace(lo, hi, 31)
     r = [(th, total_ssr(th)) for th in refine]
     th_star, _ = min(r, key=lambda kv: kv[1])
-    X, Y, nb = [], [], 0
+    xs, ys, nb = [], [], 0
     for o in outlets:
         x, y = _chi_traverse(th_star, o, area, z, ups, dx, a_min)
         if x.size >= 3:
-            X.append(x)
-            Y.append(y)
+            xs.append(x)
+            ys.append(y)
             nb += 1
     if nb == 0:
         return LegacyChiResult(a_min, float(th_c), float(th_star), np.nan, np.nan, 0, 0, len(outlets))
-    X = np.concatenate(X)
-    Y = np.concatenate(Y)
+    X = np.concatenate(xs)
+    Y = np.concatenate(ys)
     ks, ssr = _ols_origin(X, Y)
     denom = float(np.dot(Y, Y))
     r2 = 1.0 - ssr / denom if denom > 0 else np.nan

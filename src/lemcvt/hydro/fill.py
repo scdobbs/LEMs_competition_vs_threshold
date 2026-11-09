@@ -29,7 +29,8 @@ def dem_edge_cells(z: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     structure = generate_binary_structure(2, 2)
     dilated = binary_dilation(original, structure=structure, border_value=1).astype(int)
     edges = dilated - original
-    return np.where(edges)
+    rows, cols = np.nonzero(edges)
+    return rows, cols
 
 
 def priority_flood_fill(z: np.ndarray, dx: float) -> np.ndarray:
@@ -49,15 +50,15 @@ def priority_flood_fill(z: np.ndarray, dx: float) -> np.ndarray:
 
     edge_rows, edge_cols = dem_edge_cells(Z)
 
-    heap: list[list[object]] = []
+    heap: list[tuple[float, int, int, int]] = []
     counter = 0
     for r, c in zip(edge_rows.tolist(), edge_cols.tolist(), strict=True):
         closed[r, c] = True
         counter += 1
-        heapq.heappush(heap, [Z[r, c], counter, (r, c)])
+        heapq.heappush(heap, (float(Z[r, c]), counter, int(r), int(c)))
 
     while heap:
-        _priority, _cnt, (row, col) = heapq.heappop(heap)
+        _priority, _cnt, row, col = heapq.heappop(heap)
         elevation = Z[row, col]
         out_rows = _ROW_KERNEL + row
         out_cols = _COL_KERNEL + col
@@ -69,5 +70,5 @@ def priority_flood_fill(z: np.ndarray, dx: float) -> np.ndarray:
                     Z[nr, nc] = elevation + AGGRADATION_SLOPE * dx * mult
                 closed[nr, nc] = True
                 counter += 1
-                heapq.heappush(heap, [Z[nr, nc], counter, (nr, nc)])
+                heapq.heappush(heap, (float(Z[nr, nc]), counter, int(nr), int(nc)))
     return Z

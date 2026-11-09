@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -24,7 +25,7 @@ from lemcvt.results import RunRecorder
 
 logger = logging.getLogger(__name__)
 
-V1_CONFIGS = {
+V1_CONFIGS: dict[str, dict[str, Any]] = {
     "AP1": {"U": 5.5e-5, "K": 4.0e-7, "D": 2.8e-3, "m": 0.562, "A_crit": 5000.0, "label": "Allegheny Plateau (tile 1)"},
     "GM1": {"U": 1.47e-4, "K": 2.2e-5, "D": 1.0e-2, "m": 0.379, "A_crit": 5000.0, "label": "Gabilan Mesa (tile 1)"},
 }
@@ -40,6 +41,7 @@ def run_d8_vs_dinf(tiles: Sequence[str] = ("AP1", "GM1"), params: str = "v1", ru
     for tile in tiles:
         td = load_tile(tile)
         snaps[tile] = config_snapshot(td.cfg)
+        cfg: dict[str, Any]
         if params == "v1":
             if tile not in V1_CONFIGS:
                 raise ValueError(f"no v1 parameters for {tile}; use params='config'")
@@ -49,7 +51,7 @@ def run_d8_vs_dinf(tiles: Sequence[str] = ("AP1", "GM1"), params: str = "v1", ru
             cfg = {"U": mp.U, "K": mp.K0_partitioned, "D": mp.D0, "m": mp.m, "A_crit": mp.A_crit_0, "label": tile}
         Z0, A, FD, dx = td.Z, td.A, td.FD, td.dx
         angles, r_facet, facet_idx, A_dinf = compute_dinf(Z0, dx, FD)
-        m, U, K, D = cfg["m"], cfg["U"], cfg["K"], cfg["D"]
+        m, U, K, D = float(cfg["m"]), float(cfg["U"]), float(cfg["K"]), float(cfg["D"])
 
         Z_d8 = advection_diffusion_model(Z0, A, FD, dx, m)(U, K, D)
         Z_dinf = advection_diffusion_model_dinf(Z0, A, FD, dx, m, angles, r_facet, facet_idx, A_dinf)(U, K, D)

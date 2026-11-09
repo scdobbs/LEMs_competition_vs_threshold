@@ -282,6 +282,16 @@ def tables(which, out) -> None:
         click.echo(str(p))
 
 
+@main.command("regression-report")
+@click.option("--out", type=click.Path(path_type=Path), default=None, help="Output markdown path.")
+def regression_report(out) -> None:
+    """Compare results with the frozen v1 reference and write reports/v2/02_regression_tables.md."""
+    from lemcvt.analyses.regression_report import build
+
+    p = build(out_md=out)
+    click.echo(str(p))
+
+
 # -------------------------------------------------------------------------------- slurm
 @main.group()
 def slurm() -> None:

@@ -38,11 +38,11 @@ TOL_DZ_REL_RELIEF = 1e-6
 TOL_MSE_REL = 1e-8
 
 
-def v1_forward_params(td: TileData) -> dict[str, dict[str, float]]:
+def v1_forward_params(td: TileData) -> dict[str, dict[str, Any]]:
     """Parameter sets for the four saved v1 runs, from the tile config (printed v1 optima)."""
     mp = td.cfg.model
     ref = td.cfg.v1_reference.get("stages", {})
-    out: dict[str, dict[str, float]] = {
+    out: dict[str, dict[str, Any]] = {
         "ad_no_opt": {"model": "AD", "U": mp.U, "K": mp.K0_ad, "D": mp.D0},
     }
     if "ad" in ref:
@@ -59,17 +59,17 @@ def v1_forward_params(td: TileData) -> dict[str, dict[str, float]]:
     return out
 
 
-def params_from_run(params_json: Path) -> dict[str, dict[str, float]]:
+def params_from_run(params_json: Path) -> dict[str, dict[str, Any]]:
     """Parameter sets from a ``tile_run`` params.json (its ``forward_runs`` entries)."""
     p = json.loads(Path(params_json).read_text())
-    out = {}
+    out: dict[str, dict[str, Any]] = {}
     for fr in p.get("forward_runs", []):
         if fr["key"].endswith("_opt") or fr["key"] == "ad_no_opt":
             out[fr["key"]] = {"model": fr["model"], **fr["params"]}
     return out
 
 
-def evaluate(td: TileData, spec: dict[str, Any], models_cache: dict[str, Any]) -> tuple[np.ndarray, dict[str, Any]]:
+def evaluate(td: TileData, spec: dict[str, Any], models_cache: dict[Any, Any]) -> tuple[np.ndarray, dict[str, Any]]:
     """Evaluate one forward run; model factories are cached per (model, K)."""
     mp = td.cfg.model
     Z0, A, FD, dx = td.Z, td.A, td.FD, td.dx
@@ -142,7 +142,7 @@ def run_forward(tile: str, params: str | Path = "v1", compare: bool = False, sav
     rec.add_params("tile", tile)
     rec.add_params("params_source", str(params))
     rec.add_params("inputs", td.provenance())
-    cache: dict[str, Any] = {}
+    cache: dict[Any, Any] = {}
     runs = []
     for key, spec in specs.items():
         Z, info = evaluate(td, spec, cache)
