@@ -98,7 +98,7 @@ two-power-law shape. Pooled per site (all pixels of the five tiles): AP 2.2e3 m^
 1.8e5 over all A), GM 447 m^2 (5.6e4 over all A).
 
 A S^2 at the break (T4, last column): AP 115-1274 (median per tile), GM 4-790 m^2; the pooled
-values are 150 (AP) and 95 (GM) for the A <= 1e5 breaks. These are given as the directive asks, as
+values are 128 [30, 313] (AP) and 49 [8, 117] (GM) for the A <= 1e5 breaks (median and 16-84 %). These are given as the directive asks, as
 a report-only alternative to a fixed threshold; their spread across tiles is a decade, so they do
 not define a site constant either.
 
