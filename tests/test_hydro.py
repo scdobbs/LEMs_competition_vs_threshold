@@ -111,6 +111,31 @@ class TestDerived:
 
 
 @pytest.mark.skipif(not HAS_TA, reason="TopoAnalysis not importable")
+def _tied_receivers(area, fd):
+    """Cells with two or more donors of exactly equal (maximal) drainage area."""
+    from lemcvt.hydro.d8 import d8_receiver_arrays
+
+    r_to, c_to, good = d8_receiver_arrays(fd)
+    donors = {}
+    for i, j in zip(*np.nonzero(good), strict=True):
+        donors.setdefault((int(r_to[i, j]), int(c_to[i, j])), []).append(float(area[i, j]))
+    return {k for k, v in donors.items() if len(v) > 1 and sorted(v)[-1] == sorted(v)[-2]}
+
+
+def _path_touches(up_i, up_j, dn_i, dn_j, i, j, tied, max_steps=200):
+    """True if the main-stem path through (i, j) (both directions) visits a tied receiver."""
+    for arr_i, arr_j in ((up_i, up_j), (dn_i, dn_j)):
+        ci, cj = i, j
+        for _ in range(max_steps):
+            if (ci, cj) in tied:
+                return True
+            ni, nj = arr_i[ci, cj], arr_j[ci, cj]
+            if ni < 0:
+                break
+            ci, cj = int(ni), int(nj)
+    return (i, j) in tied
+
+
 class TestTopoAnalysisEquivalence:
     """Bit-level agreement with the TopoAnalysis routines on a synthetic grid."""
 
@@ -149,8 +174,35 @@ class TestTopoAnalysisEquivalence:
                                            vertical_interval=2.0, min_area=20.0)._griddata
         s = channel_slope_with_smoothing(filled._griddata, area._griddata, fd._griddata, 1.0,
                                          vertical_interval=2.0, min_area=20.0)
-        np.testing.assert_array_equal(np.isnan(s), np.isnan(s_ta))
-        np.testing.assert_array_equal(s[np.isfinite(s)], s_ta[np.isfinite(s_ta)])
+        # N3 (docs/numerics_changes.md): lemcvt breaks ties between equal-area tributaries explicitly
+        # (highest flat index wins), TopoAnalysis leaves them to numpy's unstable argsort. The two
+        # therefore agree exactly except on smoothing paths that pass a receiver with tied donors.
+        from lemcvt.hydro.channel_slope import flow_graph_main_stem
+
+        up_i, up_j, dn_i, dn_j = flow_graph_main_stem(area._griddata, fd._griddata)
+        tied = _tied_receivers(area._griddata, fd._griddata)
+        differ = np.isfinite(s) & np.isfinite(s_ta) & (s != s_ta)
+        differ |= np.isnan(s) != np.isnan(s_ta)
+        for i, j in zip(*np.nonzero(differ), strict=True):
+            assert _path_touches(up_i, up_j, dn_i, dn_j, int(i), int(j), tied), (i, j)
+        same = ~differ & np.isfinite(s)
+        np.testing.assert_array_equal(s[same], s_ta[same])
+        assert same.sum() > 0.8 * np.isfinite(s).sum()
+
+    def test_main_stem_tie_rule(self):
+        """Among equal-area donors the one with the highest flat (row-major) index is the main stem (N3)."""
+        from lemcvt.hydro.channel_slope import flow_graph_main_stem
+
+        # 3 x 3: two donors of equal area (row 0, cols 0 and 2) flow into (1, 1) diagonally; (1, 1) flows south.
+        fd = np.zeros((3, 3), dtype=np.uint8)
+        fd[0, 0] = 2      # SE -> (1, 1)
+        fd[0, 2] = 8      # SW -> (1, 1)
+        fd[1, 1] = 4      # S  -> (2, 1)
+        area = np.ones((3, 3))
+        area[1, 1] = 3.0
+        area[2, 1] = 4.0
+        up_i, up_j, _, _ = flow_graph_main_stem(area, fd)
+        assert (up_i[1, 1], up_j[1, 1]) == (0, 2)
 
     def test_hillshade(self):
         z = synthetic_dem(30, 30, 1.0, seed=5)

@@ -291,6 +291,19 @@ def closeout_dinf(tiles, no_synthetic, run_id) -> None:
     click.echo(f"results: {rec.dir}")
 
 
+@main.command("measure-diagnostics")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--n-boot", default=200, show_default=True)
+@click.option("--crop", default=None, help="row0,row1,col0,col1 (smoke tests only)")
+@click.option("--run-id", default=None)
+def measure_diagnostics(tiles, n_boot, crop, run_id) -> None:
+    """Threshold-decision diagnostics (addendum 2, section 6): ladders, scaling break, edge effects, curvature test."""
+    from lemcvt.measure.diagnostics import run_measure_diagnostics
+
+    rec = run_measure_diagnostics(_parse_tiles(tiles), n_boot=n_boot, run_id=run_id, crop=_parse_crop(crop))
+    click.echo(f"results: {rec.dir}")
+
+
 # -------------------------------------------------------------------------------- figures / tables
 @main.command("figures")
 @click.argument("which", default="all")
@@ -334,7 +347,7 @@ def slurm() -> None:
 
 @slurm.command("submit")
 @click.argument("step", type=click.Choice(["tile_run", "tile_forward", "sweep_resolution", "measure", "closeout",
-                                           "dinf_diagnostics", "custom"]))
+                                           "dinf_diagnostics", "measure_diagnostics", "custom"]))
 @click.option("--tiles", default="all", show_default=True)
 @click.option("--labels", default=None, help="custom step: comma list of array labels (default: one task 'all')")
 @click.option("--command", "command_", default=None, help="custom step: command with $LABEL, e.g. \"lemcvt -v slope-area --tiles AP1,GM2\"")
@@ -367,6 +380,9 @@ def slurm_submit(step, tiles, labels, command_, stages, optimizer, params, compa
         cmd = "lemcvt -v closeout linearized --tile $LABEL"
     elif step == "dinf_diagnostics":
         cmd = f"lemcvt -v closeout dinf --tiles {tiles}"
+        labels = ["all"]
+    elif step == "measure_diagnostics":
+        cmd = f"lemcvt -v measure-diagnostics --tiles {tiles}"
         labels = ["all"]
     else:
         cmd = "lemcvt -v measure --tile $LABEL"

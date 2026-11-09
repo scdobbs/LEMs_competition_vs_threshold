@@ -111,9 +111,14 @@ relabelled by that channel pixel's network outlet.
 
 ## 7. Curvature and the fitting scale
 
-Total curvature C = ∂²z/∂x² + ∂²z/∂y² is taken from the least-squares quadratic
-surface z = a x² + b y² + c xy + d x + e y + f over a (2w+1)² window (Evans 1980;
-Hurst et al. 2012): C = 2(a + b). For a fixed window this is a linear filter, so C
+C_ht is the Laplacian ∇²z = ∂²z/∂x² + ∂²z/∂y² (not the mean, Gaussian or profile
+curvature). This is the quantity in the steady-state hilltop balance U = −D ∇²z, so
+D₀ = U/|∇²z| is consistent with the models' diffusion operator, whose discrete form
+is the 5-point Laplacian in `lemcvt.models.common`. The Laplacian is taken from the
+least-squares quadratic surface z = a x² + b y² + c xy + d x + e y + f over a (2w+1)²
+window (Evans 1980; Hurst et al. 2012): ∇²z = 2(a + b), i.e. the Laplacian of the
+locally smoothed surface; for w = 1 on a regular grid it reduces to the standard
+9-point finite-difference Laplacian. For a fixed window this is a linear filter, so C
 is computed exactly as a convolution with a kernel built from the pseudo-inverse of
 the design matrix (`curvature_kernel`), using dx and dy. Hilltops are convex up
 (C < 0); C_ht is the median of −C over hilltop pixels, a positive magnitude, and

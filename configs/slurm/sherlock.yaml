@@ -54,3 +54,8 @@ steps:
     cpus: 2
     mem: 51G
     core_hours_estimate_per_task: 6
+  measure_diagnostics:  # ten tiles in one job: 3 ladders x 31 steps with basin bootstraps, breaks, synthetic ridges
+    time: "06:00:00"
+    cpus: 2
+    mem: 32G
+    core_hours_estimate_per_task: 12
