@@ -1,0 +1,90 @@
+[
+ {
+  "tile": "GM1",
+  "stage": "ad",
+  "v1_duration_s": 15377.172,
+  "time": "07:00:00",
+  "cpus": 2,
+  "mem": "51G",
+  "core_hours": 14.0,
+  "job_id": "51697686",
+  "script": "/scratch/users/scdobbs/lemcvt_jobs/lemcvt_tile_run_GM1_ad_1tasks_2.sbatch"
+ },
+ {
+  "tile": "GM1",
+  "stage": "acrit",
+  "v1_duration_s": 1479.924,
+  "time": "01:00:00",
+  "cpus": 2,
+  "mem": "51G",
+  "core_hours": 2.0,
+  "job_id": "51697689",
+  "script": "/scratch/users/scdobbs/lemcvt_jobs/lemcvt_tile_run_GM1_acrit_1tasks_2.sbatch"
+ },
+ {
+  "tile": "GM1",
+  "stage": "nonlinear",
+  "v1_duration_s": 18860.152,
+  "time": "08:00:00",
+  "cpus": 2,
+  "mem": "51G",
+  "core_hours": 16.0,
+  "job_id": "51697692",
+  "script": "/scratch/users/scdobbs/lemcvt_jobs/lemcvt_tile_run_GM1_nonlinear_1tasks_2.sbatch"
+ },
+ {
+  "tile": "GM1",
+  "stage": "joint",
+  "v1_duration_s": 6188.065,
+  "time": "03:00:00",
+  "cpus": 2,
+  "mem": "51G",
+  "core_hours": 6.0,
+  "job_id": "51697693",
+  "script": "/scratch/users/scdobbs/lemcvt_jobs/lemcvt_tile_run_GM1_joint_1tasks_2.sbatch"
+ },
+ {
+  "tile": "AP5",
+  "stage": "ad",
+  "v1_duration_s": 28731.735,
+  "time": "12:00:00",
+  "cpus": 2,
+  "mem": "51G",
+  "core_hours": 24.0,
+  "job_id": "51697694",
+  "script": "/scratch/users/scdobbs/lemcvt_jobs/lemcvt_tile_run_AP5_ad_1tasks_2.sbatch"
+ },
+ {
+  "tile": "AP5",
+  "stage": "acrit",
+  "v1_duration_s": 1323.229,
+  "time": "01:00:00",
+  "cpus": 2,
+  "mem": "51G",
+  "core_hours": 2.0,
+  "job_id": "51697695",
+  "script": "/scratch/users/scdobbs/lemcvt_jobs/lemcvt_tile_run_AP5_acrit_1tasks_2.sbatch"
+ },
+ {
+  "tile": "AP5",
+  "stage": "nonlinear",
+  "v1_duration_s": 74677.957,
+  "time": "1-08:00:00",
+  "cpus": 2,
+  "mem": "51G",
+  "core_hours": 64.0,
+  "job_id": "51697696",
+  "script": "/scratch/users/scdobbs/lemcvt_jobs/lemcvt_tile_run_AP5_nonlinear_1tasks_2.sbatch"
+ },
+ {
+  "tile": "AP5",
+  "stage": "joint",
+  "v1_duration_s": 13383.54,
+  "time": "06:00:00",
+  "cpus": 2,
+  "mem": "51G",
+  "core_hours": 12.0,
+  "job_id": "51697698",
+  "script": "/scratch/users/scdobbs/lemcvt_jobs/lemcvt_tile_run_AP5_joint_1tasks_2.sbatch"
+ }
+]
