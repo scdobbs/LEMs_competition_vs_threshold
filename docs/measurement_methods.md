@@ -47,11 +47,15 @@ A_c ∈ {1e3, 2e3, 5e3, 1e4, 2e4, 5e4} m² and reported side by side (`chi_fits`
 the dependence of the result on the threshold is visible rather than hidden.
 
 Basins are the channel networks inside the tile: an outlet is a channel pixel whose
-D8 receiver leaves the grid (the area grids inherit upstream area from outside the
-tile, so networks that enter the tile already large are fragments of larger basins;
-they are treated as their own basins with χ = 0 and z relative to the pixel where
-they leave). Only basins with ≥ 10 channel pixels enter the fits; their number and
-the number of edge outlets are reported.
+D8 receiver leaves the grid. The area grids were computed on the full DEM and clipped
+to the tile, so every pixel carries its true drainage area, and χ is integrated
+upstream from each in-tile outlet with those areas. A catchment cut by the tile edge
+therefore yields a valid, shorter χ–z profile: its χ and z are correct over the
+reach the tile contains, and what the edge removes is channel length, not accuracy.
+Truncation is a sample-size issue for the fit, not a bias (addendum 3, §4.2). Networks
+that enter the tile already large are treated as their own basins with χ = 0 and z
+relative to the pixel where they leave. Only basins with ≥ 10 channel pixels enter
+the fits; their number and the number of edge outlets are reported.
 
 ## 3. Concavity θ
 
@@ -83,6 +87,18 @@ k_s distribution (median, 16–84 %). The binned slope–area regression of v1
 (`analysis.py`: 24 log bins, bin medians, count-weighted least squares, 10 m
 vertical interval for the channel slope) is run at A_c* as a cross-check and
 reported as `slope_area` (its θ and k_s are not used for K₀).
+
+### 3.1 Estimators and their effective sample size (addendum 3, §4.1)
+
+The pooled through-origin objective weights every basin by its χ spread, so a few
+large networks can dominate it. `lemcvt audit measure` therefore reports, beside the
+pooled θ*, (i) n_eff = 1/Σwᵢ², with wᵢ basin i's share of the total Σ(χ − χ̄)² (and,
+for reference, of the through-origin leverage Σχ²), evaluated at θ*; where n_eff < 3
+the basin bootstrap is not a usable uncertainty; (ii) an equal-weight estimator,
+θ* = argmin Σᵢ SSRᵢ(θ)/SSRᵢ,null with SSRᵢ,null the basin's sum of squares about its
+own mean elevation, so every basin counts equally; (iii) the median over basins of
+the per-basin best θ. The three are reported side by side in
+`reports/v2/02e_audits.md`; none of them is yet an input to a tile config.
 
 ## 5. Uncertainty of θ and k_s
 
@@ -123,6 +139,14 @@ is computed exactly as a convolution with a kernel built from the pseudo-inverse
 the design matrix (`curvature_kernel`), using dx and dy. Hilltops are convex up
 (C < 0); C_ht is the median of −C over hilltop pixels, a positive magnitude, and
 D₀ = U/C_ht.
+
+Near-channel exclusion (curvature option (i), addendum 3, §4.3). Because a window
+longer than the crest averages the straight flanks into the fit and biases the
+curvature low (the synthetic-ridge test of `02c`, §7), hilltop pixels closer than
+L*/2 to a channel pixel of the network at A_c are dropped before the median is taken.
+`lemcvt audit measure` reports C_ht and D₀ with and without the exclusion, on the
+networks at A_c = 10³ and 10⁴ m² and on the rollover network that `lemcvt measure`
+uses to define the divides, so that the dependence on the network threshold is visible.
 
 Lidar hilltop curvature depends on the window because of metre-scale roughness and,
 on AP, TIN facets. C_ht is computed for windows L = (2w+1)·dx with

@@ -33,6 +33,7 @@ FIGURE_BUILDERS: dict[str, str] = {
     "fig3_deltas": "lemcvt.figures.fig3_deltas:build",
     "measure_diagnostics": "lemcvt.figures.measure_diagnostics:build_all",
     "optimizer_v2": "lemcvt.figures.optimizer_v2:build_all",
+    "measure_audit": "lemcvt.figures.measure_diagnostics:audit_estimators",
 }
 
 

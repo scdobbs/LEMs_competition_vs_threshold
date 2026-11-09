@@ -144,7 +144,12 @@ outlet). Of the ~4000 edge-outlet catchments per tile, 37-71 % are truncated, an
 the channel pixels: at A_c = 1e3 m^2, 40 % (AP4) to 97 % (AP2, AP5) of the channel pixels on AP and
 31 % (GM3) to 99 % (GM5) on GM lie in truncated basins; at 1e4 m^2 the fractions are 0.49-1.00 (AP)
 and 0.33-1.00 (GM). The tiles are, by construction (they were chosen for model fit, not for basin
-completeness), windows on larger networks.
+completeness), windows on larger networks. *Wording corrected by addendum 3, §4.2:* because the
+area grids hold the true areas and chi is integrated upstream from each in-tile outlet with those
+areas, a truncated catchment yields a valid, shorter chi-z profile. Truncation shortens the sample
+of channel length available to the fit; it does not bias chi or z. The interior-only ladder below
+is therefore dropped from later reports unless the equal-weight estimator of `02e_audits.md`
+shows a difference between truncated and complete basins (compared once there, at A_c = 1e3 m^2).
 
 **Interior-only theta** (T6, last columns; green curves in `02c_theta_ladders.png`). Restricting
 the fit to basins whose divides lie inside the tile leaves small catchments only: the fit is
@@ -240,8 +245,10 @@ Measured (the tables), then inferred (the sentences).
   theta at A_c >= 4e3 m^2 is not a measurement with a usable uncertainty; the site-pooled value is.
 - **The slope-area break is of the right order (1e2-1e4 m^2) but not a number** (T4: BIC prefers
   three segments on most tiles; breaks move by a decade with the fitted range).
-- **Truncation is severe** (T6): most channel pixels belong to catchments cut by the tile edge;
-  the interior-only test is possible on three tiles and agrees with the free ladder there.
+- **Truncation is common, not biasing** (T6; wording corrected by addendum 3, §4.2): most channel
+  pixels belong to catchments cut by the tile edge, which shortens the chi-z profiles available to
+  the fit without biasing them (true areas, chi from the in-tile outlet); the interior-only test is
+  possible on three tiles and agrees with the free ladder there.
 - **Curvature**: the window-scale rule is defensible at the site's typical crest width; the
   narrow-crest population biases C_ht low on AP by an amount that depends on how many such pixels
   there are (T7); facets and noise are not the issue at L >= 9 m.
