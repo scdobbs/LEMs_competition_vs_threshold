@@ -12,7 +12,7 @@ import logging
 from collections import deque
 
 import numpy as np
-from scipy.sparse import lil_matrix
+from scipy.sparse import coo_matrix, lil_matrix
 from scipy.sparse.linalg import spsolve
 
 logger = logging.getLogger(__name__)
@@ -187,6 +187,69 @@ def build_diffusion_stencil(gd: dict) -> lil_matrix:
     return M
 
 
+LAPLACIAN_OFFSETS = ((-1, 0, "x"), (1, 0, "x"), (0, -1, "y"), (0, 1, "y"))
+"""Neighbour offsets ``(di_col, dj_row, axis)`` in the order v1 visited them."""
+
+
+def assemble_hillslope_system(
+    gd: dict,
+    hillslope_indices: np.ndarray,
+    hillslope_to_reduced: np.ndarray,
+    hillslope_mask: np.ndarray,
+    D_or_D_eff,
+    Z_channel_flat: np.ndarray,
+    channel_mask_flat: np.ndarray,
+    bc_boundary_vals: np.ndarray,
+    U: float,
+):
+    """Vectorised assembly of the reduced hillslope system ``M z = b`` (Phase 3, step 2).
+
+    Produces the same matrix entries and right-hand side as the v1 per-cell loop
+    (:func:`solve_hillslope_diffusion_v1`), including the order of the floating-point
+    operations: the diagonal accumulates ``-D_i * inv`` once per neighbour in v1's offset
+    order, off-diagonals are single products ``D_i * inv``, and fixed neighbours subtract
+    ``(D_i * inv) * value`` from ``b`` in the same order. Returns ``(M_csr, b)``.
+    """
+    Ny, Nx = gd["Ny"], gd["Nx"]
+    idx_map = gd["idx_map"]
+    rev_i, rev_j = gd["rev_i"], gd["rev_j"]
+    inv = {"x": gd["inv_dx2"], "y": gd["inv_dy2"]}
+    hs = np.asarray(hillslope_indices)
+    n_h = hs.size
+    i = rev_i[hs]
+    j = rev_j[hs]
+    D = np.broadcast_to(np.asarray(D_or_D_eff, dtype=float), (n_h,)) if np.isscalar(D_or_D_eff) \
+        else np.asarray(D_or_D_eff, dtype=float)
+    diag = np.zeros(n_h, dtype=float)
+    b = np.full(n_h, -U, dtype=float)
+    rows, cols, vals = [], [], []
+    ar = np.arange(n_h)
+    for di, dj, axis in LAPLACIAN_OFFSETS:
+        w = D * inv[axis]                                  # D_here * inv, as v1 multiplies it
+        ni = i + di
+        nj = j + dj
+        inside = (ni >= 0) & (ni < Nx) & (nj >= 0) & (nj < Ny)
+        nk = np.full(n_h, -1, dtype=np.int64)
+        nk[inside] = idx_map[nj[inside], ni[inside]]       # -1 where the neighbour is not a valid cell
+        valid_n = nk >= 0
+        diag -= w                                          # every case subtracts D_here * inv from the diagonal
+        nk_safe = np.where(valid_n, nk, 0)
+        is_hs = valid_n & hillslope_mask[nk_safe]
+        rows.append(ar[is_hs])
+        cols.append(hillslope_to_reduced[nk[is_hs]])
+        vals.append(w[is_hs])
+        fixed = valid_n & ~is_hs
+        if fixed.any():
+            nkf = nk[fixed]
+            val = np.where(channel_mask_flat[nkf], Z_channel_flat[nkf], bc_boundary_vals[nkf])
+            b[fixed] -= w[fixed] * val
+    rows.append(ar)
+    cols.append(ar)
+    vals.append(diag)
+    M = coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n_h, n_h)).tocsr()
+    return M, b
+
+
 def solve_hillslope_diffusion(
     gd: dict,
     hillslope_indices: np.ndarray,
@@ -199,7 +262,41 @@ def solve_hillslope_diffusion(
     bc_boundary_vals: np.ndarray,
     U: float,
 ) -> np.ndarray:
-    """Assemble and solve the reduced diffusion system for hillslope cells (v1 exact)."""
+    """Assemble (vectorised, Phase 3 step 2) and solve the reduced diffusion system for hillslope cells.
+
+    Same matrix, right-hand side and solver as :func:`solve_hillslope_diffusion_v1`; the only
+    change is how the matrix is built (``tests/test_models.py`` checks bit-identity).
+    """
+    n = gd["n"]
+    M_reduced, b_reduced = assemble_hillslope_system(gd, hillslope_indices, hillslope_to_reduced, hillslope_mask,
+                                                     D_or_D_eff, Z_channel_flat, channel_mask_flat, bc_boundary_vals, U)
+    try:
+        z_hillslope = spsolve(M_reduced, b_reduced)
+    except Exception:  # noqa: BLE001
+        logger.warning("Hillslope diffusion solve failed; returning NaN", exc_info=True)
+        z_hillslope = np.full(len(hillslope_indices), np.nan)
+
+    z_flat = np.full(n, np.nan)
+    z_flat[hillslope_indices] = z_hillslope
+    z_flat[bc_boundary_inds] = bc_boundary_vals[bc_boundary_inds]
+    z_flat[channel_mask_flat] = Z_channel_flat[channel_mask_flat]
+    return z_flat
+
+
+def solve_hillslope_diffusion_v1(
+    gd: dict,
+    hillslope_indices: np.ndarray,
+    hillslope_to_reduced: np.ndarray,
+    hillslope_mask: np.ndarray,
+    D_or_D_eff,
+    Z_channel_flat: np.ndarray,
+    channel_mask_flat: np.ndarray,
+    bc_boundary_inds: np.ndarray,
+    bc_boundary_vals: np.ndarray,
+    U: float,
+) -> np.ndarray:
+    """v1 per-cell LIL assembly of the reduced diffusion system. Kept as the reference for
+    ``solve_hillslope_diffusion`` (Phase 3, step 2), which must reproduce it bit for bit."""
     n = gd["n"]
     Ny, Nx = gd["Ny"], gd["Nx"]
     valid = gd["valid"]

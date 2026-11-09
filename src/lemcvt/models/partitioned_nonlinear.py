@@ -32,6 +32,39 @@ def partitioned_threshold_model_nonlinear(
     )
 
     def _compute_slopes(z_flat: np.ndarray, hillslope_indices: np.ndarray) -> np.ndarray:
+        """Vectorised slope magnitude with v1's operation order (Phase 3, step 2).
+
+        v1: ``dzdi = 0; dzdi -= (z_left - z_c)/dx; dzdi += (z_right - z_c)/dx; dzdi /= count`` with
+        each term present only when that neighbour exists and is valid; same for j. The order
+        ``(0 - left) + right`` then ``/ count`` is kept so the result is bit-identical.
+        """
+        hs = np.asarray(hillslope_indices)
+        i = rev_i[hs]
+        j = rev_j[hs]
+        zc = z_flat[hs]
+
+        def _term(ii, jj, ok, d):
+            out = np.zeros(hs.size)
+            kk = np.full(hs.size, -1, dtype=np.int64)
+            kk[ok] = idx_map[jj[ok], ii[ok]]
+            use = kk >= 0
+            out[use] = (z_flat[kk[use]] - zc[use]) / d
+            return out, use
+
+        left, ul = _term(i - 1, j, i > 0, dx)
+        right, ur = _term(i + 1, j, i < Nx - 1, dx)
+        cnt = ul.astype(float) + ur.astype(float)
+        dzdi = (0.0 - left) + right
+        dzdi = np.where(cnt > 0, dzdi / np.where(cnt > 0, cnt, 1.0), 0.0)
+        down, ud = _term(i, j - 1, j > 0, dy)
+        up, uu = _term(i, j + 1, j < Ny - 1, dy)
+        cnt = ud.astype(float) + uu.astype(float)
+        dzdj = (0.0 - down) + up
+        dzdj = np.where(cnt > 0, dzdj / np.where(cnt > 0, cnt, 1.0), 0.0)
+        return np.sqrt(dzdi**2 + dzdj**2)
+
+    def _compute_slopes_v1(z_flat: np.ndarray, hillslope_indices: np.ndarray) -> np.ndarray:
+        """v1 per-cell loop, kept as the reference for the vectorised version."""
         slopes = np.zeros(len(hillslope_indices))
         for idx_hs, k in enumerate(hillslope_indices):
             i, j = rev_i[k], rev_j[k]
@@ -122,4 +155,6 @@ def partitioned_threshold_model_nonlinear(
         return Z_ss, channel_mask_2d
 
     output_function.last_n_iter = 0  # type: ignore[attr-defined]
+    output_function.compute_slopes = _compute_slopes  # type: ignore[attr-defined]
+    output_function.compute_slopes_v1 = _compute_slopes_v1  # type: ignore[attr-defined]
     return output_function
