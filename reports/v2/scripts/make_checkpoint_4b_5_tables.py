@@ -199,12 +199,20 @@ out.append("")
 
 # ======================================================================================= A6 Phase 5.5 invariance
 out.append("## A6. Phase 5.5: invariance of the v2 profiles under the unit change (metre run at the feet runs' evaluation points; tolerance 1e-8 relative)\n")
-inv = {}
+inv: dict = {}
 for d in sorted(root.iterdir()):
     if "_ap_invariance_" in d.name and (d / "params.json").exists():
         p, r = load(d)
-        if p:
-            inv[p["tile"]] = (d, p, r)
+        if not p:
+            continue
+        t = p["tile"]
+        if t not in inv:
+            inv[t] = (d, {"tile": t, "checks": {}, "feet_runs": {}, "runs": {}}, r)
+        for st, c in p["checks"].items():
+            if isinstance(c, dict):
+                inv[t][1]["checks"][st] = c
+                inv[t][1]["feet_runs"][st] = p["feet_runs"].get(st)
+                inv[t][1]["runs"][st] = (d.name, r.get("slurm_job_id"))
 if inv:
     out.append("| tile | stage | feet run | points | max rel. diff: MSE x c^2 vs feet | K vs c K_ft | D vs c D_ft | profile shape | optimum identical (A_crit / r / (A_crit, m)) | box position identical | pass |")
     out.append("|---|---|---|---|---|---|---|---|---|---|---|")
@@ -228,7 +236,7 @@ if inv:
                 om, of = c["optimum"]["metres"], c["optimum"]["feet"]
                 opt = f"({om['A_crit']:.6g}, {om['m']:.2f}) / ({of['A_crit']:.6g}, {of['m']:.2f}) ({'same' if c['optimum_identical'] else 'DIFFERENT'})"
                 K, D = c["K_opt_vs_c_K_feet"], c["D_opt_vs_c_D_feet"]
-            out.append(f"| {t} | {st} | `{p['feet_runs'][st]}` | {c['n_points']} | {mse_c:.1e} | {K:.1e} | {D:.1e} | {shape:.1e} | {opt} | {c.get('where_identical')} | {'yes' if c['pass'] else 'NO'} |")
+            out.append(f"| {t} | {st} (run `{p['runs'][st][0]}`, job {p['runs'][st][1]}) | `{p['feet_runs'][st]}` | {c['n_points']} | {mse_c:.1e} | {K:.1e} | {D:.1e} | {shape:.1e} | {opt} | {c.get('where_identical')} | {'yes' if c['pass'] else 'NO'} |")
     out.append("\nModel scaling check (loader values against c x the feet run's values, relative): " + "; ".join(
         f"{t}: " + ", ".join(f"{k} {v:.1e}" for k, v in p['checks']['partitioned']['model_scaling_rel_err'].items()) for t, (d, p, r) in inv.items() if 'partitioned' in p['checks']))
 else:

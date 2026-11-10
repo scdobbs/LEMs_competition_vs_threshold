@@ -214,7 +214,7 @@ def run_invariance(tile: str, feet_runs: dict[str, str | Path] | None = None, st
     if abs(mp.param_scale - C) > 1e-12:
         raise ValueError(f"{tile}: the loader applied param_scale {mp.param_scale!r}, expected c = {C!r}")
     Z0, A, FD, dx, U = td.Z, td.A, td.FD, td.dx, mp.U
-    rec = RunRecorder("ap_invariance", tile, run_id=run_id, root=results_root)
+    rec = RunRecorder("ap_invariance", f"{tile}_{'-'.join(stages)}", run_id=run_id, root=results_root)
     rec.add_params("tile", tile)
     rec.add_params("c", {"c_ft_per_m": C, "inv_c2": INV_C2, "tolerance_rel": TOL_REL})
     rec.add_params("inputs", td.provenance())
@@ -257,7 +257,7 @@ def run_invariance(tile: str, feet_runs: dict[str, str | Path] | None = None, st
             "mse_joint_times_c2_vs_feet": _cmp(rows.mse_joint / INV_C2, prof_ft.mse_joint),
             "K_opt_vs_c_K_feet": _cmp(rows.K_opt, C * prof_ft.K_opt), "D_opt_vs_c_D_feet": _cmp(rows.D_opt, C * prof_ft.D_opt),
             "n_channel_identical": bool(np.array_equal(rows.n_channel, prof_ft.n_channel)),
-            "where_identical": bool((rows.where == prof_ft.where).all()),
+            "where_identical": bool((rows["where"] == prof_ft["where"]).all()),
             "shape_stage2": _cmp(rows.mse_stage2 / rows.mse_stage2.min(), prof_ft.mse_stage2 / prof_ft.mse_stage2.min()),
             "shape_joint": _cmp(rows.mse_joint / rows.mse_joint.min(), prof_ft.mse_joint / prof_ft.mse_joint.min()),
             "stage2_optimum_A_crit": {"metres": res["stage2_optimum"]["A_crit"], "feet": p_ft["v2"]["partitioned"]["stage2_optimum"]["A_crit"]},
@@ -315,7 +315,7 @@ def run_invariance(tile: str, feet_runs: dict[str, str | Path] | None = None, st
         j_m, j_ft = int(df.mse.idxmin()), int(df_ft.mse.idxmin())
         cmp = {"n_points": int(df.shape[0]), "model_scaling_rel_err": _model_scaled_ok(p_ft),
                "mse_times_c2_vs_feet": _cmp(df.mse / INV_C2, df_ft.mse), "K_vs_c_K_feet": _cmp(df.K, C * df_ft.K),
-               "D_vs_c_D_feet": _cmp(df.D, C * df_ft.D), "where_identical": bool((df.where == df_ft.where).all()),
+               "D_vs_c_D_feet": _cmp(df.D, C * df_ft.D), "where_identical": bool((df["where"] == df_ft["where"]).all()),
                "shape": _cmp(df.mse / df.mse.min(), df_ft.mse / df_ft.mse.min()),
                "argmin_identical": bool(j_m == j_ft), "r_optimum": {"metres": float(df.r[j_m]), "feet": float(df_ft.r[j_ft])},
                "optimum_K_ratio_to_c_feet": float(df.K[j_m] / (C * df_ft.K[j_ft])), "optimum_D_ratio_to_c_feet": float(df.D[j_m] / (C * df_ft.D[j_ft])),
@@ -352,7 +352,7 @@ def run_invariance(tile: str, feet_runs: dict[str, str | Path] | None = None, st
         cmp = {"n_points": int(mg.shape[0]), "model_scaling_rel_err": _model_scaled_ok(p_ft),
                "mse_joint_times_c2_vs_feet": _cmp(mg.mse_joint_m / INV_C2, mg.mse_joint_ft),
                "K_opt_vs_c_K_feet": _cmp(mg.K_opt_m, C * mg.K_opt_ft), "D_opt_vs_c_D_feet": _cmp(mg.D_opt_m, C * mg.D_opt_ft),
-               "where_identical": bool((mg.where_m == mg.where_ft).all()),
+               "where_identical": bool((mg["where_m"] == mg["where_ft"]).all()),
                "shape": _cmp(mg.mse_joint_m / mg.mse_joint_m.min(), mg.mse_joint_ft / mg.mse_joint_ft.min()),
                "optimum": {"metres": {"A_crit": o_m["A_crit"], "m": o_m["m"]}, "feet": {"A_crit": o_ft["A_crit"], "m": o_ft["m"]}},
                "optimum_identical": bool(o_m["A_crit"] == o_ft["A_crit"] and abs(o_m["m"] - o_ft["m"]) < 1e-9),
