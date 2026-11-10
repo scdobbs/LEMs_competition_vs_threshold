@@ -129,6 +129,7 @@ Profile runs: GM1: `20261109T211900Z_profile_GM1`, AP5: `20261109T211902Z_profil
 | AP5 | acrit | Phase 3 | 20261109T214309Z_tile_run_AP5_acrit | A_crit=1130.04 | A_crit +3.9e-05 | 359.26 | +1.8e-06 | 136 | 1323 | 34 / 29 | yes |
 | AP5 | acrit | baseline | 20261109T211901Z_tile_run_AP5_acrit | A_crit=1130.04 | A_crit +3.9e-05 | 359.26 | +1.8e-06 | 119 | 1323 | 34 / 29 | yes |
 | AP5 | nonlinear | Phase 3 | 20261109T214310Z_tile_run_AP5_nonlinear | A_crit=3399.07 | A_crit -8.1e-06 | 261.38 | -1.1e-05 | 8656 | 74678 | 29 / 26 | yes |
+| AP5 | nonlinear | baseline | 20261109T211106Z_tile_run_AP5 | A_crit=3399.07 | A_crit -8.1e-06 | 261.38 | -1.1e-05 | 54180 | 74678 | 29 / 26 | yes |
 | AP5 | joint | Phase 3 | 20261109T214310Z_tile_run_AP5_joint | A_crit=1886.99, D=0.00362908, K=3.44019e-06 | A_crit -4.1e-06, D -4.9e-06, K -2.3e-06 | 289.62 | +1.6e-05 | 1283 | 13384 | 225 / 225 | yes |
 | AP5 | joint | baseline | 20261109T211902Z_tile_run_AP5_joint | A_crit=1886.99, D=0.00362908, K=3.44019e-06 | A_crit -4.1e-06, D -4.9e-06, K -2.3e-06 | 289.62 | +1.6e-05 | 2589 | 13384 | 225 / 225 | yes |
 | GM1 | ad | Phase 3 | 20261109T214309Z_tile_run_GM1_ad | K=0.000446098, D=0.0288448 | K -4.4e-06, D +2.8e-05 | 168.65 | -1.7e-05 | 2066 | 15377 | 90 / 87 | yes |
@@ -146,7 +147,7 @@ Profile runs: GM1: `20261109T211900Z_profile_GM1`, AP5: `20261109T211902Z_profil
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | AP5 | ad | 20261109T211105Z_tile_run_AP5 | 20261109T214309Z_tile_run_AP5_ad | K=1.56146e-05, D=4.31618e-05 | K=7.78616e-05, D=0.00800542 | K +4.0e+00, D +1.8e+02 | 1005.34 / 2826.24 | +1.8e+00 | NO | 108 / 117 | 6 | 6.50e-08 | 9.17e-14 | yes |
 | AP5 | acrit | 20261109T211901Z_tile_run_AP5_acrit | 20261109T214309Z_tile_run_AP5_acrit | A_crit=1130.04 | A_crit=1130.04 | A_crit +0.0e+00 | 359.261 / 359.261 | +0.0e+00 | yes | 34 / 34 | none | 0.00e+00 | 0.00e+00 | no |
-| AP5 | nonlinear | - | 20261109T214310Z_tile_run_AP5_nonlinear | - | - | - | - | - | baseline stage not finished | - | - | - | - | - |
+| AP5 | nonlinear | 20261109T211106Z_tile_run_AP5 | 20261109T214310Z_tile_run_AP5_nonlinear | A_crit=3399.07 | A_crit=3399.07 | A_crit +0.0e+00 | 261.377 / 261.377 | +0.0e+00 | yes | 29 / 29 | none | 0.00e+00 | 0.00e+00 | no |
 | AP5 | joint | 20261109T211902Z_tile_run_AP5_joint | 20261109T214310Z_tile_run_AP5_joint | A_crit=1886.99, D=0.00362908, K=3.44019e-06 | A_crit=1886.99, D=0.00362908, K=3.44019e-06 | A_crit +0.0e+00, D +0.0e+00, K +0.0e+00 | 289.625 / 289.625 | -5.3e-13 | yes | 225 / 225 | none | 3.04e-08 | 8.45e-12 | no |
 | GM1 | ad | 20261109T211901Z_tile_run_GM1_ad | 20261109T214309Z_tile_run_GM1_ad | K=0.000446106, D=0.0288464 | K=0.000446098, D=0.0288448 | K -1.9e-05, D -5.5e-05 | 168.647 / 168.647 | -7.8e-11 | yes | 93 / 90 | 6 | 4.16e-08 | 1.34e-13 | yes |
 | GM1 | acrit | 20261109T211103Z_tile_run_GM1 | 20261109T214306Z_tile_run_GM1_acrit | A_crit=423.493 | A_crit=423.493 | A_crit +0.0e+00 | 100.962 / 100.962 | +0.0e+00 | yes | 35 / 35 | none | 0.00e+00 | 0.00e+00 | no |
@@ -163,7 +164,7 @@ Profile runs: GM1: `20261109T211900Z_profile_GM1`, AP5: `20261109T211902Z_profil
 | baseline | GM1 | joint | 51697693 | COMPLETED | 01:01:47 | 03:00:00 | sh04-08n25 |
 | baseline | AP5 | ad | 51697694 | COMPLETED | 04:10:34 | 12:00:00 | sh04-10n28 |
 | baseline | AP5 | acrit | 51697695 | FAILED (FAILED at start (run-directory name collision, 23 s); resubmitted) | 00:00:20 | 01:00:00 | sh04-05n18 |
-| baseline | AP5 | nonlinear | 51697696 | RUNNING | 04:19:19 | 1-08:00:00 | sh03-05n52 |
+| baseline | AP5 | nonlinear | 51697696 | COMPLETED | 15:38:12 | 1-08:00:00 | sh03-05n52 |
 | baseline | AP5 | joint | 51697698 | FAILED (FAILED at start (run-directory name collision, 23 s); resubmitted) | 00:00:23 | 06:00:00 | sh04-10n27 |
 | baseline | GM1 | ad | 51698285 | COMPLETED (resubmission) | 03:30:04 | 07:00:00 | sh04-08n19 |
 | baseline | AP5 | acrit | 51698287 | COMPLETED (resubmission) | 00:02:25 | 01:00:00 | sh04-05n27 |

@@ -95,22 +95,26 @@ _OFFS = [(1, 0, 1, 1.0), (2, 1, 1, 1.41), (4, 1, 0, 1.0), (8, 1, -1, 1.41), (16,
 
 
 def _drops(Z: np.ndarray) -> dict[int, np.ndarray]:
-    """Drop to each of the 8 neighbours with TopoAnalysis's divisors; -1e22 where the neighbour is outside or NaN."""
+    """Drop from every cell to each of its 8 neighbours (code -> (drow, dcol)), TopoAnalysis's divisors; -1e22 where
+    the neighbour is outside the grid or NaN. ``d[code][r, c] = (Z[r, c] - Z[r + drow, c + dcol]) / div``."""
     ny, nx = Z.shape
     out = {}
     for code, dr, dc, div in _OFFS:
         d = np.full(Z.shape, -1e22)
-        rs = slice(max(dr, 0), ny + min(dr, 0))
-        cs = slice(max(dc, 0), nx + min(dc, 0))
-        rs2 = slice(max(-dr, 0), ny + min(-dr, 0))
-        cs2 = slice(max(-dc, 0), nx + min(-dc, 0))
-        val = (Z[rs, cs] - Z[rs2, cs2]) / div
+        rs = slice(max(-dr, 0), ny - max(dr, 0))        # cells whose neighbour (r + dr, c + dc) is inside
+        cs = slice(max(-dc, 0), nx - max(dc, 0))
+        rn = slice(max(dr, 0), ny - max(-dr, 0))        # the neighbours
+        cn = slice(max(dc, 0), nx - max(-dc, 0))
+        val = (Z[rs, cs] - Z[rn, cn]) / div
         d[rs, cs] = np.where(np.isfinite(val), val, -1e22)
         out[code] = d
     return out
 
 
-def d8_check(tile: str, rec: RunRecorder, rel_tol: float = 1e-9, n_examples: int = 20) -> dict[str, Any]:
+def d8_check(tile: str, rec: RunRecorder, rel_tol: float = 1e-9, abs_tol: float = 1e-9, n_examples: int = 20) -> dict[str, Any]:
+    """Section 5.2. A differing cell is a *tie* when the drop to the original receiver equals the steepest drop within
+    ``max(rel_tol |best|, abs_tol)`` (abs_tol in the grid's vertical unit: the priority-flood aggradation increments on
+    filled flats are 1e-12 dx, so scaling z by a constant can reorder them in the last bit); otherwise *anything else*."""
     td = load_tile(tile, reproduce_v1_units=False)
     td_ft = load_tile(tile, reproduce_v1_units=True)
     Z_m, Z_ft, fd0 = td.Z, td_ft.Z, td.FD.astype(np.int64)
@@ -126,7 +130,8 @@ def d8_check(tile: str, rec: RunRecorder, rel_tol: float = 1e-9, n_examples: int
         sel = fd0 == code
         drop_orig[sel] = d[sel]
     orig_valid = np.isin(fd0, [c for c, *_ in _OFFS])
-    tie = orig_valid & np.isfinite(drop_orig) & (np.abs(drop_orig - best) <= rel_tol * np.maximum(np.abs(best), 1e-300))
+    gap = np.abs(drop_orig - best)
+    tie = orig_valid & np.isfinite(drop_orig) & (gap <= np.maximum(rel_tol * np.abs(best), abs_tol))
     diff = fd_m != fd0
     edge2 = margin <= 1          # the outer two rows and columns (TopoAnalysis's slab convention and the mosaic clip)
     edge1 = margin == 0
@@ -135,6 +140,8 @@ def d8_check(tile: str, rec: RunRecorder, rel_tol: float = 1e-9, n_examples: int
     cls[diff & ~edge2 & tie] = 2
     cls[diff & ~edge2 & ~tie] = 3
     other = np.argwhere(cls == 3)
+    gap_other = gap[cls == 3]
+    gap_other = gap_other[np.isfinite(gap_other)]
     examples = []
     for r, c in other[:n_examples].tolist():
         examples.append({"row": r, "col": c, "fd_orig": int(fd0[r, c]), "fd_new_m": int(fd_m[r, c]), "fd_new_ft": int(fd_ft[r, c]),
@@ -149,7 +156,10 @@ def d8_check(tile: str, rec: RunRecorder, rel_tol: float = 1e-9, n_examples: int
            "n_diff_new_m_vs_new_ft": int((fd_m != fd_ft).sum()), "n_diff_new_ft_vs_orig": int((fd_ft != fd0).sum()),
            "n_diff_new_ft_vs_orig_interior": int(((fd_ft != fd0) & ~edge2).sum()),
            "n_orig_code_zero": int((fd0 == 0).sum()), "n_new_code_zero": int((fd_m == 0).sum()),
-           "tie_tolerance_rel": rel_tol, "examples_other": examples,
+           "tie_tolerance_rel": rel_tol, "tie_tolerance_abs": abs_tol, "examples_other": examples,
+           "gap_other_quantiles": {str(q): float(np.percentile(gap_other, q)) for q in (0, 50, 90, 100)} if gap_other.size else None,
+           "n_other_recomputed_feet_equals_orig": int(((cls == 3) & (fd_ft == fd0)).sum()),
+           "n_interior_diff_feet_recomputation_vs_orig": int(((fd_ft != fd0) & ~edge2).sum()),
            "note": "the original fd was computed on the larger DEM before clipping; the outer rows/columns of a recomputation "
                    "cannot match it (TopoAnalysis's slab convention gives the last two rows/columns no east/south comparison)"}
     rec.write_grid(td.filled.with_data(cls.astype(np.float64)), f"{tile}_d8_check_classes_0same_1edge_2tie_3other")

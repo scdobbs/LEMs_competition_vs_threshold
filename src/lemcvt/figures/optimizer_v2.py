@@ -211,10 +211,65 @@ def m_contours(out_dir: Path) -> list[Path]:
     return [out, out.with_suffix(".pdf")]
 
 
+def exponent_site(out_dir: Path) -> list[Path]:
+    """Addendum 4, section 6.1: S(m) = sum_t MSE*_t(m)/MSE*_t,min per site (all tiles and leave-one-out) with the 1 % and
+    5 % levels, against the measured site-pooled theta(A_c) (pooled and equal-weight estimators, 95 % bands) at the
+    median fitted A_crit of the site. Overlap statements only; no interpretation."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    from lemcvt.analyses.exponent_site import latest_audit, latest_m_profile_runs, site_summary, theta_band_at
+
+    runs = latest_m_profile_runs()
+    if not runs:
+        raise FileNotFoundError("no wide-grid m_profile runs in metres")
+    summ = site_summary(runs=runs)
+    aud = latest_audit()
+    sites = list(summ["sites"])
+    fig, axes = plt.subplots(1, len(sites), figsize=(6.2 * len(sites), 4.6), squeeze=False)
+    for ax, site in zip(axes[0], sites, strict=True):
+        rec = summ["sites"][site]
+        a = rec["all"]
+        m = np.array(a["m"])
+        S = np.array(a["S"])
+        for t, loo in rec["leave_one_out"].items():
+            ax.plot(loo["m"], loo["S"], "-", lw=0.7, alpha=0.5, label=f"without {t} (m {loo['m_opt']:.2f})")
+        for t, curve in a["per_tile_normalised"].items():
+            ax.plot(m, np.array(curve) * a["n_tiles"], ":", lw=0.6, alpha=0.6, label=f"{t} x {a['n_tiles']} (tile profile)")
+        ax.plot(m, S, "k-", lw=2, label=f"S(m), {a['n_tiles']} tiles; m_site = {a['m_opt']:.2f}")
+        for lev, ls in ((0.01, "--"), (0.05, ":")):
+            ax.axhline(a["S_min"] * (1 + lev), color="k", ls=ls, lw=0.8)
+            iv = a[f"interval_{lev:g}"]
+            ax.axvspan(iv["m_min"], iv["m_max"], color="k", alpha=0.06 if lev == 0.05 else 0.12, lw=0)
+        ax.axvline(a["m_opt"], color="k", lw=1)
+        if aud:
+            for est, color, hatch in (("pooled", "C0", None), ("equal", "C1", "//")):
+                b = theta_band_at(aud[1], site, rec["median_fitted_A_crit"], est)
+                if b:
+                    ax.axvspan(b["lo95"], b["hi95"], color=color, alpha=0.18, hatch=hatch, lw=0,
+                               label=f"measured theta, {est}: {b['theta']:.2f} [{b['lo95']:.2f}, {b['hi95']:.2f}] at A_c {rec['median_fitted_A_crit']:.0f} m^2 ({b['n_basins_nearest']} basins)")
+                    ax.axvline(b["theta"], color=color, lw=1.2)
+        ax.set_xlabel("m (model exponent) / theta (measured concavity)")
+        ax.set_ylabel("S(m) = sum over tiles of MSE*(m) / min MSE*")
+        ax.set_ylim(a["S_min"] * 0.95, min(a["S_min"] * 2.5, float(np.nanmax(S)) * 1.02))
+        ax.set_title(f"{site}: site exponent profile (1 % and 5 % levels dashed/dotted)", fontsize=9)
+        ax.grid(alpha=0.3)
+        ax.legend(fontsize=5.2, loc="upper center", ncol=2)
+    fig.suptitle("Addendum 4, 6.1: S(m) against the measured site-pooled theta(A_c) at the median fitted A_crit (overlap only)", fontsize=9)
+    fig.tight_layout()
+    out = out_dir / "a4_exponent_site.png"
+    fig.savefig(out, dpi=130)
+    fig.savefig(out.with_suffix(".pdf"))
+    plt.close(fig)
+    return [out, out.with_suffix(".pdf")]
+
+
 def build_all(out_dir: Path) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     paths = []
-    for fn in (acrit_profiles, ad_profiles, m_contours):
+    for fn in (acrit_profiles, ad_profiles, m_contours, exponent_site):
         try:
             paths += fn(out_dir)
         except FileNotFoundError:

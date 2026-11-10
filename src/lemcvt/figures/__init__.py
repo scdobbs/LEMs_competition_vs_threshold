@@ -12,6 +12,7 @@ resolution_dinf   same with D8 (solid) and D-infinity (dashed)
 d8_vs_dinf        4-panel elevation comparison, area scatter, slope-area overlay per tile
 fig3_deltas       log10(K_fit/K0), log10(D_fit/D0) per tile for the AD and joint stages
 optimizer_v2      (Phase 4) MSE(A_crit) profiles, AD r-profiles, MSE(A_crit, m) contours with the measured theta(A_c)
+exponent_site     (addendum 4, 6.1) site profile S(m) with leave-one-out against the measured site-pooled theta(A_c)
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ FIGURE_BUILDERS: dict[str, str] = {
     "measure_diagnostics": "lemcvt.figures.measure_diagnostics:build_all",
     "optimizer_v2": "lemcvt.figures.optimizer_v2:build_all",
     "measure_audit": "lemcvt.figures.measure_diagnostics:audit_estimators",
+    "exponent_site": "lemcvt.figures.optimizer_v2:exponent_site",
 }
 
 
