@@ -246,5 +246,7 @@ the joint MSE on AP2, AP3, GM1-GM5 (1-15 %); everything else moves at the printe
 section 5 are an addition, not a replacement, and go into no config. Recommendation, as the directive asked for
 one: v2, with the v1 stages kept available for the record (they are, under `--optimizer v1`).
 
+Storage at this checkpoint (`sh_quota`, 2026-11-09 21:00 PST): `$GROUP_HOME` 262.8 GB of 1 TB, `$HOME` 10.9 of 15 GB. Results of all runs are under `$GROUP_HOME/lemcvt_results`; job logs under `$SCRATCH/lemcvt_jobs`.
+
 **Stop for review.** Phase 4b (the D-infinity rebuild, addendum section 6) waits for this review. The nonlinear rows
 of section 6 are appended when the runs finish, with no other change to this report.
