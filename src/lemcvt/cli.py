@@ -148,15 +148,21 @@ def tile() -> None:
               help="v2 only: every unique drainage area in [1e2, 1e5] m^2 ('full') or the 2000 nearest a uniform log grid ('thin').")
 @click.option("--nl-grid", default=200, show_default=True, help="v2 only: log-thinned A_crit values for the nonlinear stage.")
 @click.option("--m-acrit-grid", default=200, show_default=True, help="v2 only: log-thinned A_crit values for the m profile.")
+@click.option("--m-range", default="0.20,0.70", show_default=True,
+              help="v2 m_profile only: m_min,m_max of the exponent grid (step 0.01); addendum 4 section 6.1 uses 0.05,0.90.")
 @click.option("--run-id", default=None)
-def tile_run(tile_id, stages, optimizer, no_grids, no_derived, exploration, crop, acrit_grid, nl_grid, m_acrit_grid, run_id) -> None:
+def tile_run(tile_id, stages, optimizer, no_grids, no_derived, exploration, crop, acrit_grid, nl_grid, m_acrit_grid, m_range, run_id) -> None:
     """v1: the exact port of the four v1 stages. v2 (Phase 4): stages ad, partitioned (= acrit + joint), nonlinear, m_profile."""
     st = [s.strip() for s in stages.split(",")]
     if optimizer == "v2":
+        import numpy as _np
+
         from lemcvt.analyses.optimizer_v2 import run_tile_v2
 
-        rec = run_tile_v2(tile_id, stages=st, acrit_grid=acrit_grid, nl_n=nl_grid, m_acrit_n=m_acrit_grid, save_grids=not no_grids,
-                          derived_grids=not no_derived, crop=_parse_crop(crop), run_id=run_id)
+        m_lo, m_hi = (float(v) for v in m_range.split(","))
+        m_values = _np.round(_np.arange(m_lo, m_hi + 1e-9, 0.01), 2)
+        rec = run_tile_v2(tile_id, stages=st, acrit_grid=acrit_grid, nl_n=nl_grid, m_acrit_n=m_acrit_grid, m_values=m_values,
+                          save_grids=not no_grids, derived_grids=not no_derived, crop=_parse_crop(crop), run_id=run_id)
     else:
         from lemcvt.analyses.tile_pipeline import run_tile
 
@@ -461,6 +467,7 @@ def slurm() -> None:
 @click.option("--command", "command_", default=None, help="custom step: command with $LABEL, e.g. \"lemcvt -v slope-area --tiles AP1,GM2\"")
 @click.option("--stages", default=",".join(STAGES), show_default=True, help="tile_run only")
 @click.option("--optimizer", default="v1", show_default=True)
+@click.option("--m-range", default=None, help="tile_run with --optimizer v2 and stage m_profile: m_min,m_max")
 @click.option("--params", default="v1", show_default=True, help="tile_forward only")
 @click.option("--compare", is_flag=True, help="tile_forward only")
 @click.option("--reference-run", default=None, help="tile_forward only: Phase 3 gate against this run ('phase2')")
@@ -470,7 +477,7 @@ def slurm() -> None:
 @click.option("--mem", default=None)
 @click.option("--dry-run", is_flag=True, help="Render and print the script and estimate; do not submit.")
 @click.option("--approved", is_flag=True, help="Steve approved a submission above the core-hour limit (300).")
-def slurm_submit(step, tiles, labels, command_, stages, optimizer, params, compare, reference_run, routing, time_, cpus,
+def slurm_submit(step, tiles, labels, command_, stages, optimizer, m_range, params, compare, reference_run, routing, time_, cpus,
                  mem, dry_run, approved):
     from lemcvt.slurm import build_spec, estimate_text, render, submit
 
@@ -480,7 +487,7 @@ def slurm_submit(step, tiles, labels, command_, stages, optimizer, params, compa
             raise click.BadParameter("custom step needs --command")
         cmd = command_
     elif step == "tile_run":
-        cmd = f"lemcvt -v tile run --tile $LABEL --stages {stages} --optimizer {optimizer}"
+        cmd = f"lemcvt -v tile run --tile $LABEL --stages {stages} --optimizer {optimizer}" + (f" --m-range {m_range}" if m_range else "")
     elif step == "tile_forward":
         cmd = (f"lemcvt -v tile forward --tile $LABEL --params {params}" + (" --compare" if compare else "")
                + (f" --reference-run {reference_run}" if reference_run else ""))

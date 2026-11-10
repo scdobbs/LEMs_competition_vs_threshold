@@ -259,8 +259,15 @@ def run_tile_v2(tile: str, stages: Sequence[str] = STAGES_V2, acrit_grid: str = 
             Z, mask = pmnl(a_c, mp.D0, mp.S_c, mp.nonlinear_max_iter, mp.nonlinear_tol)
             m_ = mse(Z, Z0)
             pic = pmnl.last_picard
+            # hillslope slope statistics of the converged (or capped) solution (addendum 4, section 5.6):
+            # fraction of hillslope cells with |grad z| > 0.5 S_c and > 0.9 S_c, with the model's own stencil
+            hs = pmnl.last_hillslope_indices
+            ratio = pmnl.compute_slopes(pmnl.last_z_flat, hs) / mp.S_c if hs.size else np.zeros(0)
             row = {"A_crit": float(a_c), "mse": m_, "n_channel": int(mask.sum()), "picard_iterations": pic["n_iter"],
                    "converged": pic["converged"], "final_update": pic["iterations"][-1]["update_max_abs"] if pic["iterations"] else None,
+                   "frac_hillslope_gt_0.5Sc": float(np.mean(ratio > 0.5)) if ratio.size else None,
+                   "frac_hillslope_gt_0.9Sc": float(np.mean(ratio > 0.9)) if ratio.size else None,
+                   "max_slope_ratio": float(ratio.max()) if ratio.size else None,
                    "kind": kind, "wall_s": time.perf_counter() - t1}
             rows.append(row)
             traj.record({"log10_A_crit": math.log10(a_c), "log10_D": math.log10(mp.D0), "log10_K": math.log10(mp.K0_partitioned), "kind": kind},
