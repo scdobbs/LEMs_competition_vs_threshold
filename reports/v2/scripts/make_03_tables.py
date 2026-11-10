@@ -124,7 +124,9 @@ for d in sorted(root.iterdir()):
     if "_tile_run_" not in d.name:
         continue
     p, r = load(d)
-    if not p or not p.get("stages_results"):
+    if not p or not p.get("stages_results") or p.get("optimizer") != "v1" or p.get("tile") not in ("GM1", "AP5"):
+        continue   # the v2 (Phase 4) runs are compared in 04_optimizer_v2.md
+    if (r.get("config") or {}).get("crop"):
         continue
     job = str(r.get("slurm_job_id") or (r.get("slurm_accounting") or {}).get("job_id") or "")
     code = "Phase 3" if job.split("_")[0] in p3_ids else "baseline"

@@ -165,6 +165,26 @@ def tile_run(tile_id, stages, optimizer, no_grids, no_derived, exploration, crop
     click.echo(f"results: {rec.dir}")
 
 
+@tile.command("v2-refine")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--source-run", default=None, help="v2 partitioned run directory or name (default: the latest for the tile).")
+@click.option("--max-extra", default=400, show_default=True)
+@click.option("--run-id", default=None)
+def tile_v2_refine(tile_id, source_run, max_extra, run_id) -> None:
+    """Phase 4: evaluate every unique drainage area around the thinned profile's minima (staircase refinement)."""
+    from lemcvt.analyses.optimizer_v2 import refine_partitioned
+
+    if source_run is None:
+        from lemcvt.results import find_runs
+
+        cands = [r for r in find_runs("tile_run", tile_id) if r.name.endswith("_v2_partitioned")]
+        if not cands:
+            raise click.ClickException(f"no v2 partitioned run for {tile_id}")
+        source_run = str(cands[-1])
+    rec = refine_partitioned(tile_id, source_run, max_extra=max_extra, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
 @tile.command("v2-estimate")
 @click.option("--tiles", default="all", show_default=True)
 @click.option("--thin-n", default=2000, show_default=True)

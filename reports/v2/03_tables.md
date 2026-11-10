@@ -124,7 +124,55 @@ Profile runs: GM1: `20261109T211900Z_profile_GM1`, AP5: `20261109T211902Z_profil
 
 | tile | stage | code | run | params | rel. diff vs v1 | MSE | rel. diff vs v1 | wall (s) | v1 wall (s) | fev / solves | pass |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| AP5 | ad | Phase 3 | 20261109T214309Z_tile_run_AP5_ad | K=7.78616e-05, D=0.00800542 | K +4.0e+00, D +1.8e+02 | 2826.2 | +1.8e+00 | 2511 | 28732 | 117 / 105 | NO |
+| AP5 | ad | baseline | 20261109T211105Z_tile_run_AP5 | K=1.56146e-05, D=4.31618e-05 | K +4.1e-05, D +8.7e-05 | 1005.3 | +3.9e-05 | 14708 | 28732 | 108 / 105 | yes |
 | AP5 | acrit | Phase 3 | 20261109T214309Z_tile_run_AP5_acrit | A_crit=1130.04 | A_crit +3.9e-05 | 359.26 | +1.8e-06 | 136 | 1323 | 34 / 29 | yes |
 | AP5 | acrit | baseline | 20261109T211901Z_tile_run_AP5_acrit | A_crit=1130.04 | A_crit +3.9e-05 | 359.26 | +1.8e-06 | 119 | 1323 | 34 / 29 | yes |
+| AP5 | nonlinear | Phase 3 | 20261109T214310Z_tile_run_AP5_nonlinear | A_crit=3399.07 | A_crit -8.1e-06 | 261.38 | -1.1e-05 | 8656 | 74678 | 29 / 26 | yes |
+| AP5 | joint | Phase 3 | 20261109T214310Z_tile_run_AP5_joint | A_crit=1886.99, D=0.00362908, K=3.44019e-06 | A_crit -4.1e-06, D -4.9e-06, K -2.3e-06 | 289.62 | +1.6e-05 | 1283 | 13384 | 225 / 225 | yes |
+| AP5 | joint | baseline | 20261109T211902Z_tile_run_AP5_joint | A_crit=1886.99, D=0.00362908, K=3.44019e-06 | A_crit -4.1e-06, D -4.9e-06, K -2.3e-06 | 289.62 | +1.6e-05 | 2589 | 13384 | 225 / 225 | yes |
+| GM1 | ad | Phase 3 | 20261109T214309Z_tile_run_GM1_ad | K=0.000446098, D=0.0288448 | K -4.4e-06, D +2.8e-05 | 168.65 | -1.7e-05 | 2066 | 15377 | 90 / 87 | yes |
+| GM1 | ad | baseline | 20261109T211901Z_tile_run_GM1_ad | K=0.000446106, D=0.0288464 | K +1.4e-05, D +8.3e-05 | 168.65 | -1.7e-05 | 12280 | 15377 | 93 / 90 | yes |
 | GM1 | acrit | Phase 3 | 20261109T214306Z_tile_run_GM1_acrit | A_crit=423.493 | A_crit +8.1e-06 | 100.96 | +2.4e-05 | 122 | 1480 | 35 / 32 | yes |
 | GM1 | acrit | baseline | 20261109T211103Z_tile_run_GM1 | A_crit=423.493 | A_crit +8.1e-06 | 100.96 | +2.4e-05 | 853 | 1480 | 35 / 32 | yes |
+| GM1 | nonlinear | Phase 3 | 20261109T214310Z_tile_run_GM1_nonlinear | A_crit=474.213 | A_crit +6.7e-06 | 77.073 | +4.3e-06 | 1552 | 18860 | 37 / 31 | yes |
+| GM1 | nonlinear | baseline | 20261109T211106Z_tile_run_GM1 | A_crit=474.213 | A_crit +6.7e-06 | 77.073 | +4.3e-06 | 10454 | 18860 | 37 / 31 | yes |
+| GM1 | joint | Phase 3 | 20261109T214309Z_tile_run_GM1_joint | A_crit=8092.38, D=0.0283684, K=2.16488e-05 | A_crit -2.1e-06, D +1.5e-05, K -1.0e-05 | 33.865 | -1.4e-05 | 584 | 6188 | 104 / 104 | yes |
+| GM1 | joint | baseline | 20261109T211105Z_tile_run_GM1 | A_crit=8092.38, D=0.0283684, K=2.16488e-05 | A_crit -2.1e-06, D +1.5e-05, K -1.0e-05 | 33.865 | -1.4e-05 | 3651 | 6188 | 104 / 104 | yes |
+
+## O2. Phase 3 code against the section 3 baseline (addendum 3, section 2): pass rule (parameters within 1 %, MSE within 0.5 %; A_crit rule) and row-by-row trajectory comparison
+
+| tile | stage | baseline run | Phase 3 run | baseline params | Phase 3 params | rel. diff P3 vs baseline | MSE baseline / Phase 3 | rel. MSE diff | pass | evals (b / P3) | first row with different parameters | max per-eval abs dMSE | max per-eval rel dMSE | optimizer steps differ |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| AP5 | ad | 20261109T211105Z_tile_run_AP5 | 20261109T214309Z_tile_run_AP5_ad | K=1.56146e-05, D=4.31618e-05 | K=7.78616e-05, D=0.00800542 | K +4.0e+00, D +1.8e+02 | 1005.34 / 2826.24 | +1.8e+00 | NO | 108 / 117 | 6 | 6.50e-08 | 9.17e-14 | yes |
+| AP5 | acrit | 20261109T211901Z_tile_run_AP5_acrit | 20261109T214309Z_tile_run_AP5_acrit | A_crit=1130.04 | A_crit=1130.04 | A_crit +0.0e+00 | 359.261 / 359.261 | +0.0e+00 | yes | 34 / 34 | none | 0.00e+00 | 0.00e+00 | no |
+| AP5 | nonlinear | - | 20261109T214310Z_tile_run_AP5_nonlinear | - | - | - | - | - | baseline stage not finished | - | - | - | - | - |
+| AP5 | joint | 20261109T211902Z_tile_run_AP5_joint | 20261109T214310Z_tile_run_AP5_joint | A_crit=1886.99, D=0.00362908, K=3.44019e-06 | A_crit=1886.99, D=0.00362908, K=3.44019e-06 | A_crit +0.0e+00, D +0.0e+00, K +0.0e+00 | 289.625 / 289.625 | -5.3e-13 | yes | 225 / 225 | none | 3.04e-08 | 8.45e-12 | no |
+| GM1 | ad | 20261109T211901Z_tile_run_GM1_ad | 20261109T214309Z_tile_run_GM1_ad | K=0.000446106, D=0.0288464 | K=0.000446098, D=0.0288448 | K -1.9e-05, D -5.5e-05 | 168.647 / 168.647 | -7.8e-11 | yes | 93 / 90 | 6 | 4.16e-08 | 1.34e-13 | yes |
+| GM1 | acrit | 20261109T211103Z_tile_run_GM1 | 20261109T214306Z_tile_run_GM1_acrit | A_crit=423.493 | A_crit=423.493 | A_crit +0.0e+00 | 100.962 / 100.962 | +0.0e+00 | yes | 35 / 35 | none | 0.00e+00 | 0.00e+00 | no |
+| GM1 | nonlinear | 20261109T211106Z_tile_run_GM1 | 20261109T214310Z_tile_run_GM1_nonlinear | A_crit=474.213 | A_crit=474.213 | A_crit +0.0e+00 | 77.0733 / 77.0733 | +0.0e+00 | yes | 37 / 37 | none | 0.00e+00 | 0.00e+00 | no |
+| GM1 | joint | 20261109T211105Z_tile_run_GM1 | 20261109T214309Z_tile_run_GM1_joint | A_crit=8092.38, D=0.0283684, K=2.16488e-05 | A_crit=8092.38, D=0.0283684, K=2.16488e-05 | A_crit +0.0e+00, D +0.0e+00, K +0.0e+00 | 33.8645 / 33.8645 | -9.1e-13 | yes | 104 / 104 | none | 1.58e-09 | 5.31e-12 | no |
+
+## O3. Slurm status of the baseline (section 3) and Phase 3 optimizer jobs
+
+| set | tile | stage | job | state | elapsed | limit | node |
+|---|---|---|---|---|---|---|---|
+| baseline | GM1 | ad | 51697686 | FAILED (FAILED at start (run-directory name collision, 23 s); resubmitted) | 00:00:23 | 07:00:00 | sh04-10n18 |
+| baseline | GM1 | acrit | 51697689 | COMPLETED | 00:15:08 | 01:00:00 | sh04-08n23 |
+| baseline | GM1 | nonlinear | 51697692 | COMPLETED | 03:00:04 | 08:00:00 | sh03-09n10 |
+| baseline | GM1 | joint | 51697693 | COMPLETED | 01:01:47 | 03:00:00 | sh04-08n25 |
+| baseline | AP5 | ad | 51697694 | COMPLETED | 04:10:34 | 12:00:00 | sh04-10n28 |
+| baseline | AP5 | acrit | 51697695 | FAILED (FAILED at start (run-directory name collision, 23 s); resubmitted) | 00:00:20 | 01:00:00 | sh04-05n18 |
+| baseline | AP5 | nonlinear | 51697696 | RUNNING | 04:19:19 | 1-08:00:00 | sh03-05n52 |
+| baseline | AP5 | joint | 51697698 | FAILED (FAILED at start (run-directory name collision, 23 s); resubmitted) | 00:00:23 | 06:00:00 | sh04-10n27 |
+| baseline | GM1 | ad | 51698285 | COMPLETED (resubmission) | 03:30:04 | 07:00:00 | sh04-08n19 |
+| baseline | AP5 | acrit | 51698287 | COMPLETED (resubmission) | 00:02:25 | 01:00:00 | sh04-05n27 |
+| baseline | AP5 | joint | 51698289 | COMPLETED (resubmission) | 00:43:38 | 06:00:00 | sh04-12n19 |
+| Phase 3 | GM1 | ad | 51701024 | COMPLETED | 00:35:36 | 07:00:00 | sh03-05n38 |
+| Phase 3 | GM1 | acrit | 51701025 | COMPLETED | 00:02:30 | 01:00:00 | sh04-10n20 |
+| Phase 3 | GM1 | nonlinear | 51701026 | COMPLETED | 00:27:21 | 08:00:00 | sh03-05n38 |
+| Phase 3 | GM1 | joint | 51701027 | COMPLETED | 00:10:17 | 03:00:00 | sh03-05n38 |
+| Phase 3 | AP5 | ad | 51701028 | COMPLETED | 00:43:01 | 12:00:00 | sh03-05n38 |
+| Phase 3 | AP5 | acrit | 51701029 | COMPLETED | 00:02:46 | 01:00:00 | sh04-10n27 |
+| Phase 3 | AP5 | nonlinear | 51701030 | COMPLETED | 02:30:16 | 1-08:00:00 | sh03-05n40 |
+| Phase 3 | AP5 | joint | 51701031 | COMPLETED | 00:21:54 | 06:00:00 | sh03-05n40 |
