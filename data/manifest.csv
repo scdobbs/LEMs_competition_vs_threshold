@@ -2,6 +2,7 @@ path,sha256,bytes,site,tile,kind,role
 AP/tile1/AP_1m_best_tile_area.tif,a20793e7e899b2c04bc8b58fe4c62b7ba4e7f494c779be064f2c7786d5007833,8248248,AP,tile1,input,area
 AP/tile1/AP_1m_best_tile_fd.tif,6684a19dc4e96ecaa3741c814f13679f0596d6c07baa6985350b42b26fee3dfa,1031345,AP,tile1,input,fd
 AP/tile1/AP_1m_best_tile_filled.tif,d80fa36e127042f4c695cc72acd69ddbab4d97dc801257ecb5c91f8f3387e482,8248248,AP,tile1,input,filled
+AP/tile1/AP_1m_best_tile_filled_m.tif,f82fad64c2d93faf043522ba26390c2c0a4388424e114a32ed8e806ce1c61496,9086441,AP,tile1,input_metres,filled_m
 AP/tile1/outputs/AP_1m_best_tile_AD-no-opt_area.tif,8bddcaf2db5ab8f1c6cec529ee615f8a0ba45d36ce473561db80ff2a80ddae22,6012884,AP,tile1,output,AD-no-opt_area
 AP/tile1/outputs/AP_1m_best_tile_AD-no-opt_elevation.tif,66622de57a40fcf55dea363e4329cea0323628c0179b4a5513287d36c0007847,9721405,AP,tile1,output,AD-no-opt_elevation
 AP/tile1/outputs/AP_1m_best_tile_AD-no-opt_filled.tif,66622de57a40fcf55dea363e4329cea0323628c0179b4a5513287d36c0007847,9721405,AP,tile1,output,AD-no-opt_filled
@@ -29,6 +30,7 @@ AP/tile1/outputs/AP_1m_best_tile_Partitioned-model-a_crit-opt_logarea.tif,7572c2
 AP/tile2/AP_1m_best_tile_area.tif,96354947cb9351cf0d3c8f8ba84d5f57e2f7a662fb08663909f257cba96ccee4,8248248,AP,tile2,input,area
 AP/tile2/AP_1m_best_tile_fd.tif,92d2f77ade0c95da7ff9bbdd8210543e83258125f1837872abb248d5bb8cb71f,1031345,AP,tile2,input,fd
 AP/tile2/AP_1m_best_tile_filled.tif,dbe47c64c8d6e4c9f9109949ad73cde068782dc50c04de1c2964447b4fadfaa3,8248248,AP,tile2,input,filled
+AP/tile2/AP_1m_best_tile_filled_m.tif,6ce76e353910c4c6253cc691dec5afe5ab4e21878d9b8678f9d2297939e5cafa,9207354,AP,tile2,input_metres,filled_m
 AP/tile2/outputs/AP_1m_best_tile_AD-no-opt_area.tif,9900e9a9998c400706c227ceb12dfaa1a612e65bea19fbda824bd97dad5927f9,6067988,AP,tile2,output,AD-no-opt_area
 AP/tile2/outputs/AP_1m_best_tile_AD-no-opt_elevation.tif,60e631597bd9e054a1a78327c73834d64d17bb826347ce6bcb72f8eae4cda5db,9707107,AP,tile2,output,AD-no-opt_elevation
 AP/tile2/outputs/AP_1m_best_tile_AD-no-opt_filled.tif,60e631597bd9e054a1a78327c73834d64d17bb826347ce6bcb72f8eae4cda5db,9707107,AP,tile2,output,AD-no-opt_filled
@@ -56,6 +58,7 @@ AP/tile2/outputs/AP_1m_best_tile_Partitioned-model-a_crit-opt_logarea.tif,3e4b29
 AP/tile3/AP_1m_best_tile_area.tif,63559ad63e1783f2087df169f87a6948f89d923524da4aaa777f8c1fbcc86bdd,8240128,AP,tile3,input,area
 AP/tile3/AP_1m_best_tile_fd.tif,dcffdf9b6e3a62ec5caa0f1c0ddd7103631fb4b13827927c9aaf417612d38a28,1030330,AP,tile3,input,fd
 AP/tile3/AP_1m_best_tile_filled.tif,f678027286ec71443b7fb678afaa4b88f56625afc04a9bb20ae9dc0c5a755bed,8240128,AP,tile3,input,filled
+AP/tile3/AP_1m_best_tile_filled_m.tif,0d06c786e35c766a0b34905c6ca4a6ca42058cb5512520389d8e5e43dd558eab,9099748,AP,tile3,input_metres,filled_m
 AP/tile3/outputs/AP_1m_best_tile_AD-no-opt_area.tif,ea558a63a7ace626eda97c52900b49688c2c98347b80ad17500bedeebce621df,5564768,AP,tile3,output,AD-no-opt_area
 AP/tile3/outputs/AP_1m_best_tile_AD-no-opt_elevation.tif,ec4d4e1aadae2062722ea08dc77880090bfcf7d4395ea98f118600eca0a2eee1,9710566,AP,tile3,output,AD-no-opt_elevation
 AP/tile3/outputs/AP_1m_best_tile_AD-no-opt_filled.tif,ec4d4e1aadae2062722ea08dc77880090bfcf7d4395ea98f118600eca0a2eee1,9710566,AP,tile3,output,AD-no-opt_filled
@@ -83,6 +86,7 @@ AP/tile3/outputs/AP_1m_best_tile_Partitioned-model-a_crit-opt_logarea.tif,7dc0c8
 AP/tile4/AP_1m_best_tile_area.tif,9556c455050db6b16e169c5ecbbacfe6e5301dabe2879ac2318ec5501cc87794,8248248,AP,tile4,input,area
 AP/tile4/AP_1m_best_tile_fd.tif,0ba12accf8d8179c153d877afbdf22c17893aca891cc521fb53b66ade9d44c7c,1031345,AP,tile4,input,fd
 AP/tile4/AP_1m_best_tile_filled.tif,cfbd3462b79a497d4d16bfd46257a21b24a8797ef6202af1c331164168493d1c,8248248,AP,tile4,input,filled
+AP/tile4/AP_1m_best_tile_filled_m.tif,bdc4afe7c065fcb38203cf2810ec6072289c06ebb565f760c97a7e5d571d938a,9169664,AP,tile4,input_metres,filled_m
 AP/tile4/outputs/AP_1m_best_tile_AD-no-opt_area.tif,e059dc43fe96cb7f0e0ffd0ec474f812783f408a1149b68af09057733a49a87a,6158502,AP,tile4,output,AD-no-opt_area
 AP/tile4/outputs/AP_1m_best_tile_AD-no-opt_elevation.tif,c3b58c59d6301cc51891e649c4ca7294711691f17e567a48cb87ff12c9fc94d5,9781259,AP,tile4,output,AD-no-opt_elevation
 AP/tile4/outputs/AP_1m_best_tile_AD-no-opt_filled.tif,c3b58c59d6301cc51891e649c4ca7294711691f17e567a48cb87ff12c9fc94d5,9781259,AP,tile4,output,AD-no-opt_filled
@@ -110,6 +114,7 @@ AP/tile4/outputs/AP_1m_best_tile_Partitioned-model-a_crit-opt_logarea.tif,233ba2
 AP/tile5/AP_1m_best_tile_area.tif,b1ac3e21985089f42fa90ba444c8950da29fbc01b927d8b4173515fbb68e0d5f,8248248,AP,tile5,input,area
 AP/tile5/AP_1m_best_tile_fd.tif,8822db8596f98cf850dce3478b2fa9d9f1dbaf50d7a9b328fce9a3c2ac4f13af,1031345,AP,tile5,input,fd
 AP/tile5/AP_1m_best_tile_filled.tif,662d1198f2b825373e2248ec32a7e9201ca0bef4a6cd35865c2d89c23b4b5f1c,8248248,AP,tile5,input,filled
+AP/tile5/AP_1m_best_tile_filled_m.tif,432a9cbb9df0fd8ab15043b0949cf919d29d47c3f65c503f640c4ff511b97165,9043293,AP,tile5,input_metres,filled_m
 AP/tile5/outputs/AP_1m_best_tile_AD-no-opt_area.tif,fc54e3e83b5cc5ead1ed20ae52e6f182bdd3a0fecdf80ba4814bd585afffb7ac,5706809,AP,tile5,output,AD-no-opt_area
 AP/tile5/outputs/AP_1m_best_tile_AD-no-opt_elevation.tif,cc1bd09fa9d7df92e2b880aff171d9cbdbc36e6fc564fa10bcff4bbc2c384d76,9743671,AP,tile5,output,AD-no-opt_elevation
 AP/tile5/outputs/AP_1m_best_tile_AD-no-opt_filled.tif,cc1bd09fa9d7df92e2b880aff171d9cbdbc36e6fc564fa10bcff4bbc2c384d76,9743671,AP,tile5,output,AD-no-opt_filled
