@@ -43,6 +43,9 @@ def _parse_tiles(tiles: str) -> list[str]:
     return out
 
 
+_UNITS = {"stored": None, "feet": True, "metres": False}   # --units -> reproduce_v1_units override of the loader
+
+
 def _parse_crop(crop: str | None) -> tuple[int, int, int, int] | None:
     if not crop:
         return None
@@ -150,8 +153,10 @@ def tile() -> None:
 @click.option("--m-acrit-grid", default=200, show_default=True, help="v2 only: log-thinned A_crit values for the m profile.")
 @click.option("--m-range", default="0.20,0.70", show_default=True,
               help="v2 m_profile only: m_min,m_max of the exponent grid (step 0.01); addendum 4 section 6.1 uses 0.05,0.90.")
+@click.option("--units", default="stored", show_default=True, type=click.Choice(["stored", "feet", "metres"]),
+              help="Vertical unit override for AP (Phase 5): the config's setting, feet as v1 ran, or metres.")
 @click.option("--run-id", default=None)
-def tile_run(tile_id, stages, optimizer, no_grids, no_derived, exploration, crop, acrit_grid, nl_grid, m_acrit_grid, m_range, run_id) -> None:
+def tile_run(tile_id, stages, optimizer, no_grids, no_derived, exploration, crop, acrit_grid, nl_grid, m_acrit_grid, m_range, units, run_id) -> None:
     """v1: the exact port of the four v1 stages. v2 (Phase 4): stages ad, partitioned (= acrit + joint), nonlinear, m_profile."""
     st = [s.strip() for s in stages.split(",")]
     if optimizer == "v2":
@@ -162,12 +167,13 @@ def tile_run(tile_id, stages, optimizer, no_grids, no_derived, exploration, crop
         m_lo, m_hi = (float(v) for v in m_range.split(","))
         m_values = _np.round(_np.arange(m_lo, m_hi + 1e-9, 0.01), 2)
         rec = run_tile_v2(tile_id, stages=st, acrit_grid=acrit_grid, nl_n=nl_grid, m_acrit_n=m_acrit_grid, m_values=m_values,
-                          save_grids=not no_grids, derived_grids=not no_derived, crop=_parse_crop(crop), run_id=run_id)
+                          save_grids=not no_grids, derived_grids=not no_derived, crop=_parse_crop(crop), run_id=run_id,
+                          reproduce_v1_units=_UNITS[units])
     else:
         from lemcvt.analyses.tile_pipeline import run_tile
 
         rec = run_tile(tile_id, stages=st, optimizer=optimizer, save_grids=not no_grids, derived_grids=not no_derived,
-                       exploration_runs=exploration, crop=_parse_crop(crop), run_id=run_id)
+                       exploration_runs=exploration, crop=_parse_crop(crop), run_id=run_id, reproduce_v1_units=_UNITS[units])
     click.echo(f"results: {rec.dir}")
 
 
@@ -277,12 +283,57 @@ def perron_forward(tiles, run_id) -> None:
 
 @main.command("d8-vs-dinf")
 @click.option("--tiles", default="AP1,GM1", show_default=True)
+@click.option("--pt-dinf-model", default="both", show_default=True, type=click.Choice(["v2", "v1", "both"]),
+              help="Partitioned D-inf model: the Phase 4b rebuild (v2), the v1 explicit integration, or both.")
+@click.option("--units", default="stored", show_default=True, type=click.Choice(["stored", "feet", "metres"]),
+              help="Vertical unit of the AP grid: the config's setting, or force feet (as v1 and the Phase 4b rerun) / metres.")
+@click.option("--no-synthetic", is_flag=True, help="Skip the synthetic aligned/rotated V cases.")
 @click.option("--run-id", default=None)
-def d8_vs_dinf(tiles, run_id) -> None:
-    """D8 against D-infinity comparison at measured parameters (d8_vs_dinf_comparison)."""
+def d8_vs_dinf(tiles, pt_dinf_model, units, no_synthetic, run_id) -> None:
+    """D8 against D-infinity comparison at measured parameters (d8_vs_dinf_comparison; Phase 4b rerun)."""
     from lemcvt.analyses.d8_vs_dinf import run_d8_vs_dinf
 
-    rec = run_d8_vs_dinf(_parse_tiles(tiles), run_id=run_id)
+    rec = run_d8_vs_dinf(_parse_tiles(tiles), run_id=run_id, pt_dinf_model=pt_dinf_model, units=units, synthetic=not no_synthetic)
+    click.echo(f"results: {rec.dir}")
+
+
+# -------------------------------------------------------------------------------- Phase 5: AP units (addendum 4, section 5)
+@main.group("ap-units")
+def ap_units() -> None:
+    """Phase 5: corrected AP grids (5.1), the D8 check (5.2) and the invariance check (5.5)."""
+
+
+@ap_units.command("convert")
+@click.option("--tiles", default="AP", show_default=True)
+@click.option("--run-id", default=None)
+def ap_units_convert(tiles, run_id) -> None:
+    """Write the corrected filled-elevation GeoTIFFs (z in metres) and add them to data/manifest.csv; originals kept."""
+    from lemcvt.analyses.ap_units import convert_ap_grids
+
+    rec = convert_ap_grids(tuple(_parse_tiles(tiles)), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@ap_units.command("d8-check")
+@click.option("--tiles", default="AP", show_default=True)
+@click.option("--run-id", default=None)
+def ap_units_d8_check(tiles, run_id) -> None:
+    """Recompute D8 directions from the corrected tile and compare with the original fd grid (check only; no grid replaced)."""
+    from lemcvt.analyses.ap_units import run_d8_check
+
+    rec = run_d8_check(tuple(_parse_tiles(tiles)), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@ap_units.command("invariance")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--stages", default="partitioned,ad,m_profile", show_default=True)
+@click.option("--run-id", default=None)
+def ap_units_invariance(tile_id, stages, run_id) -> None:
+    """Rerun the v2 profiles in metres at the feet runs' evaluation points and check the unit invariance (5.5)."""
+    from lemcvt.analyses.ap_units import run_invariance
+
+    rec = run_invariance(tile_id, stages=tuple(s.strip() for s in stages.split(",")), run_id=run_id)
     click.echo(f"results: {rec.dir}")
 
 
@@ -468,6 +519,7 @@ def slurm() -> None:
 @click.option("--stages", default=",".join(STAGES), show_default=True, help="tile_run only")
 @click.option("--optimizer", default="v1", show_default=True)
 @click.option("--m-range", default=None, help="tile_run with --optimizer v2 and stage m_profile: m_min,m_max")
+@click.option("--units", default=None, type=click.Choice(["stored", "feet", "metres"]), help="tile_run: vertical unit override (Phase 5)")
 @click.option("--params", default="v1", show_default=True, help="tile_forward only")
 @click.option("--compare", is_flag=True, help="tile_forward only")
 @click.option("--reference-run", default=None, help="tile_forward only: Phase 3 gate against this run ('phase2')")
@@ -475,10 +527,12 @@ def slurm() -> None:
 @click.option("--time", "time_", default=None, help="Override wall time (D-HH:MM:SS).")
 @click.option("--cpus", default=None, type=int)
 @click.option("--mem", default=None)
+@click.option("--dependency", default=None, help="Slurm dependency, e.g. afterok:<jobid> (stages that need a predecessor).")
+@click.option("--job-name", default=None, help="Override the job name (default lemcvt_<step>).")
 @click.option("--dry-run", is_flag=True, help="Render and print the script and estimate; do not submit.")
 @click.option("--approved", is_flag=True, help="Steve approved a submission above the core-hour limit (300).")
-def slurm_submit(step, tiles, labels, command_, stages, optimizer, m_range, params, compare, reference_run, routing, time_, cpus,
-                 mem, dry_run, approved):
+def slurm_submit(step, tiles, labels, command_, stages, optimizer, m_range, units, params, compare, reference_run, routing, time_, cpus,
+                 mem, dependency, job_name, dry_run, approved):
     from lemcvt.slurm import build_spec, estimate_text, render, submit
 
     labels = _parse_tiles(tiles) if step != "custom" else ([s.strip() for s in labels.split(",")] if labels else ["all"])
@@ -487,7 +541,8 @@ def slurm_submit(step, tiles, labels, command_, stages, optimizer, m_range, para
             raise click.BadParameter("custom step needs --command")
         cmd = command_
     elif step == "tile_run":
-        cmd = f"lemcvt -v tile run --tile $LABEL --stages {stages} --optimizer {optimizer}" + (f" --m-range {m_range}" if m_range else "")
+        cmd = (f"lemcvt -v tile run --tile $LABEL --stages {stages} --optimizer {optimizer}" + (f" --m-range {m_range}" if m_range else "")
+               + (f" --units {units}" if units else ""))
     elif step == "tile_forward":
         cmd = (f"lemcvt -v tile forward --tile $LABEL --params {params}" + (" --compare" if compare else "")
                + (f" --reference-run {reference_run}" if reference_run else ""))
@@ -508,7 +563,7 @@ def slurm_submit(step, tiles, labels, command_, stages, optimizer, m_range, para
         cmd = "lemcvt -v profile --tile $LABEL"
     else:
         cmd = "lemcvt -v measure --tile $LABEL"
-    spec = build_spec(step, labels, cmd, time=time_, cpus=cpus, mem=mem)
+    spec = build_spec(step, labels, cmd, time=time_, cpus=cpus, mem=mem, dependency=dependency, job_name=job_name)
     click.echo(estimate_text(spec))
     if dry_run:
         click.echo(render(spec))

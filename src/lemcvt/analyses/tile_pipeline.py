@@ -75,6 +75,7 @@ def run_tile(
     crop: tuple[int, int, int, int] | None = None,
     run_id: str | None = None,
     results_root=None,
+    reproduce_v1_units: bool | None = None,
 ) -> RunRecorder:
     """Run the requested stages on one tile and write a results directory.
 
@@ -103,7 +104,7 @@ def run_tile(
         raise ValueError(f"unknown stages {bad}; choose from {STAGE_ORDER}")
     stages = tuple(s for s in STAGE_ORDER if s in stages)
 
-    td = load_tile(tile, crop=crop, sanity=crop is None)
+    td = load_tile(tile, crop=crop, sanity=crop is None, reproduce_v1_units=reproduce_v1_units)
     mp = td.cfg.model
     Z0, A, FD, dx, U = td.Z, td.A, td.FD, td.dx, mp.U
     if run_id is None and len(stages) < len(STAGE_ORDER):
@@ -118,7 +119,8 @@ def run_tile(
     rec.add_params("model", {
         "m": mp.m, "U": U, "n": mp.n, "S_c": mp.S_c, "K0_ad": mp.K0_ad, "K0_partitioned": mp.K0_partitioned,
         "D0": mp.D0, "K_bounds": mp.K_bounds, "D_bounds": mp.D_bounds, "A_crit_0": mp.A_crit_0,
-        "A_crit_bounds": mp.A_crit_bounds,
+        "A_crit_bounds": mp.A_crit_bounds, "param_z_units": mp.param_z_units, "param_scale": mp.param_scale,
+        "z_units_working": td.z_units_working,
     })
     stage_results: dict[str, Any] = {}
     forward_runs: list[dict[str, Any]] = []

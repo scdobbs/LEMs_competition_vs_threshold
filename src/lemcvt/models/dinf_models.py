@@ -9,8 +9,12 @@ receivers proportionally based on the continuous flow angle.
 Factories
 ---------
 - :func:`advection_diffusion_model_dinf` — coupled AD PDE with D-inf stencil
-- :func:`partitioned_threshold_model_dinf` — area-threshold + linear diffusion
-- :func:`partitioned_threshold_model_nonlinear_dinf` — same with nonlinear diffusion
+- :func:`partitioned_threshold_model_dinf_v1` — area-threshold + linear diffusion with the v1 explicit
+  channel integration (defective: ``reports/v2/02d_phase2_closeout.md`` 2.6; kept for the record)
+- :func:`partitioned_threshold_model_dinf` — the Phase 4b rebuild as one coupled sparse system
+  (re-exported from :mod:`lemcvt.models.dinf_partitioned`)
+- :func:`partitioned_threshold_model_nonlinear_dinf` — nonlinear diffusion; still uses the v1 channel
+  integration (not rebuilt; addendum 3 section 6 names only the linear partitioned model)
 """
 
 from __future__ import annotations
@@ -39,6 +43,7 @@ from lemcvt.models.common import (
 from lemcvt.models.common import (
     solve_hillslope_diffusion as _solve_hillslope_diffusion,
 )
+from lemcvt.models.dinf_partitioned import partitioned_threshold_model_dinf  # noqa: F401  (Phase 4b rebuild)
 
 logger = logging.getLogger(__name__)
 
@@ -420,10 +425,10 @@ def _precompute_channel_network_dinf(
 
 
 # ---------------------------------------------------------------------------
-# Partitioned threshold model with D-inf
+# Partitioned threshold model with D-inf (v1 explicit integration; superseded by the Phase 4b rebuild)
 # ---------------------------------------------------------------------------
 
-def partitioned_threshold_model_dinf(
+def partitioned_threshold_model_dinf_v1(
     Z0: np.ndarray,
     A_d8: np.ndarray,
     FD: np.ndarray,
@@ -436,7 +441,11 @@ def partitioned_threshold_model_dinf(
     facet_idx_arr: np.ndarray,
     A_dinf: np.ndarray,
 ) -> Callable[..., tuple[np.ndarray, np.ndarray]]:
-    """Build a partitioned threshold model with D-inf channel integration.
+    """Build the v1 partitioned threshold model with D-inf channel integration (kept for the record).
+
+    Defective: channel elevations are integrated through sub-threshold cells and mix receivers on
+    different flow paths (``02d`` 2.6). Use :func:`partitioned_threshold_model_dinf` (the Phase 4b
+    coupled system) for any new result.
 
     Parameters
     ----------

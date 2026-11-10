@@ -48,7 +48,11 @@ def test_dominant_basin_drives_pooled_but_not_equal_weight():
     """One huge basin with theta 0.60 and five small ones with theta 0.35: the pooled estimator follows the big
     basin (n_eff near 1), the equal-weight and median estimators follow the majority."""
     big = _moments_for_basins([5.0], 0.60, [2000], seed=1)
-    big["sx"] *= 40; big["sxx"] *= 1600; big["sxy"] *= 40 * 8; big["sy"] *= 8; big["syy"] *= 64   # scale chi x40, z x8
+    big["sx"] *= 40          # scale chi x40, z x8
+    big["sxx"] *= 1600
+    big["sxy"] *= 40 * 8
+    big["sy"] *= 8
+    big["syy"] *= 64
     small = _moments_for_basins([5.0] * 5, 0.35, [40] * 5, seed=2)
     mom = concat_moments([big, small])
     est = estimators(mom, THETAS, n_boot=0)

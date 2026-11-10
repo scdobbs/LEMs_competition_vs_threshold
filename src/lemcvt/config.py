@@ -8,6 +8,18 @@ Unit handling lives in :func:`load_tile`: the tile config declares ``z_units``
 and ``xy_units``; z is converted to metres at load time unless
 ``reproduce_v1_units`` is true (loud warning), and the metre grid must pass the
 site sanity checks (elevation range, median slope) or the loader refuses.
+
+Parameters that carry the vertical unit (Phase 5, addendum 4 section 3): in the linear
+models ``z -> z / c`` corresponds to ``K -> c K`` and ``D -> c D`` (and MSE -> MSE / c^2).
+The v1 AP values of K0, D0 and the K and D bounds were obtained with z in US survey feet;
+the tile config declares this with ``model.param_z_units`` (default: the grid's
+``z_units``) and :func:`load_tile_config` multiplies K0_ad, K0_partitioned, D0, K_bounds and
+D_bounds by ``c = 3937/1200`` when the working vertical unit is metres and the declared
+parameter unit is ftUS. The factor applied is recorded in ``ModelParams.param_scale``
+(and therefore in every run's config snapshot). With ``reproduce_v1_units: true``, or
+with the ``reproduce_v1_units`` override of :func:`load_tile_config` / :func:`load_tile`,
+the parameters are left as declared and the grid stays in its stored unit, so v1 can
+still be reproduced in feet for the record.
 """
 
 from __future__ import annotations
@@ -136,6 +148,11 @@ class ModelParams:
     methods: dict[str, str] = field(default_factory=lambda: {
         "ad": "L-BFGS-B", "acrit": "Nelder-Mead", "nonlinear": "Nelder-Mead", "joint": "Nelder-Mead",
     })
+    param_z_units: str = "m"
+    """Vertical unit the declared K0, D0 and bounds refer to (``ftUS`` on the AP tiles, v1 values)."""
+    param_scale: float = 1.0
+    """Factor applied to K0_ad, K0_partitioned, D0, K_bounds and D_bounds (c = 3937/1200 for ftUS -> m)."""
+    z_units_working: str = "m"
 
 
 @dataclass
@@ -175,7 +192,14 @@ def _resolve_expr(v: Any, ctx: dict[str, float], where: str) -> float:
     raise ConfigError(f"{where}: cannot interpret value {v!r} (number, 'U/ks' or 'U/C_ht')")
 
 
-def load_tile_config(tile: str) -> TileConfig:
+def load_tile_config(tile: str, reproduce_v1_units: bool | None = None) -> TileConfig:
+    """Read ``configs/tiles/<tile>.yaml``.
+
+    ``reproduce_v1_units`` overrides the file's flag (``True``: keep the stored vertical unit
+    and the declared parameters, as v1 ran; ``False``: metres, parameters scaled). The
+    override exists so that feet runs (Phase 2 regression, Phase 4b) remain possible after
+    Phase 5 switched the AP configs to metres; it changes nothing on disk.
+    """
     path = config_root() / "tiles" / f"{tile}.yaml"
     d = _read_yaml(path)
     _require(d, ("tile", "site", "grids", "units", "measured_v1", "model"), str(path))
@@ -188,6 +212,7 @@ def load_tile_config(tile: str) -> TileConfig:
     units = d["units"]
     _require(units, ("z_units", "xy_units"), f"{path}: units")
     check_xy_units(units["xy_units"])
+    repro = bool(units.get("reproduce_v1_units", False)) if reproduce_v1_units is None else bool(reproduce_v1_units)
     mv = d["measured_v1"]
     _require(mv, ("theta", "ks", "hilltop_curvature"), f"{path}: measured_v1")
 
@@ -209,6 +234,22 @@ def load_tile_config(tile: str) -> TileConfig:
     )
     if "methods" in mdl:
         model.methods.update({k: str(v) for k, v in mdl["methods"].items()})
+    # Phase 5 (addendum 4, sections 3 and 5.3): K- and D-type parameters declared for z in `param_z_units`
+    # are scaled to the working vertical unit; z_m = z_ft / c <=> K_m = c K_ft, D_m = c D_ft
+    from lemcvt.io.units import z_scale_factor
+
+    model.param_z_units = str(mdl.get("param_z_units", units["z_units"]))
+    model.z_units_working = str(units["z_units"]) if repro else "m"
+    if not repro and model.param_z_units != "m":
+        scale = 1.0 / z_scale_factor(model.param_z_units)      # c = 3937/1200 for ftUS
+        model.param_scale = scale
+        model.K0_ad *= scale
+        model.K0_partitioned *= scale
+        model.D0 *= scale
+        model.K_bounds = (model.K_bounds[0] * scale, model.K_bounds[1] * scale)
+        model.D_bounds = (model.D_bounds[0] * scale, model.D_bounds[1] * scale)
+        logger.info("%s: K0, D0 and the K, D bounds declared for z in %s multiplied by %.10f for the metre grid",
+                    path.name, model.param_z_units, scale)
     for name, (lo, hi) in (("K", model.K_bounds), ("D", model.D_bounds), ("A_crit", model.A_crit_bounds)):
         x0 = {"K": model.K0_ad, "D": model.D0, "A_crit": model.A_crit_0}[name]
         if not (lo <= x0 <= hi):
@@ -223,7 +264,7 @@ def load_tile_config(tile: str) -> TileConfig:
         tile=tile, site=d["site"], grids={k: str(g[k]) for k in ("filled", "area", "fd")},
         sha256=dict(g["sha256"]), shape=shape, dx=float(g["dx"]), dy=float(g["dy"]),
         z_units=str(units["z_units"]), xy_units=str(units["xy_units"]),
-        reproduce_v1_units=bool(units.get("reproduce_v1_units", False)),
+        reproduce_v1_units=repro,
         measured_v1=dict(mv), model=model, v1_reference=dict(d.get("v1_reference", {})), raw=d, path=path,
     )
 
@@ -279,7 +320,7 @@ class TileData:
 
 
 def load_tile(tile: str | TileConfig, verify_sha: bool = True, crop: tuple[int, int, int, int] | None = None,
-              sanity: bool = True) -> TileData:
+              sanity: bool = True, reproduce_v1_units: bool | None = None) -> TileData:
     """Read a tile's three grids, verify them, and apply the unit policy.
 
     Parameters
@@ -292,8 +333,12 @@ def load_tile(tile: str | TileConfig, verify_sha: bool = True, crop: tuple[int, 
         Optional ``(row0, row1, col0, col1)`` pixel crop applied after loading (tests, smoke runs).
     sanity
         Run the site sanity checks on the metre grid (skipped for crops of tiny size).
+    reproduce_v1_units
+        Override of the config flag (see :func:`load_tile_config`); the config is reloaded with it.
     """
-    cfg = tile if isinstance(tile, TileConfig) else load_tile_config(tile)
+    if isinstance(tile, TileConfig) and reproduce_v1_units is not None and reproduce_v1_units != tile.reproduce_v1_units:
+        tile = tile.tile
+    cfg = tile if isinstance(tile, TileConfig) else load_tile_config(tile, reproduce_v1_units=reproduce_v1_units)
     site = load_site(cfg.site)
     root = data_root()
 

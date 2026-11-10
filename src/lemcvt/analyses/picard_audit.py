@@ -30,7 +30,7 @@ import numpy as np
 
 from lemcvt.analyses.outputs import write_model_outputs
 from lemcvt.analyses.tile_pipeline import V1_PREFIX, mse
-from lemcvt.config import TileConfig, config_snapshot, load_tile, load_tile_config
+from lemcvt.config import config_snapshot, load_tile, load_tile_config
 from lemcvt.io.grids import read_geotiff
 from lemcvt.models.partitioned import partitioned_threshold_model
 from lemcvt.models.partitioned_nonlinear import partitioned_threshold_model_nonlinear
@@ -52,9 +52,10 @@ def slope_stats(slopes: np.ndarray, S_c: float) -> dict[str, float]:
 def run_picard_audit(tile: str, metres: bool = False, scale_K: float = 1.0, scale_D: float = 1.0,
                      label: str | None = None, reference_run: str | Path | None = None, save_grids: bool = True,
                      run_id: str | None = None, results_root=None, max_iter: int | None = None) -> RunRecorder:
-    cfg = load_tile_config(tile)
-    if metres and cfg.reproduce_v1_units:
-        cfg = TileConfig(**{**cfg.__dict__, "reproduce_v1_units": False})
+    # metres=True: the loader converts z and scales K0, D0 by c (Phase 5); metres=False: the config's own flag.
+    # Before Phase 5 the AP configs reproduced v1 (feet), so `--metres` alone was the K, D x 1 variant and the
+    # unit-consistent one needed --scale-k/--scale-d 3.2808; since Phase 5 `--metres` is unit-consistent by itself.
+    cfg = load_tile_config(tile, reproduce_v1_units=False if metres else None)
     td = load_tile(cfg)
     mp = td.cfg.model
     ref = td.cfg.v1_reference.get("stages", {}).get("nonlinear")

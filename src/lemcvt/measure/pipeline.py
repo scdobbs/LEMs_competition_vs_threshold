@@ -24,9 +24,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from lemcvt.config import TileConfig, config_snapshot, load_tile, load_tile_config
+from lemcvt.config import config_snapshot, load_tile, load_tile_config
 from lemcvt.io.units import FT_US_IN_M
-from lemcvt.measure.chi import channel_network
+from lemcvt.measure.chi import channel_network, channel_pixel_basin_lookup
 from lemcvt.measure.concavity import DEFAULT_THETAS, fit_chi, ks_at_theta
 from lemcvt.measure.hilltop_curvature import measure_hilltop_curvature
 from lemcvt.measure.legacy_v1 import legacy_chi, legacy_curvature
@@ -39,10 +39,7 @@ logger = logging.getLogger(__name__)
 
 def _metre_tile(tile: str, crop=None):
     """Load a tile forcing z to metres (AP) even when the config reproduces v1 units."""
-    cfg = load_tile_config(tile)
-    if cfg.reproduce_v1_units:
-        cfg = TileConfig(**{**cfg.__dict__, "reproduce_v1_units": False})
-    return load_tile(cfg, crop=crop, sanity=crop is None)
+    return load_tile(tile, crop=crop, sanity=crop is None, reproduce_v1_units=False)
 
 
 def measure_tile(tile: str, force_metres: bool = True, n_boot: int = 200, thetas=DEFAULT_THETAS,
@@ -109,13 +106,7 @@ def measure_tile(tile: str, force_metres: bool = True, n_boot: int = 200, thetas
         basin_of_channel = None
         if "primary" in nets:
             net = nets["primary"]
-            # channel pixel labels in basin_labels are assigned in row-major order of the channel mask
-            ch_rows, ch_cols = np.nonzero(net.mask)
-            lookup = np.zeros(ch_rows.size, dtype=np.int64)
-            pos = {(int(r), int(c)): i for i, (r, c) in enumerate(zip(net.rows, net.cols, strict=True))}
-            for i, (r, c) in enumerate(zip(ch_rows.tolist(), ch_cols.tolist(), strict=True)):
-                lookup[i] = net.basin[pos[(r, c)]]
-            basin_of_channel = lookup
+            basin_of_channel = channel_pixel_basin_lookup(net)   # shared with diagnostics and audits (addendum 4, 6.4.1)
         cur = measure_hilltop_curvature(Z, A, FD, A_c, site.U, dx, dy, n_boot=n_boot, seed=seed,
                                         basin_of_channel=basin_of_channel)
         out["curvature"] = cur.as_dict()

@@ -127,11 +127,11 @@ def _ad_gradient_direct(ad, U, K, D, Z0, rel_step=1e-6) -> dict[str, float]:
 def run_tile_v2(tile: str, stages: Sequence[str] = STAGES_V2, acrit_grid: str = "thin", thin_n: int = THIN_N,
                 nl_n: int = NL_GRID_N, nl_refine_max: int = NL_REFINE_MAX, m_values=M_GRID, m_acrit_n: int = M_ACRIT_N,
                 save_grids: bool = True, derived_grids: bool = False, crop: tuple[int, int, int, int] | None = None,
-                run_id: str | None = None, results_root=None) -> RunRecorder:
+                run_id: str | None = None, results_root=None, reproduce_v1_units: bool | None = None) -> RunRecorder:
     stages = tuple(s for s in STAGES_V2 if s in set(stages) | ({"partitioned"} if {"acrit", "joint"} & set(stages) else set()))
     if not stages:
         raise ValueError(f"no valid stage in {stages}; choose from {STAGES_V2} (acrit/joint -> partitioned)")
-    td = load_tile(tile, crop=crop, sanity=crop is None)
+    td = load_tile(tile, crop=crop, sanity=crop is None, reproduce_v1_units=reproduce_v1_units)
     mp = td.cfg.model
     Z0, A, FD, dx, U = td.Z, td.A, td.FD, td.dx, mp.U
     ref = td.cfg.v1_reference.get("stages", {})
@@ -146,7 +146,8 @@ def run_tile_v2(tile: str, stages: Sequence[str] = STAGES_V2, acrit_grid: str = 
     rec.add_params("inputs", td.provenance())
     rec.add_params("model", {"m": mp.m, "U": U, "n": mp.n, "S_c": mp.S_c, "K0_ad": mp.K0_ad, "K0_partitioned": mp.K0_partitioned,
                              "D0": mp.D0, "K_bounds": mp.K_bounds, "D_bounds": mp.D_bounds, "A_crit_0": mp.A_crit_0,
-                             "A_crit_bounds": mp.A_crit_bounds})
+                             "A_crit_bounds": mp.A_crit_bounds, "param_z_units": mp.param_z_units, "param_scale": mp.param_scale,
+                             "z_units_working": td.z_units_working})
     stage_results: dict[str, Any] = {}
     v2: dict[str, Any] = {}
     forward_runs: list[dict[str, Any]] = []

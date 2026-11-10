@@ -46,9 +46,15 @@ import numpy as np
 import pandas as pd
 from scipy.ndimage import distance_transform_edt, label, uniform_filter
 
-from lemcvt.config import TileConfig, config_snapshot, load_tile, load_tile_config
+from lemcvt.config import config_snapshot, load_tile, load_tile_config
 from lemcvt.hydro.d8 import d8_receiver_arrays
-from lemcvt.measure.chi import ChannelNetwork, channel_network, chi_for_thetas, relative_elevation
+from lemcvt.measure.chi import (
+    ChannelNetwork,
+    channel_network,
+    channel_pixel_basin_lookup,
+    chi_for_thetas,
+    relative_elevation,
+)
 from lemcvt.measure.concavity import DEFAULT_THETAS
 from lemcvt.measure.hilltop_curvature import hilltop_mask, total_curvature
 from lemcvt.measure.thresholds import d8_slope, slope_area_rollover
@@ -338,7 +344,16 @@ def scaling_break(Z, A, FD, dx, dy, A_roll: float, n_boot: int = N_BOOT, seed: i
 # ----------------------------------------------------------------------------- hilltop widths, facets, roughness
 
 def hilltop_widths(Z, A, FD, dx, dy, A_c: float) -> dict[str, Any]:
-    mask, diag = hilltop_mask(Z, A, FD, A_c, dx, dy)
+    """Hilltop-to-channel distances of the hilltop set `measure` uses at threshold ``A_c``.
+
+    Addendum 4, 6.4.1: until 2026-11-10 this built the hilltop mask without the outlet-basin
+    relabelling that ``measure`` applies (every divide cell next to a cell draining to a different
+    *channel pixel* counted, 24000-36000 pixels per tile; ``02e`` 4.4). It now relabels channel pixels
+    by their network outlet, exactly as ``lemcvt.measure.pipeline.measure_tile`` does, so the set is
+    the one C_ht is measured on. ``02c`` T7 keeps the old numbers as its record.
+    """
+    net = channel_network(Z, A, FD, A_c, dx, dy)
+    mask, diag = hilltop_mask(Z, A, FD, A_c, dx, dy, basin_of_channel=channel_pixel_basin_lookup(net))
     channel = np.isfinite(A) & (A >= A_c)
     dist = distance_transform_edt(~channel, sampling=(dy, dx))
     d = dist[mask]
@@ -424,10 +439,7 @@ def synthetic_ridges(widths_m: Sequence[float], c_true: float, facet_len_m: floa
 # ----------------------------------------------------------------------------- per tile
 
 def _metre_tile(tile: str, crop=None):
-    cfg = load_tile_config(tile)
-    if cfg.reproduce_v1_units:
-        cfg = TileConfig(**{**cfg.__dict__, "reproduce_v1_units": False})
-    return load_tile(cfg, crop=crop, sanity=crop is None)
+    return load_tile(tile, crop=crop, sanity=crop is None, reproduce_v1_units=False)
 
 
 def diagnose_tile(tile: str, thetas: np.ndarray, n_boot: int, stats_store: dict, pixel_store: dict,
@@ -477,6 +489,7 @@ def diagnose_tile(tile: str, thetas: np.ndarray, n_boot: int, stats_store: dict,
     out["ks_common_theta_1e4"] = {"theta_0.45": ks_at_theta_from_stats(net4, THETA_REF_COMMON, labels)}
     # 6.6 widths, facets, roughness
     out["hilltop_widths_1e4"] = hilltop_widths(Z, A, FD, dx, dy, 1e4)
+    out["hilltop_widths_rollover"] = hilltop_widths(Z, A, FD, dx, dy, A_roll)      # the set `measure` uses (6.4.1)
     out["facets"] = facet_size(Z, dx, dy)
     out["roughness"] = roughness(Z, dx, dy)
     if latest_measure and tile in latest_measure:

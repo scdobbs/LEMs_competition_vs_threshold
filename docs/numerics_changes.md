@@ -102,6 +102,32 @@ stable rule. Where no tie exists the results are bit-identical to Phase 1.
   The tests `TestPhase3AdvectionDiffusionAssembly` now require equality to 1e-14 relative
   (solution) and one ulp (entries) with at least 98 % of the entries bit-identical.
 
+  **Decision (addendum 4, 2026-11-10, section 2.1): N7 is not reverted.** The scalar power would
+  restore bit identity with v1 on Genoa nodes but not reproducibility: the L-BFGS-B path of the v1
+  AD stage depends on finite-difference gradients at the 1e-13 level of the misfit and therefore
+  on the CPU generation the job lands on (`03b_phase3_close.md`, section 2). The AD result is
+  decided by the v2 profile over r = K/D (`04_optimizer_v2.md`), which has no finite-difference
+  gradient; on AP5 the v1 point is its global optimum and on GM1 it is not.
+
+## N8. Partitioned D-infinity model rebuilt as one coupled system (Phase 4b, addendum 3 section 6)
+
+- **Old** (`lemcvt.models.dinf_models.partitioned_threshold_model_dinf_v1`, kept): channel elevations
+  integrated upstream from the boundary for every cell with the explicit two-receiver update
+  ``z = z1 + (S0 dx - (z1 - z2) sin r) / cos r`` and the cell's own ``S0 = (U/K) A_dinf^-m``, i.e.
+  through hillslope cells and across flow paths (`02d` 2.6: AP1 channel RMS error 2452 ft against
+  16 ft with D8).
+- **New** (`lemcvt.models.dinf_partitioned.partitioned_threshold_model_dinf`): one sparse system over
+  all valid cells; boundary rows Dirichlet, channel rows (``A_dinf >= A_crit`` or the outlet) the
+  D-infinity upwind advection stencil of the AD D-infinity model with D = 0, divided by
+  ``K A_dinf^m``, hillslope rows the partitioned model's Laplacian with K = 0. ``Z = a + (U/K) b +
+  (U/D) c`` exactly (the matrix is K- and D-free), so the Phase 4 reduction and optimizer apply.
+- **Where results differ:** everywhere for the partitioned D-infinity model, which is the point of
+  the rebuild; nowhere else (the AD D-infinity model and the D8 models are untouched; the
+  nonlinear D-infinity model still uses the v1 integration and is not used for any reported
+  number). When every facet angle is cardinal or diagonal the new model equals the D8
+  partitioned model to 1e-10 of relief (`tests/test_dinf_rebuild.py`, aligned V-valley and
+  plane). The `d8_vs_dinf` comparison was rerun with it (checkpoint report of 2026-11-10).
+
 ## Sorts examined and left unchanged
 
 - `lemcvt.hydro.fill.priority_flood_fill`: the heap holds `(z, counter, row, col)`;

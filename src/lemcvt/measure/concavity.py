@@ -24,7 +24,8 @@ import numpy as np
 
 from lemcvt.measure.chi import ChannelNetwork, chi_for_thetas, relative_elevation
 
-DEFAULT_THETAS = np.round(np.arange(0.10, 0.901, 0.01), 3)
+DEFAULT_THETAS = np.round(np.arange(0.00, 0.901, 0.01), 3)
+"""theta grid 0.00-0.90 by 0.01 (addendum 4, 6.4.2: extended down from 0.10 so that degenerate fits are counted, not censored)."""
 
 
 @dataclass

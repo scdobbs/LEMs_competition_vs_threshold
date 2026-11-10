@@ -24,6 +24,18 @@ Hilltop exclusion: hilltop pixels closer than L*/2 to a channel pixel of the net
 A_c (1e3 and 1e4 m^2) are dropped; L* is the tile's window length chosen by the measure run.
 C_ht is reported at that fixed L* and at the plateau scale re-selected on each set, with a
 segment bootstrap, and D0 = U / C_ht.
+
+Curvature option (iii) (addendum 4, section 6.3): a fixed window L_f, the smallest window at
+which the synthetic parabolic ridge recovers its curvature within 1 % under TIN facets plus
+noise (AP) and noise (GM) on a crest far wider than any window (:func:`select_L_f`, run and
+recorded before any C_ht is computed); the hilltop set is the one `measure` uses (divides
+between outlet basins of the rollover network) with pixels closer than L_f/2 to that network
+dropped; C_ht at L_f with a segment bootstrap, D0 = U/C_ht, and the synthetic width bias at the
+post-exclusion median and 25th-percentile crest widths.
+
+Addendum 4, 6.4.2: the theta grid runs from 0.00 and every ladder step reports the fraction of
+kept basins whose own best theta sits at the lower edge, so degenerate fits are counted rather
+than censored. Each pooled estimate also stores k_s(theta) for the whole grid (section 6.2).
 """
 
 from __future__ import annotations
@@ -39,7 +51,13 @@ import pandas as pd
 from scipy.ndimage import distance_transform_edt, label
 
 from lemcvt.config import config_snapshot, load_tile_config
-from lemcvt.measure.chi import ChannelNetwork, channel_network, chi_for_thetas, relative_elevation
+from lemcvt.measure.chi import (
+    ChannelNetwork,
+    channel_network,
+    channel_pixel_basin_lookup,
+    chi_for_thetas,
+    relative_elevation,
+)
 from lemcvt.measure.concavity import DEFAULT_THETAS
 from lemcvt.measure.diagnostics import (
     FINE_LADDER,
@@ -57,7 +75,13 @@ from lemcvt.measure.diagnostics import (
     fixed_basin_set,
     synthetic_ridges,
 )
-from lemcvt.measure.hilltop_curvature import DEFAULT_HALF_WIDTHS, _weighted_median, hilltop_mask, select_scale, total_curvature
+from lemcvt.measure.hilltop_curvature import (
+    DEFAULT_HALF_WIDTHS,
+    _weighted_median,
+    hilltop_mask,
+    select_scale,
+    total_curvature,
+)
 from lemcvt.results import RunRecorder, find_runs
 
 logger = logging.getLogger(__name__)
@@ -155,11 +179,13 @@ def estimators(mom: dict[str, Any], thetas: np.ndarray, n_boot: int = N_BOOT, se
     ss_tot = float(syy.sum())
     w_c = sxx[:, j] - sx[:, j] ** 2 / n                                 # centred chi spread, the addendum's weight
     w_u = sxx[:, j]                                                     # through-origin leverage
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ks_curve = sxy.sum(axis=0) / sxx.sum(axis=0)                 # pooled k_s at every theta of the grid (6.2)
     pooled = {"theta_star": float(thetas[j]), "ks": ks_pooled, "r2": float(1 - ssr[j] / ss_tot) if ss_tot > 0 else None,
               "theta_at_edge": bool(j in (0, thetas.size - 1)),
               "n_eff_centred": _n_eff(w_c), "n_eff_through_origin": _n_eff(w_u),
               "share_largest_basin_centred": float(np.max(w_c) / np.sum(w_c)) if np.sum(w_c) > 0 else None,
-              "ssr_total": ssr.tolist()}
+              "ssr_total": ssr.tolist(), "ks_at_theta": ks_curve.tolist()}
     pooled["n_eff_lt_3"] = bool(pooled["n_eff_centred"] < N_EFF_FLAG)
     # equal weight
     obj = np.nansum(norm, axis=0)
@@ -178,7 +204,10 @@ def estimators(mom: dict[str, Any], thetas: np.ndarray, n_boot: int = N_BOOT, se
     ks_own = np.array([ks_b[i, jb[i]] for i in range(nb)])
     median = {"theta_star": float(np.median(theta_b)), "theta_q16": float(np.percentile(theta_b, 16)),
               "theta_q84": float(np.percentile(theta_b, 84)), "frac_at_edge": float(np.mean((jb == 0) | (jb == thetas.size - 1))),
+              "frac_at_lower_edge": float(np.mean(jb == 0)), "frac_at_upper_edge": float(np.mean(jb == thetas.size - 1)),
+              "theta_grid_lower_edge": float(thetas[0]), "n_at_lower_edge": int(np.sum(jb == 0)),
               "ks_at_own_theta_median": float(np.nanmedian(ks_own)), "theta_per_basin": theta_b.tolist()}
+    out["frac_basins_theta_at_lower_edge"] = median["frac_at_lower_edge"]
     if n_boot > 0 and nb >= 3:
         rng = np.random.default_rng(seed)
         th_p = np.empty(n_boot)
@@ -242,13 +271,8 @@ def _strip(est: dict[str, Any]) -> dict[str, Any]:
 # ----------------------------------------------------------------------------- hilltops
 
 def _basin_lookup(net: ChannelNetwork) -> np.ndarray:
-    """Channel-pixel labels (row-major order of the mask, as basin_labels assigns them) -> network basin id."""
-    ch_rows, ch_cols = np.nonzero(net.mask)
-    pos = {(int(r), int(c)): i for i, (r, c) in enumerate(zip(net.rows, net.cols, strict=True))}
-    lookup = np.zeros(ch_rows.size, dtype=np.int64)
-    for i, (r, c) in enumerate(zip(ch_rows.tolist(), ch_cols.tolist(), strict=True)):
-        lookup[i] = net.basin[pos[(r, c)]]
-    return lookup
+    """Channel-pixel labels (row-major order of the mask) -> network basin id (shared helper, addendum 4 6.4.1)."""
+    return channel_pixel_basin_lookup(net)
 
 
 def curvature_on_mask(C_grids: dict[int, np.ndarray], mask: np.ndarray, U: float, dx: float, w_fixed: int,
@@ -297,7 +321,7 @@ def curvature_on_mask(C_grids: dict[int, np.ndarray], mask: np.ndarray, U: float
 
 
 def hilltop_audit(Z, A, FD, dx, dy, U: float, L_star_m: float, w_star: int, A_c_rollover: float | None,
-                  n_boot: int, half_widths=DEFAULT_HALF_WIDTHS) -> dict[str, Any]:
+                  n_boot: int, half_widths=DEFAULT_HALF_WIDTHS, w_f: int | None = None) -> dict[str, Any]:
     C_grids = {w: total_curvature(Z, w, dx, dy) for w in half_widths}
     out: dict[str, Any] = {"L_star_m": L_star_m, "w_star": w_star, "networks": {}}
     networks = list(HILLTOP_NETWORKS) + ([A_c_rollover] if A_c_rollover else [])
@@ -307,6 +331,21 @@ def hilltop_audit(Z, A, FD, dx, dy, U: float, L_star_m: float, w_star: int, A_c_
         mask0, diag = hilltop_mask(Z, A, FD, a_c, dx, dy, basin_of_channel=_basin_lookup(net))
         channel = np.isfinite(A) & (A >= a_c)
         dist = distance_transform_edt(~channel, sampling=(dy, dx))
+        if key == "rollover" and w_f is not None:
+            # curvature option (iii), addendum 4 section 6.3: the `measure` hilltop set, pixels within L_f/2 of the
+            # rollover network dropped, C_ht at the fixed window L_f = (2 w_f + 1) dx chosen from the synthetic
+            L_f = (2 * w_f + 1) * dx
+            mask = mask0 & (dist >= 0.5 * L_f)
+            d = dist[mask]
+            r = curvature_on_mask(C_grids, mask, U, dx, w_f, n_boot=n_boot)
+            r["definition"] = ("hilltop pixels of the rollover network as `measure` defines them (divide cells between outlet "
+                               f"basins, two cells from the edge, |grad z| <= 0.4), excluding pixels closer than L_f/2 = {0.5 * L_f:.3g} m "
+                               "to a pixel of that network")
+            r["L_f_m"], r["w_f"], r["A_c"] = float(L_f), int(w_f), float(a_c)
+            r["n_before_exclusion"] = int(mask0.sum())
+            r["width_2x_distance_m"] = {str(q): float(2 * np.percentile(d, q)) for q in (5, 10, 25, 50, 75, 90, 95)} if d.size else None
+            out["option_iii"] = r
+            logger.info("option (iii) L_f=%.2f m: %d -> %d hilltop pixels, C_ht %.4g", L_f, mask0.sum(), mask.sum(), r["at_fixed_L"]["C_ht"])
         rec: dict[str, Any] = {"A_c": a_c, "n_channel_px": int(channel.sum()), "mask_diagnostics": diag}
         for excl, name in ((False, "all"), (True, "excluded")):
             mask = mask0 & (dist >= 0.5 * L_star_m) if excl else mask0
@@ -322,6 +361,31 @@ def hilltop_audit(Z, A, FD, dx, dy, U: float, L_star_m: float, w_star: int, A_c_
     return out
 
 
+# ----------------------------------------------------------------------------- option (iii): L_f from the synthetic
+
+def select_L_f(facet_len_m: float, noise_sigma: float, c_true: dict[str, float], tol: float = 0.01, width_m: float = 380.0,
+               half_widths=DEFAULT_HALF_WIDTHS) -> dict[str, Any]:
+    """The smallest window at which the synthetic ridge's facet-plus-noise bias is below ``tol`` at both sites.
+
+    A parabolic crest far wider than any window (``width_m``, in a 400 m domain) isolates the facet and
+    noise effect from the crest-width effect; the AP variant is TIN facets plus noise, the GM variant noise.
+    Returns the bias curves and the chosen window (as a half-width ``w_f`` in cells of the synthetic's 1 m
+    grid; the tile window is ``(2 w_f + 1) dx``).
+    """
+    curves: dict[str, Any] = {}
+    L = [(2 * w + 1) * 1.0 for w in half_widths]
+    for site, variant, facet in (("AP", "tin_noise", facet_len_m), ("GM", "noise", 0.0)):
+        syn = synthetic_ridges([width_m], c_true[site], facet, noise_sigma, L_star=None, half_widths=half_widths)
+        rec = np.array(syn["cases"][0]["recovered"][variant])
+        curves[site] = {"variant": variant, "c_true": c_true[site], "facet_len_m": facet, "noise_sigma": noise_sigma,
+                        "window_lengths_m": L, "bias": (rec / c_true[site] - 1.0).tolist()}
+    ok = [i for i in range(len(L)) if all(abs(curves[s_]["bias"][i]) < tol for s_ in ("AP", "GM"))]
+    i_f = ok[0] if ok else None
+    return {"tol": tol, "crest_width_m": width_m, "curves": curves, "w_f": int(half_widths[i_f]) if i_f is not None else None,
+            "L_f_synthetic_m": float(L[i_f]) if i_f is not None else None,
+            "rule": "smallest window of the standard set with |bias| < tol for the AP (TIN + noise) and GM (noise) variants on a wide crest"}
+
+
 # ----------------------------------------------------------------------------- driver
 
 def _latest_params(step: str) -> dict[str, Any] | None:
@@ -334,7 +398,8 @@ def _latest_params(step: str) -> dict[str, Any] | None:
     return None
 
 
-def audit_tile(tile: str, thetas: np.ndarray, n_boot: int, store: dict, measure_params: dict, crop=None) -> dict[str, Any]:
+def audit_tile(tile: str, thetas: np.ndarray, n_boot: int, store: dict, measure_params: dict, crop=None,
+               w_f: int | None = None) -> dict[str, Any]:
     t0 = time.perf_counter()
     td = _metre_tile(tile, crop)
     Z, A, FD, dx, dy = td.Z, td.A, td.FD, td.dx, td.filled.dy
@@ -364,7 +429,7 @@ def audit_tile(tile: str, thetas: np.ndarray, n_boot: int, store: dict, measure_
     if not L_star:
         L_star, w_star = (2 * 10 + 1) * dx, 10
         out["hilltop_note"] = "no measure run found; L* = 21 cells used"
-    out["hilltops"] = hilltop_audit(Z, A, FD, dx, dy, td.site.U, L_star, w_star, cur.get("A_c"), n_boot)
+    out["hilltops"] = hilltop_audit(Z, A, FD, dx, dy, td.site.U, L_star, w_star, cur.get("A_c"), n_boot, w_f=w_f)
     out["hilltops"]["measure_run_C_ht"] = {"C_ht": cur.get("C_ht"), "A_c": cur.get("A_c"), "L_star_m": cur.get("L_star_m"),
                                            "n_hilltop": cur.get("n_hilltop"), "run": measure_params.get(tile, {}).get("_run")}
     out["wall_s"] = time.perf_counter() - t0
@@ -386,11 +451,23 @@ def run_measure_audit(tiles: Sequence[str], n_boot: int = N_BOOT, run_id: str | 
         except Exception:  # noqa: BLE001
             continue
     diag = _latest_params("measure_diagnostics") or {}
+    dtiles = diag.get("tiles", {})
+    ap_d = [t for t in dtiles if t.startswith("AP") and dtiles[t].get("facets", {}).get("equiv_length_m")]
+    facet_len = float(np.median([dtiles[t]["facets"]["equiv_length_m"]["50"] for t in ap_d])) if ap_d else 2.76
+    gm_d = [t for t in dtiles if t.startswith("GM") and dtiles[t].get("roughness")]
+    sigma_noise = float(np.median([dtiles[t]["roughness"]["mad_all"] for t in gm_d])) if gm_d else 0.043
+    # option (iii): choose L_f from the synthetic BEFORE any C_ht is computed (addendum 4, 6.3.1); c_true = the 02e
+    # post-exclusion site medians (the facet/noise bias is relative and depends weakly on it)
+    lf = select_L_f(facet_len, sigma_noise, c_true={"AP": 8.0e-3, "GM": 1.48e-2})
+    lf["source"] = {"facet_len_m": facet_len, "noise_sigma_m": sigma_noise, "diagnostics_run": diag.get("_run")}
+    rec.add_params("L_f_selection", lf)
+    w_f = lf["w_f"]
+    logger.info("option (iii): L_f = %s m (w_f = %s) from the synthetic (tol %.0f %%)", lf["L_f_synthetic_m"], w_f, 100 * lf["tol"])
     store: dict = {}
     results = {}
     snaps = {}
     for tile in tiles:
-        results[tile] = audit_tile(tile, thetas, n_boot, store, measure_params, crop=crop)
+        results[tile] = audit_tile(tile, thetas, n_boot, store, measure_params, crop=crop, w_f=w_f)
         snaps[tile] = config_snapshot(load_tile_config(tile))
     sites = sorted({t[:2] for t in tiles})
     pooled: dict[str, Any] = {}
@@ -439,9 +516,35 @@ def run_measure_audit(tiles: Sequence[str], n_boot: int = N_BOOT, run_id: str | 
                              "width_median_m": w_t["50"] if w_t else None, "width_q25_m": w_t["25"] if w_t else None}
         syn[site]["bias_post_exclusion"] = bias_tiles
     rec.add_params("synthetic_ridges_post_exclusion", syn)
+    # option (iii): synthetic width bias at L_f on the post-exclusion widths relative to the rollover network
+    syn3 = {}
+    for site in sites:
+        st_tiles = [t for t in tiles if t.startswith(site)]
+        o3 = {t: results[t]["hilltops"].get("option_iii") for t in st_tiles}
+        o3 = {t: v for t, v in o3.items() if v and v.get("width_2x_distance_m")}
+        if not o3:
+            continue
+        widths = sorted({max(2, round(v["width_2x_distance_m"][q])) for v in o3.values() for q in ("5", "10", "25", "50", "75", "90")}
+                        | {4, 6, 8, 10, 12, 16, 20, 30, 40, 60, 80, 120})
+        c_true = float(np.median([v["at_fixed_L"]["C_ht"] for v in o3.values() if np.isfinite(v["at_fixed_L"]["C_ht"])]))
+        L_f_t = {t: v["L_f_m"] for t, v in o3.items()}
+        syn3[site] = synthetic_ridges(widths, c_true, facet_len if site == "AP" else 0.0, sigma_noise, L_star=L_f_t)
+        var = "tin_noise" if site == "AP" else "noise"
+        Ws = np.array([c["width_m"] for c in syn3[site]["cases"]])
+        o = np.argsort(Ws)
+        bias = {}
+        for t, v in o3.items():
+            b = np.array([c["bias_at_L_star"][var][t] for c in syn3[site]["cases"]])[o]
+            w_t = v["width_2x_distance_m"]
+            bias[t] = {"variant": var, "L_f_m": v["L_f_m"], "bias_at_median_width": float(np.interp(w_t["50"], Ws[o], b)),
+                       "bias_at_q25_width": float(np.interp(w_t["25"], Ws[o], b)), "width_median_m": w_t["50"], "width_q25_m": w_t["25"]}
+        syn3[site]["bias_option_iii"] = bias
+        syn3[site]["widths_source"] = "2 x distance to the rollover network of the pixels kept after the L_f/2 exclusion"
+    rec.add_params("synthetic_ridges_option_iii", syn3)
     rec.add_params("settings", {"fine_ladder": list(FINE_LADDER), "fixed_ladder": list(FIXED_LADDER), "n_boot": n_boot,
                                 "bootstrap_unit": "basin (chi), segment (curvature)", "n_eff_flag": N_EFF_FLAG,
-                                "hilltop_networks": list(HILLTOP_NETWORKS), "thetas": thetas.tolist(),
+                                "hilltop_networks": list(HILLTOP_NETWORKS), "thetas": thetas.tolist(), "theta_grid_lower_edge": float(thetas[0]),
+                                "option_iii_w_f": w_f,
                                 "measure_diagnostics_run": diag.get("_run"),
                                 "filters": {"min_pixels": MIN_PIXELS_PER_BASIN, "min_relief_m": MIN_RELIEF_M,
                                             "min_chi_range_m": MIN_CHI_RANGE_M, "theta_ref_chi": THETA_REF_CHI}})
@@ -454,6 +557,7 @@ def run_measure_audit(tiles: Sequence[str], n_boot: int = N_BOOT, run_id: str | 
                     if not e:
                         continue
                     rows.append({"tile": t, "site": r["site"], "ladder": kind, "estimator": est, "A_c": s["A_c"], "n_basins": s.get("n_basins"),
+                                 "frac_basins_theta_at_lower_edge": s.get("frac_basins_theta_at_lower_edge"),
                                  "theta_star": e.get("theta_star"), "ks": e.get("ks", e.get("ks_pooled_at_theta")),
                                  "theta_lo68": (e.get("theta_ci68") or [None, None])[0], "theta_hi68": (e.get("theta_ci68") or [None, None])[1],
                                  "theta_lo95": (e.get("theta_ci95") or [None, None])[0], "theta_hi95": (e.get("theta_ci95") or [None, None])[1],
@@ -465,7 +569,8 @@ def run_measure_audit(tiles: Sequence[str], n_boot: int = N_BOOT, run_id: str | 
                 if not e:
                     continue
                 rows.append({"tile": f"{site}_pooled", "site": site, "ladder": "pooled", "estimator": est, "A_c": s["A_c"],
-                             "n_basins": s.get("n_basins"), "theta_star": e.get("theta_star"), "ks": e.get("ks", e.get("ks_pooled_at_theta")),
+                             "n_basins": s.get("n_basins"), "frac_basins_theta_at_lower_edge": s.get("frac_basins_theta_at_lower_edge"),
+                             "theta_star": e.get("theta_star"), "ks": e.get("ks", e.get("ks_pooled_at_theta")),
                              "theta_lo68": (e.get("theta_ci68") or [None, None])[0], "theta_hi68": (e.get("theta_ci68") or [None, None])[1],
                              "theta_lo95": (e.get("theta_ci95") or [None, None])[0], "theta_hi95": (e.get("theta_ci95") or [None, None])[1],
                              "n_eff_centred": e.get("n_eff_centred"), "n_eff_through_origin": e.get("n_eff_through_origin")})

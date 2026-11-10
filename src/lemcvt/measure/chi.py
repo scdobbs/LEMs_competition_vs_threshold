@@ -164,3 +164,19 @@ def relative_elevation(net: ChannelNetwork) -> np.ndarray:
     outlet_of_basin = {int(o): k for k, o in enumerate(net.outlet_index)}
     idx = np.fromiter((outlet_of_basin[int(b)] for b in net.basin), dtype=np.int64, count=net.n_pixels)
     return net.z - z_out[idx]
+
+
+def channel_pixel_basin_lookup(net: ChannelNetwork) -> np.ndarray:
+    """Outlet-basin id of every channel pixel in the row-major order of ``net.mask``.
+
+    ``lemcvt.measure.hilltop_curvature.basin_labels`` numbers channel pixels in row-major order of the
+    mask; ``hilltop_mask(..., basin_of_channel=lookup)`` maps those labels to the network's outlet
+    basins so that the divide is the one between catchments of the network, which is how ``lemcvt
+    measure`` defines hilltops. The same lookup is used by the diagnostics and audits (addendum 4, 6.4.1).
+    """
+    ch_rows, ch_cols = np.nonzero(net.mask)
+    pos = {(int(r), int(c)): i for i, (r, c) in enumerate(zip(net.rows.tolist(), net.cols.tolist(), strict=True))}
+    lookup = np.zeros(ch_rows.size, dtype=np.int64)
+    for i, (r, c) in enumerate(zip(ch_rows.tolist(), ch_cols.tolist(), strict=True)):
+        lookup[i] = net.basin[pos[(r, c)]]
+    return lookup

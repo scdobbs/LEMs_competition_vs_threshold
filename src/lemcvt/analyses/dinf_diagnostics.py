@@ -1,4 +1,7 @@
-"""Diagnostics for the D-infinity partitioned model (addendum 2, section 2.6). Read-only.
+"""Diagnostics for the v1 D-infinity partitioned model (addendum 2, section 2.6). Read-only.
+
+The model diagnosed here is ``partitioned_threshold_model_dinf_v1``; Phase 4b replaced it
+(``lemcvt.models.dinf_partitioned``).
 
 Phase 2 reproduced v1's D-infinity numbers exactly, including the partitioned-model MSEs
 that are 10^3 x larger than their D8 counterparts (AP1 3.77e6 against 2195 ft^2; GM1
@@ -40,7 +43,7 @@ from lemcvt.models.common import extract_grid_data, make_boundary_mask, precompu
 from lemcvt.models.dinf_models import (
     _precompute_channel_network_dinf,
     advection_diffusion_model_dinf,
-    partitioned_threshold_model_dinf,
+    partitioned_threshold_model_dinf_v1,
 )
 from lemcvt.models.partitioned import partitioned_threshold_model
 from lemcvt.results import RunRecorder
@@ -173,7 +176,7 @@ def diagnose_tile(td, cfg: dict[str, Any], rec: RunRecorder, save_grids: bool = 
 
     # models (as d8_vs_dinf runs them)
     Z_pt_d8, mask_d8 = partitioned_threshold_model(Z0, A, FD, dx, m, U, K)(A_crit, D)
-    pt_dinf = partitioned_threshold_model_dinf(Z0, A, FD, dx, m, U, K, angles, r_facet, facet_idx, A_dinf)
+    pt_dinf = partitioned_threshold_model_dinf_v1(Z0, A, FD, dx, m, U, K, angles, r_facet, facet_idx, A_dinf)
     Z_pt_dinf, mask_dinf = pt_dinf(A_crit, D)
     Z_ad_d8 = advection_diffusion_model(Z0, A, FD, dx, m)(U, K, D)
     Z_ad_dinf = advection_diffusion_model_dinf(Z0, A, FD, dx, m, angles, r_facet, facet_idx, A_dinf)(U, K, D)
@@ -343,7 +346,7 @@ def synthetic_case(name: str, z: np.ndarray, dx: float, m: float, U: float, K: f
                    rec: RunRecorder) -> dict[str, Any]:
     zf, fd, area, angles, r_facet, facet_idx, A_dinf = _padded_hydro(z, dx)
     Z_d8, mask_d8 = partitioned_threshold_model(zf, area, fd, dx, m, U, K)(A_crit, D)
-    Z_di, mask_di = partitioned_threshold_model_dinf(zf, area, fd, dx, m, U, K, angles, r_facet, facet_idx, A_dinf)(A_crit, D)
+    Z_di, mask_di = partitioned_threshold_model_dinf_v1(zf, area, fd, dx, m, U, K, angles, r_facet, facet_idx, A_dinf)(A_crit, D)
     Zad8 = advection_diffusion_model(zf, area, fd, dx, m)(U, K, D)
     Zadi = advection_diffusion_model_dinf(zf, area, fd, dx, m, angles, r_facet, facet_idx, A_dinf)(U, K, D)
     gd = extract_grid_data(zf, area, fd, dx)

@@ -59,7 +59,11 @@ the fits; their number and the number of edge outlets are reported.
 
 ## 3. Concavity θ
 
-θ is scanned on a grid 0.10–0.90 in steps of 0.01. For each θ, χ is computed for
+θ is scanned on a grid 0.00–0.90 in steps of 0.01 (addendum 4, §6.4.2; until 2026-11-10 the
+grid started at 0.10, which censored basins whose best fit is χ ∝ distance: with θ = 0 the
+lower edge is a real, if degenerate, fit, and every ladder step now reports the fraction of
+kept basins whose own best θ sits at the lower edge, `frac_basins_theta_at_lower_edge` in the
+audit run). For each θ, χ is computed for
 every channel pixel, and in every basin z − z_outlet is regressed on χ through the
 origin. The primary objective is the total squared residual over all basins
 (Perron & Royden 2013, "best χ–z fit"); θ* is its minimum. The whole misfit curve
@@ -158,6 +162,24 @@ and the fraction of hilltop pixels that are convex) is stored. v1 instead fixed 
 scale by block-averaging to 30 m (AP) and 10 m (GM) before taking a 3×3 Laplacian;
 that is reproduced approximately for comparison (the `topo_analysis` module v1 used
 is not available; the approximation is labelled as such).
+
+Curvature option (iii) (addendum 4, §6.3; computed by `lemcvt audit measure`, reported, not
+adopted). A fixed window L_f is chosen before any C_ht is computed: the smallest window of the
+standard set at which the synthetic parabolic ridge, on a crest far wider than any window,
+recovers its curvature within 1 % under TIN facets plus noise (AP variant) and noise (GM
+variant), `select_L_f` in `lemcvt.measure.audits`. The hilltop set is the one `lemcvt measure`
+uses (divides between outlet basins of the rollover network), with pixels closer than L_f/2 to
+a pixel of that network dropped; C_ht is the median of −∇²z at L_f with the segment bootstrap,
+D₀ = U/C_ht, and the synthetic width bias is reported at the post-exclusion median and
+25th-percentile crest widths (2 × distance to the rollover network).
+
+Hilltop set used by the diagnostics (addendum 4, §6.4.1). `lemcvt.measure.diagnostics.hilltop_widths`
+built its hilltop mask without the outlet-basin relabelling that `measure` applies (every divide
+cell next to a cell draining to a different channel *pixel*; 24 000–36 000 pixels per tile
+against 3 500–14 000 for the set C_ht is measured on, `02e` §4.4). Since 2026-11-10 it uses the
+shared `channel_pixel_basin_lookup` of `lemcvt.measure.chi`, the same relabelling as `measure`,
+and the diagnostics compute it on the rollover network as well as at 10⁴ m². `02c` T7 keeps
+the old numbers as its record.
 
 ## 8. Uncertainty of C_ht and D₀
 

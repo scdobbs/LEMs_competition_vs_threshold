@@ -68,6 +68,7 @@ class JobSpec:
     env_prefix: str
     threads_env: list[str]
     throttle: int = 10
+    dependency: str | None = None     # e.g. "afterok:51779145"
 
     @property
     def core_hours(self) -> float:
@@ -79,7 +80,8 @@ class JobSpec:
 
 
 def build_spec(step: str, labels: list[str], command_template: str, time: str | None = None,
-               cpus: int | None = None, mem: str | None = None, job_name: str | None = None) -> JobSpec:
+               cpus: int | None = None, mem: str | None = None, job_name: str | None = None,
+               dependency: str | None = None) -> JobSpec:
     cfg = load_slurm_config()
     stepcfg = dict(cfg["defaults"])
     stepcfg.update(cfg["steps"].get(step, {}))
@@ -92,7 +94,7 @@ def build_spec(step: str, labels: list[str], command_template: str, time: str | 
         job_name=job_name or f"lemcvt_{step}", log_dir=Path(_expand(cfg.get("log_dir", "$SCRATCH/lemcvt_jobs"))),
         micromamba=_expand(cfg["micromamba"]), env_prefix=_expand(cfg["env_prefix"]),
         threads_env=list(cfg.get("threads_env", ["OMP_NUM_THREADS"])),
-        throttle=int(cfg.get("array_throttle", 10)),
+        throttle=int(cfg.get("array_throttle", 10)), dependency=dependency,
     )
     max_cpus = int(cfg.get("max_concurrent_cpus", 300))
     if spec.concurrent_cpus > max_cpus:
@@ -109,6 +111,8 @@ def render(spec: JobSpec) -> str:
         optional.append(f"#SBATCH --qos={spec.qos}")
     if spec.account:
         optional.append(f"#SBATCH --account={spec.account}")
+    if spec.dependency:
+        optional.append(f"#SBATCH --dependency={spec.dependency}")
     labels_bash = " ".join(spec.labels)
     threads = "\n".join(f"export {v}=$SLURM_CPUS_PER_TASK" for v in spec.threads_env)
     return tmpl.format(
