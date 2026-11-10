@@ -343,7 +343,9 @@ if p:
     out.append("|---|" + "---|" * len(L))
     for site in ("AP", "GM"):
         c = lf["curves"][site]
-        out.append(f"| {site} ({c['variant']}; facet {c['facet_len_m']:.2f} m, noise {c['noise_sigma']:.3f} m, c_true {c['c_true']:.3g}) | " + " | ".join(f"{100 * b:+.2f} %" for b in c["bias"]) + " |")
+        sd = c.get("bias_std_across_seeds")
+        out.append(f"| {site} ({c['variant']}; facet {c['facet_len_m']:.2f} m, noise {c['noise_sigma']:.3f} m, c_true {c['c_true']:.3g}; mean over {c.get('n_seeds', 1)} realisations) | "
+                   + " | ".join(f"{100 * b:+.2f} %" + (f" (sd {100 * s_:.2f})" if sd else "") for b, s_ in zip(c["bias"], sd or [None] * len(c["bias"]), strict=True)) + " |")
     out.append(f"\n**L_f = {lf['L_f_synthetic_m']} m (w_f = {lf['w_f']} cells; on AP (2 w_f + 1) dx = {(2 * lf['w_f'] + 1) * 0.9752:.2f} m).** Rule: {lf['rule']}.\n")
     out.append("### A10b. C_ht and D0 by option\n")
     out.append("| tile | option | hilltop definition | network | window (m) | pixels | segments | C_ht (1/m) [68 %] | D0 (m^2/yr) [68 %] | width 2d 25 / 50 % (m) | synthetic bias at median / 25 % width |")

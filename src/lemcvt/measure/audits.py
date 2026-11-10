@@ -364,26 +364,34 @@ def hilltop_audit(Z, A, FD, dx, dy, U: float, L_star_m: float, w_star: int, A_c_
 # ----------------------------------------------------------------------------- option (iii): L_f from the synthetic
 
 def select_L_f(facet_len_m: float, noise_sigma: float, c_true: dict[str, float], tol: float = 0.01, width_m: float = 380.0,
-               half_widths=DEFAULT_HALF_WIDTHS) -> dict[str, Any]:
+               half_widths=DEFAULT_HALF_WIDTHS, n_seeds: int = 8) -> dict[str, Any]:
     """The smallest window at which the synthetic ridge's facet-plus-noise bias is below ``tol`` at both sites.
 
     A parabolic crest far wider than any window (``width_m``, in a 400 m domain) isolates the facet and
     noise effect from the crest-width effect; the AP variant is TIN facets plus noise, the GM variant noise.
-    Returns the bias curves and the chosen window (as a half-width ``w_f`` in cells of the synthetic's 1 m
-    grid; the tile window is ``(2 w_f + 1) dx``).
+    The recovered curvature is the median over the ~400 crest pixels of one realisation, whose sampling
+    error at small windows is of the order of 1 %, so the bias is averaged over ``n_seeds`` independent
+    realisations (TIN sampling and noise) and the spread across realisations is reported. Returns the
+    bias curves and the chosen window (as a half-width ``w_f`` in cells of the synthetic's 1 m grid; the
+    tile window is ``(2 w_f + 1) dx``).
     """
     curves: dict[str, Any] = {}
     L = [(2 * w + 1) * 1.0 for w in half_widths]
     for site, variant, facet in (("AP", "tin_noise", facet_len_m), ("GM", "noise", 0.0)):
-        syn = synthetic_ridges([width_m], c_true[site], facet, noise_sigma, L_star=None, half_widths=half_widths)
-        rec = np.array(syn["cases"][0]["recovered"][variant])
+        per_seed = []
+        for seed in range(n_seeds):
+            syn = synthetic_ridges([width_m], c_true[site], facet, noise_sigma, L_star=None, half_widths=half_widths, seed=seed)
+            per_seed.append(np.array(syn["cases"][0]["recovered"][variant]) / c_true[site] - 1.0)
+        per_seed_a = np.array(per_seed)
         curves[site] = {"variant": variant, "c_true": c_true[site], "facet_len_m": facet, "noise_sigma": noise_sigma,
-                        "window_lengths_m": L, "bias": (rec / c_true[site] - 1.0).tolist()}
+                        "window_lengths_m": L, "bias": per_seed_a.mean(axis=0).tolist(), "bias_std_across_seeds": per_seed_a.std(axis=0).tolist(),
+                        "bias_per_seed": per_seed_a.tolist(), "n_seeds": n_seeds}
     ok = [i for i in range(len(L)) if all(abs(curves[s_]["bias"][i]) < tol for s_ in ("AP", "GM"))]
     i_f = ok[0] if ok else None
-    return {"tol": tol, "crest_width_m": width_m, "curves": curves, "w_f": int(half_widths[i_f]) if i_f is not None else None,
-            "L_f_synthetic_m": float(L[i_f]) if i_f is not None else None,
-            "rule": "smallest window of the standard set with |bias| < tol for the AP (TIN + noise) and GM (noise) variants on a wide crest"}
+    return {"tol": tol, "crest_width_m": width_m, "n_seeds": n_seeds, "curves": curves,
+            "w_f": int(half_widths[i_f]) if i_f is not None else None, "L_f_synthetic_m": float(L[i_f]) if i_f is not None else None,
+            "rule": f"smallest window of the standard set with |mean bias over {n_seeds} realisations| < tol for the AP (TIN + noise) "
+                    "and GM (noise) variants on a wide crest"}
 
 
 # ----------------------------------------------------------------------------- driver
