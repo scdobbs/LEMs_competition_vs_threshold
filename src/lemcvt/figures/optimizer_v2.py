@@ -89,7 +89,8 @@ def acrit_profiles(out_dir: Path) -> list[Path]:
             cert = v2p.get("certificate", {}).get("v1_joint")
             if cert:
                 ax.plot([cert["A_crit"]], [cert["mse"]], "x", color="C3", ms=7, label="v1 joint point, same code")
-        if "nonlinear" in runs[t]:
+        if "nonlinear" in runs[t] and runs[t]["nonlinear"][1].get("inputs", {}).get("z_units_working") == p.get("inputs", {}).get("z_units_working"):
+            # only when the nonlinear run shares the partitioned run's vertical unit (Phase 5: AP nonlinear is in metres, the Phase 4 profiles in feet)
             rn, pn = runs[t]["nonlinear"]
             nlp = pd.read_parquet(rn / "nonlinear_profile.parquet")
             nlp = nlp[nlp.kind.isin(["grid", "refine"])].sort_values("A_crit")
