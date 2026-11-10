@@ -214,4 +214,20 @@ for t in tiles:
             out.append(f"| {t} | nonlinear | {v['n_grid']} + {v['n_refine']} | {v['n_evaluations']} | {v['wall_s']:.0f} | - | - | {node} |")
         elif st == "m_profile":
             out.append(f"| {t} | m_profile | {v['grid']['n_acrit']} A_crit x {len(v['grid']['m_values'])} m | {v['n_evaluations']} | {v['wall_s']:.0f} | - | - | {node} |")
+# ---- V6. staircase refinement: thinned-grid optimum against the refined one
+out.append("\n## V6. Staircase refinement of the thinned partitioned profile (`lemcvt tile v2-refine`): optimum on the 2000-value grid against the optimum after evaluating every unique area around the minima\n")
+out.append("| tile | extra evaluations | stage 2: A_crit, MSE before -> after | joint: A_crit, MSE before -> after | joint rel. change |")
+out.append("|---|---|---|---|---|")
+for t in tiles:
+    if "partitioned" not in runs[t]:
+        continue
+    v = runs[t]["partitioned"][1]["v2"]["partitioned"]
+    rf = v.get("refinement")
+    if not rf:
+        out.append(f"| {t} | (not refined) | | | |")
+        continue
+    sb, jb = rf["stage2_before"], rf["joint_before"]
+    s2, jo = v["stage2_optimum"], v["joint_optimum"]
+    out.append(f"| {t} | {rf['n_extra']} | {sb['A_crit']:.6g}, {sb['mse']:.6g} -> {s2['A_crit']:.6g}, {s2['mse']:.6g} | "
+               f"{jb['A_crit']:.6g}, {jb['mse']:.6g} -> {jo['A_crit']:.6g}, {jo['mse']:.6g} | {(jo['mse'] - jb['mse']) / jb['mse']:+.2e} |")
 print("\n".join(out))

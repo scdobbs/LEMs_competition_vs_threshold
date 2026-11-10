@@ -30,6 +30,11 @@ def _v2_runs() -> dict[str, dict[str, tuple[Path, dict]]]:
             continue
         if p.get("optimizer") != "v2":
             continue
+        try:
+            if (json.loads((r / "run.json").read_text()).get("config") or {}).get("crop"):
+                continue        # cropped smoke runs are not results
+        except Exception:  # noqa: BLE001
+            continue
         t = p["tile"]
         for st in p.get("v2", {}):
             out.setdefault(t, {})[st] = (r, p)
