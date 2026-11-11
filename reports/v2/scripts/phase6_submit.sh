@@ -27,7 +27,7 @@ J_DINF=$(sub $L slurm submit phase6_dinf_joint --tiles AP1,GM1 --job-name p6_din
 # 3.6 resolution sweep at the config parameters, D0_A on all tiles and D0_B on AP; supp_fig5 and d8_vs_dinf at the config parameters
 J_SW=$(sub $L slurm submit sweep_resolution --tiles all --sweep-params config --job-name p6_sweep --time 01:00:00)
 J_SWB=$(sub $L slurm submit sweep_resolution --tiles AP --sweep-params config --d0-variant B --job-name p6_sweep_AP_D0B --time 01:00:00)
-J_UTIL=$(sub $L slurm submit custom --command "lemcvt -v synthetic pe && lemcvt -v d8-vs-dinf --tiles AP1,GM1 --params config --units metres --pt-dinf-model both" --job-name p6_util --time 03:00:00 --mem 64G)
+J_UTIL=$(sub $L slurm submit custom --command "bash -c 'lemcvt -v synthetic pe && lemcvt -v d8-vs-dinf --tiles AP1,GM1 --params config --units metres --pt-dinf-model both'" --job-name p6_util --time 03:00:00 --mem 64G)
 # addendum 6, 3: AP1 seam test
 J_SEAM=$(sub $L slurm submit custom --command "lemcvt -v phase6 seam-test --tile AP1" --job-name p6_seamtest --time 18:00:00 --mem 16G)
 # post-processing after everything: curvature comparison, slope-area at the new optima, figures, record, tables
