@@ -389,7 +389,7 @@ def run_seamfix(tile: str = "AP1", write: bool = True, update_manifest: bool = T
 
     # 2.1.3 re-entry
     reentry = {k: info[k] for k in ("n_old_paths_exit_tile", "n_new_paths_exit_tile", "n_old_paths_stopped_uphill",
-                                   "n_new_paths_stopped_uphill", "n_cycles", "n_uphill_old_receivers")}
+                                   "n_new_paths_stopped_uphill", "n_uphill_old_receivers")}
     reentry.update({"n_distinct_exit_cells_old": len(info["exit_cells_old"]), "n_distinct_exit_cells_new": len(info["exit_cells_new"]),
                     "exit_cells_old": [list(e) for e in info["exit_cells_old"]][:50], "exit_cells_new": [list(e) for e in info["exit_cells_new"]][:50],
                     "edge_cells_with_external_inflow": check["external_inflow_edge_cells_gt_0"],

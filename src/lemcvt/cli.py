@@ -181,8 +181,10 @@ def tile_run(tile_id, stages, optimizer, no_grids, no_derived, exploration, crop
 @click.option("--tile", "tile_id", required=True)
 @click.option("--source-run", default=None, help="v2 partitioned run directory or name (default: the latest for the tile).")
 @click.option("--max-extra", default=400, show_default=True)
+@click.option("--fill-interval", default=None, type=float,
+              help="Addendum 5, 3.2: then evaluate every unique area inside this relative MSE interval (0.05) of the refined profile.")
 @click.option("--run-id", default=None)
-def tile_v2_refine(tile_id, source_run, max_extra, run_id) -> None:
+def tile_v2_refine(tile_id, source_run, max_extra, fill_interval, run_id) -> None:
     """Phase 4: evaluate every unique drainage area around the thinned profile's minima (staircase refinement)."""
     from lemcvt.analyses.optimizer_v2 import refine_partitioned
 
@@ -193,7 +195,43 @@ def tile_v2_refine(tile_id, source_run, max_extra, run_id) -> None:
         if not cands:
             raise click.ClickException(f"no v2 partitioned run for {tile_id}")
         source_run = str(cands[-1])
-    rec = refine_partitioned(tile_id, source_run, max_extra=max_extra, run_id=run_id)
+    rec = refine_partitioned(tile_id, source_run, max_extra=max_extra, run_id=run_id, fill_interval=fill_interval)
+    click.echo(f"results: {rec.dir}")
+
+
+@tile.command("v2-nonlinear-joint")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--source-run", default=None, help="Refined v2 partitioned run (default: the latest for the tile); K is its joint optimum.")
+@click.option("--k-factor", default=1.0, show_default=True, help="K x factor (the K check of addendum 5, 3.4: 0.95 and 1.05).")
+@click.option("--n-acrit", default=30, show_default=True)
+@click.option("--n-d", default=25, show_default=True)
+@click.option("--d-range", default="1e-3,1e-1", show_default=True)
+@click.option("--widen", default=3.0, show_default=True, help="Widen the linear joint 5 % interval by this factor on each side.")
+@click.option("--crop", default=None)
+@click.option("--no-grids", is_flag=True)
+@click.option("--run-id", default=None)
+def tile_v2_nonlinear_joint(tile_id, source_run, k_factor, n_acrit, n_d, d_range, widen, crop, no_grids, run_id) -> None:
+    """Addendum 5, 3.4: nonlinear MSE over (A_crit, D) at K fixed to the linear joint optimum (S_c = 1.27, Picard cap from the config)."""
+    from lemcvt.analyses.optimizer_v2 import run_nonlinear_joint
+
+    lo, hi = (float(v) for v in d_range.split(","))
+    rec = run_nonlinear_joint(tile_id, source_run=source_run, k_factor=k_factor, n_acrit=n_acrit, n_d=n_d, d_range=(lo, hi), widen=widen,
+                              save_grids=not no_grids, crop=_parse_crop(crop), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@tile.command("v2-dinf-joint")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--thin-n", default=2000, show_default=True)
+@click.option("--refine-max", default=400, show_default=True)
+@click.option("--crop", default=None)
+@click.option("--no-grids", is_flag=True)
+@click.option("--run-id", default=None)
+def tile_v2_dinf_joint(tile_id, thin_n, refine_max, crop, no_grids, run_id) -> None:
+    """Addendum 5, 3.5: the v2 joint profile of the rebuilt D-infinity partitioned model at the config's m."""
+    from lemcvt.analyses.optimizer_v2 import run_dinf_joint
+
+    rec = run_dinf_joint(tile_id, thin_n=thin_n, refine_max=refine_max, save_grids=not no_grids, crop=_parse_crop(crop), run_id=run_id)
     click.echo(f"results: {rec.dir}")
 
 
