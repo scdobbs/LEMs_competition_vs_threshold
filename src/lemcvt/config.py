@@ -172,6 +172,8 @@ class TileConfig:
     v1_reference: dict[str, Any]
     raw: dict[str, Any] = field(default_factory=dict, repr=False)
     path: Path | None = None
+    measured: dict[str, Any] = field(default_factory=dict)
+    """Measured inputs of the v2 pipeline (addendum 5, 2.3): m, ks, C_ht and their provenance; empty before Phase 6."""
 
     @property
     def index(self) -> int:
@@ -202,24 +204,44 @@ def load_tile_config(tile: str, reproduce_v1_units: bool | None = None) -> TileC
     """
     path = config_root() / "tiles" / f"{tile}.yaml"
     d = _read_yaml(path)
-    _require(d, ("tile", "site", "grids", "units", "measured_v1", "model"), str(path))
+    _require(d, ("tile", "site", "grids", "units", "model"), str(path))
     if d["tile"] != tile:
         raise ConfigError(f"{path}: tile field {d['tile']!r} != {tile!r}")
     site = load_site(d["site"])
 
-    g = d["grids"]
-    _require(g, ("filled", "area", "fd", "sha256", "shape", "dx", "dy"), f"{path}: grids")
+    g = dict(d["grids"])
     units = d["units"]
     _require(units, ("z_units", "xy_units"), f"{path}: units")
     check_xy_units(units["xy_units"])
     repro = bool(units.get("reproduce_v1_units", False)) if reproduce_v1_units is None else bool(reproduce_v1_units)
-    mv = d["measured_v1"]
-    _require(mv, ("theta", "ks", "hilltop_curvature"), f"{path}: measured_v1")
-
+    if "measured_v1" not in d and "measured" not in d:
+        raise ConfigError(f"{path}: needs a `measured` (v2 pipeline) or `measured_v1` block")
+    mv = dict(d.get("measured_v1") or {})
+    if mv:
+        _require(mv, ("theta", "ks", "hilltop_curvature"), f"{path}: measured_v1")
+    # Phase 6 (addendum 5, section 2.3): the measured inputs of the new pipeline live in `measured`
+    # (m, ks, C_ht with provenance); the v1 values stay in `measured_v1` / `v1_reference` for the record.
+    measured = dict(d.get("measured") or {})
+    v1ref = dict(d.get("v1_reference", {}))
     mdl = d["model"]
+    if repro and "model" in v1ref:
+        # a feet run for the record uses the v1 model block (parameters declared for z in ftUS) and the v1 grids
+        mdl = v1ref["model"]
+        if "grids" in v1ref:
+            g.update(v1ref["grids"])
+            if "sha256" in v1ref["grids"]:
+                g["sha256"] = {**d["grids"].get("sha256", {}), **v1ref["grids"]["sha256"]}
+        logger.warning("%s: reproduce_v1_units: the v1 model block (v1_reference.model) and v1 grids are used", path.name)
+    _require(g, ("filled", "area", "fd", "sha256", "shape", "dx", "dy"), f"{path}: grids")
     _require(mdl, ("m", "K0_ad", "K0_partitioned", "D0", "K_bounds", "D_bounds", "A_crit_0", "A_crit_bounds"),
              f"{path}: model")
-    ctx = {"U": site.U, "n": site.n, "ks": float(mv["ks"]), "C_ht": float(mv["hilltop_curvature"])}
+    src = measured if (measured and not (repro and "model" in v1ref)) else mv
+    if not src:
+        src = measured or mv
+    ks_v = src.get("ks")
+    cht_v = src.get("C_ht", src.get("hilltop_curvature"))
+    ctx = {"U": site.U, "n": site.n, "ks": float(ks_v) if ks_v is not None else float("nan"),
+           "C_ht": float(cht_v) if cht_v is not None else float("nan")}
     model = ModelParams(
         m=float(mdl["m"]), U=site.U, n=site.n, S_c=float(mdl.get("S_c", site.S_c)),
         K0_ad=_resolve_expr(mdl["K0_ad"], ctx, f"{path}: K0_ad"),
@@ -254,8 +276,9 @@ def load_tile_config(tile: str, reproduce_v1_units: bool | None = None) -> TileC
         x0 = {"K": model.K0_ad, "D": model.D0, "A_crit": model.A_crit_0}[name]
         if not (lo <= x0 <= hi):
             raise ConfigError(f"{path}: initial {name} = {x0:g} outside bounds [{lo:g}, {hi:g}]")
-    if model.m != float(mv["theta"]):
-        logger.warning("%s: model.m (%g) differs from measured_v1.theta (%g)", path, model.m, mv["theta"])
+    theta_ref = src.get("m", src.get("theta"))
+    if theta_ref is not None and model.m != float(theta_ref):
+        logger.warning("%s: model.m (%g) differs from the measured concavity (%g)", path, model.m, theta_ref)
 
     shape = tuple(int(s) for s in g["shape"])
     if len(shape) != 2:
@@ -265,7 +288,7 @@ def load_tile_config(tile: str, reproduce_v1_units: bool | None = None) -> TileC
         sha256=dict(g["sha256"]), shape=shape, dx=float(g["dx"]), dy=float(g["dy"]),
         z_units=str(units["z_units"]), xy_units=str(units["xy_units"]),
         reproduce_v1_units=repro,
-        measured_v1=dict(mv), model=model, v1_reference=dict(d.get("v1_reference", {})), raw=d, path=path,
+        measured_v1=dict(mv), model=model, v1_reference=v1ref, raw=d, path=path, measured=measured,
     )
 
 

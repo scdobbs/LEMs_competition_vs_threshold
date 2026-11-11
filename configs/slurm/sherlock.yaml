@@ -72,3 +72,34 @@ steps:
     cpus: 1
     mem: 8G
     core_hours_estimate_per_task: 2
+  # Phase 6 (addendum 5, 3.0): limits = 1.5 x expected from the measured per-evaluation costs (`lemcvt phase6 estimate`)
+  phase6_ad:            # 220 reduced AD solves at ~27 s
+    time: "03:00:00"
+    cpus: 1
+    mem: 8G
+    core_hours_estimate_per_task: 3
+  phase6_partitioned:   # thin 2000 + refine + every unique area in the 5 % intervals, ~7 s each (AP), 6 s (GM)
+    time: "22:00:00"
+    cpus: 1
+    mem: 8G
+    core_hours_estimate_per_task: 22
+  phase6_nonlinear:     # 260 Picard solves, cap 100
+    time: "15:00:00"
+    cpus: 1
+    mem: 8G
+    core_hours_estimate_per_task: 15
+  phase6_nonlinear_joint:   # 750 Picard solves over (A_crit, D); small D hits the cap
+    time: "2-03:00:00"
+    cpus: 1
+    mem: 8G
+    core_hours_estimate_per_task: 51
+  phase6_dinf_joint:    # ~2300 LU factorisations of the coupled D-inf system
+    time: "15:00:00"
+    cpus: 1
+    mem: 32G
+    core_hours_estimate_per_task: 15
+  phase6_utilities:     # tests, seam fix, measured inputs, figures, record
+    time: "02:00:00"
+    cpus: 1
+    mem: 32G
+    core_hours_estimate_per_task: 2
