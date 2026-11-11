@@ -73,9 +73,9 @@ def slurm_accounting() -> dict[str, Any] | None:
     except Exception:  # noqa: BLE001
         out["sstat"] = "unavailable"
     try:
-        txt = subprocess.check_output(["scontrol", "show", "job", job], text=True, stderr=subprocess.DEVNULL, timeout=30)
+        txt2 = subprocess.check_output(["scontrol", "show", "job", job], text=True, stderr=subprocess.DEVNULL, timeout=30)
         for key in ("RunTime", "TimeLimit", "Partition", "NumCPUs", "MinMemoryNode", "MinMemoryCPU", "NodeList"):
-            m = re.search(rf"\b{key}=(\S+)", txt)
+            m = re.search(rf"\b{key}=(\S+)", txt2)
             if m:
                 out[key] = m.group(1)
     except Exception:  # noqa: BLE001

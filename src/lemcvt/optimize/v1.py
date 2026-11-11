@@ -35,7 +35,7 @@ class Trajectory:
     rows: list[dict[str, Any]] = field(default_factory=list)
     t0: float = field(default_factory=time.perf_counter)
 
-    def record(self, params: dict[str, float], mse: float, cached: bool) -> None:
+    def record(self, params: dict[str, Any], mse: float, cached: bool) -> None:
         self.rows.append({
             "eval": len(self.rows),
             "t_s": time.perf_counter() - self.t0,

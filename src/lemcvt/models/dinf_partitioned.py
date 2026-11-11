@@ -30,9 +30,8 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol, cast
 
 import numpy as np
 from scipy.sparse import coo_matrix
@@ -215,10 +214,26 @@ def channel_monotonicity(z_flat: np.ndarray, sysm: DinfSystem, tol: float = 0.0)
             "median_drop_to_receiver": float(np.nanmedian(drop)) if np.isfinite(drop).any() else None}
 
 
+class DinfPartitionedModel(Protocol):
+    """The callable returned by :func:`partitioned_threshold_model_dinf`, with its helpers and last-solve attributes."""
+
+    last_system: DinfSystem
+    last_z_flat: np.ndarray
+    grid_data: dict
+    n_valid: int
+    system: Any
+    solve: Any
+    reduce: Any
+    monotonicity: Any
+    to_grid: Any
+
+    def __call__(self, A_crit: float, D: float, K_: float | None = None) -> tuple[np.ndarray, np.ndarray]: ...
+
+
 def partitioned_threshold_model_dinf(
     Z0: np.ndarray, A_d8: np.ndarray, FD: np.ndarray, dx: float, m: float, U: float, K: float,
     angles: np.ndarray, r_facet_arr: np.ndarray, facet_idx_arr: np.ndarray, A_dinf: np.ndarray,
-) -> Callable[..., tuple[np.ndarray, np.ndarray]]:
+) -> DinfPartitionedModel:
     """Build ``f(A_crit, D) -> (Z, channel_mask)`` for the rebuilt D-infinity partitioned model.
 
     Same signature as the v1 factory. ``f.system(A_crit)`` returns the :class:`DinfSystem`,
@@ -275,4 +290,4 @@ def partitioned_threshold_model_dinf(
     output_function.to_grid = to_grid  # type: ignore[attr-defined]
     output_function.grid_data = gd  # type: ignore[attr-defined]
     output_function.n_valid = n  # type: ignore[attr-defined]
-    return output_function
+    return cast(DinfPartitionedModel, output_function)

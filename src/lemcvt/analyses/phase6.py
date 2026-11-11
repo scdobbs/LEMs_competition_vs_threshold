@@ -78,7 +78,7 @@ def build_tile_config(tile: str, inputs: dict[str, Any], inputs_meta: dict[str, 
         grids["area"] = seamfix["written"]["area"]["path"]
         grids["sha256"] = dict(grids["sha256"]) | {"fd": seamfix["written"]["fd"]["sha256"], "area": seamfix["written"]["area"]["sha256"]}
 
-    measured = {
+    measured: dict[str, Any] = {
         "m": m_site,
         "ks": float(ks_used["ks"]),
         "C_ht": float(o3["C_ht_at_L_f"]),

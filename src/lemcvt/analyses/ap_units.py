@@ -235,6 +235,7 @@ def run_invariance(tile: str, feet_runs: dict[str, str | Path] | None = None, st
 
     # ---------------------------------------------------------------- partitioned: same A_crit grid
     if "partitioned" in stages:
+        assert prof_p is not None
         t0 = time.perf_counter()
         r_ft = runs["partitioned"]
         p_ft = json.loads((r_ft / "params.json").read_text())
@@ -262,8 +263,8 @@ def run_invariance(tile: str, feet_runs: dict[str, str | Path] | None = None, st
             "shape_joint": _cmp(rows.mse_joint / rows.mse_joint.min(), prof_ft.mse_joint / prof_ft.mse_joint.min()),
             "stage2_optimum_A_crit": {"metres": res["stage2_optimum"]["A_crit"], "feet": p_ft["v2"]["partitioned"]["stage2_optimum"]["A_crit"]},
             "joint_optimum_A_crit": {"metres": res["joint_optimum"]["A_crit"], "feet": p_ft["v2"]["partitioned"]["joint_optimum"]["A_crit"]},
-            "argmin_stage2_identical": bool(int(rows.mse_stage2.idxmin()) == int(prof_ft.mse_stage2.idxmin())),
-            "argmin_joint_identical": bool(int(rows.mse_joint.idxmin()) == int(prof_ft.mse_joint.idxmin())),
+            "argmin_stage2_identical": bool(int(np.argmin(rows.mse_stage2.to_numpy())) == int(np.argmin(prof_ft.mse_stage2.to_numpy()))),
+            "argmin_joint_identical": bool(int(np.argmin(rows.mse_joint.to_numpy())) == int(np.argmin(prof_ft.mse_joint.to_numpy()))),
             "joint_optimum_K_ratio_to_c_feet": res["joint_optimum"]["K"] / (C * p_ft["v2"]["partitioned"]["joint_optimum"]["K"]),
             "joint_optimum_D_ratio_to_c_feet": res["joint_optimum"]["D"] / (C * p_ft["v2"]["partitioned"]["joint_optimum"]["D"]),
             "joint_optimum_mse_ratio_to_feet": res["joint_optimum"]["mse"] / p_ft["v2"]["partitioned"]["joint_optimum"]["mse"],
@@ -312,7 +313,7 @@ def run_invariance(tile: str, feet_runs: dict[str, str | Path] | None = None, st
         df = pd.DataFrame(out_rows)
         df_ft = pd.DataFrame(rows_ft)
         rec.write_table(df, "ad_profile")
-        j_m, j_ft = int(df.mse.idxmin()), int(df_ft.mse.idxmin())
+        j_m, j_ft = int(np.argmin(df.mse.to_numpy())), int(np.argmin(df_ft.mse.to_numpy()))
         cmp = {"n_points": int(df.shape[0]), "model_scaling_rel_err": _model_scaled_ok(p_ft),
                "mse_times_c2_vs_feet": _cmp(df.mse / INV_C2, df_ft.mse), "K_vs_c_K_feet": _cmp(df.K, C * df_ft.K),
                "D_vs_c_D_feet": _cmp(df.D, C * df_ft.D), "where_identical": bool((df["where"] == df_ft["where"]).all()),
@@ -333,6 +334,7 @@ def run_invariance(tile: str, feet_runs: dict[str, str | Path] | None = None, st
 
     # ---------------------------------------------------------------- exponent profile: same (A_crit, m) grid
     if "m_profile" in stages:
+        assert prof_p is not None
         t0 = time.perf_counter()
         r_ft = runs["m_profile"]
         p_ft = json.loads((r_ft / "params.json").read_text())

@@ -252,6 +252,7 @@ class PartitionedProfiler:
         channel, hs_mask, hs, to_red = self.masks(A_crit)
         n = self.n
         zeros = np.zeros(n)
+        assert self.z_anchor is not None and self.bc_vals is not None and self.bc_inds is not None
         a = np.full(n, np.nan)
         c = np.full(n, np.nan)
         a[self.bc_inds] = self.bc_vals[self.bc_inds]
@@ -351,7 +352,7 @@ def partitioned_profile(prof: PartitionedProfiler, A_crits: np.ndarray, m: float
                                        "n_channel": rows[jb]["n_channel"]}
             out["stage2_B_identifiability"] = identifiability(rows, "mse_stage2_B")
     if extra_points:
-        cert = {}
+        cert: dict[str, dict[str, Any]] = {}
         for name, (a_c, K, D) in extra_points.items():
             red = prof.reduce(a_c, m)
             t = red.mse_terms(prof.Z_obs_flat)

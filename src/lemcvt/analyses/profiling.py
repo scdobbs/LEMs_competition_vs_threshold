@@ -51,7 +51,7 @@ def _top_rows(pr: cProfile.Profile, n: int = 25) -> tuple[str, list[dict[str, An
     st.sort_stats("cumulative").print_stats(60)
     text = buf.getvalue()
     rows = []
-    for (file, line, func), (_cc, nc, tt, ct, _callers) in st.stats.items():
+    for (file, line, func), (_cc, nc, tt, ct, _callers) in getattr(st, "stats").items():  # noqa: B009
         rows.append({"function": func, "file": file.split("/")[-1], "line": line, "ncalls": nc, "tottime_s": tt, "cumtime_s": ct})
     rows.sort(key=lambda r: -r["cumtime_s"])
     return text, rows[:n]
@@ -64,7 +64,7 @@ class _Profiler:
         try:
             from line_profiler import LineProfiler  # type: ignore
 
-            self._LP = LineProfiler
+            self._LP: Any = LineProfiler
         except Exception:  # noqa: BLE001
             self._LP = None
             logger.warning("line_profiler not importable; cProfile only")
@@ -72,7 +72,7 @@ class _Profiler:
 
     def run(self, name: str, fn, line_funcs=()):
         pr = cProfile.Profile()
-        lp = self._LP(*[f for f in line_funcs if f is not None]) if (self._LP and line_funcs) else None
+        lp = self._LP(*[f for f in line_funcs if f is not None]) if (self._LP is not None and line_funcs) else None
         rss0 = _peak_rss_gb()
         t0 = time.perf_counter()
         pr.enable()

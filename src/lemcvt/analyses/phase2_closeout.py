@@ -79,7 +79,7 @@ def difference_counts(Z: np.ndarray, ref: np.ndarray, relief: float, A: np.ndarr
                       A_crit_printed: float | None = None) -> dict[str, Any]:
     """Counts that replace ``n_diff_cells`` (addendum 2, 2.3)."""
     diff = np.abs(Z - ref)
-    out = {
+    out: dict[str, Any] = {
         "n_dz_gt_1e-9_relief": int(np.nansum(diff > 1e-9 * relief)),
         "n_dz_gt_1e-6_relief": int(np.nansum(diff > 1e-6 * relief)),
         "n_valid": int(np.sum(np.isfinite(diff))),

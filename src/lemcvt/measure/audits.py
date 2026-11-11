@@ -299,7 +299,7 @@ def curvature_on_mask(C_grids: dict[int, np.ndarray], mask: np.ndarray, U: float
         ok = np.isfinite(vals)
         vals, seg_ids = vals[ok], seg_ids[ok]
         C_ht = float(np.median(vals)) if vals.size else float("nan")
-        rec = {"w": int(w), "L_m": float((2 * w + 1) * dx), "C_ht": C_ht, "D0": float(U / C_ht) if C_ht > 0 else None,
+        rec: dict[str, Any] = {"w": int(w), "L_m": float((2 * w + 1) * dx), "C_ht": C_ht, "D0": float(U / C_ht) if C_ht > 0 else None,
                "n_pixels": int(vals.size), "frac_convex": float(np.mean(vals > 0)) if vals.size else None}
         if n_boot > 0 and n_seg >= 5 and vals.size:
             rng = np.random.default_rng(seed)
@@ -557,26 +557,26 @@ def run_measure_audit(tiles: Sequence[str], n_boot: int = N_BOOT, run_id: str | 
                                 "filters": {"min_pixels": MIN_PIXELS_PER_BASIN, "min_relief_m": MIN_RELIEF_M,
                                             "min_chi_range_m": MIN_CHI_RANGE_M, "theta_ref_chi": THETA_REF_CHI}})
     rows = []
-    for t, r in results.items():
+    for t, res_t in results.items():
         for kind in ("free_ladder", "fixed_ladder"):
-            for s in r[kind]:
-                for est in ("pooled", "equal", "median"):
-                    e = s.get(est)
+            for s in res_t[kind]:
+                for est_name in ("pooled", "equal", "median"):
+                    e = s.get(est_name)
                     if not e:
                         continue
-                    rows.append({"tile": t, "site": r["site"], "ladder": kind, "estimator": est, "A_c": s["A_c"], "n_basins": s.get("n_basins"),
+                    rows.append({"tile": t, "site": res_t["site"], "ladder": kind, "estimator": est_name, "A_c": s["A_c"], "n_basins": s.get("n_basins"),
                                  "frac_basins_theta_at_lower_edge": s.get("frac_basins_theta_at_lower_edge"),
                                  "theta_star": e.get("theta_star"), "ks": e.get("ks", e.get("ks_pooled_at_theta")),
                                  "theta_lo68": (e.get("theta_ci68") or [None, None])[0], "theta_hi68": (e.get("theta_ci68") or [None, None])[1],
                                  "theta_lo95": (e.get("theta_ci95") or [None, None])[0], "theta_hi95": (e.get("theta_ci95") or [None, None])[1],
                                  "n_eff_centred": e.get("n_eff_centred"), "n_eff_through_origin": e.get("n_eff_through_origin")})
-    for site, p in pooled.items():
-        for s in p["ladder"]:
-            for est in ("pooled", "equal", "median"):
-                e = s.get(est)
+    for site, pool_s in pooled.items():
+        for s in pool_s["ladder"]:
+            for est_name in ("pooled", "equal", "median"):
+                e = s.get(est_name)
                 if not e:
                     continue
-                rows.append({"tile": f"{site}_pooled", "site": site, "ladder": "pooled", "estimator": est, "A_c": s["A_c"],
+                rows.append({"tile": f"{site}_pooled", "site": site, "ladder": "pooled", "estimator": est_name, "A_c": s["A_c"],
                              "n_basins": s.get("n_basins"), "frac_basins_theta_at_lower_edge": s.get("frac_basins_theta_at_lower_edge"),
                              "theta_star": e.get("theta_star"), "ks": e.get("ks", e.get("ks_pooled_at_theta")),
                              "theta_lo68": (e.get("theta_ci68") or [None, None])[0], "theta_hi68": (e.get("theta_ci68") or [None, None])[1],

@@ -26,6 +26,8 @@ Quirks of the TopoAnalysis implementation that are reproduced deliberately
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
 D8_OFFSETS: dict[int, tuple[int, int]] = {
@@ -162,7 +164,7 @@ try:
                 area_f[t] += area_f[k]
         return area_f
 
-    _accumulate = _accumulate_nb
+    _accumulate: Any = _accumulate_nb
 except Exception:  # noqa: BLE001
     _accumulate = _accumulate_py
 

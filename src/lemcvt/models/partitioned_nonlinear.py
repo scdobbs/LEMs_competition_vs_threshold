@@ -16,7 +16,7 @@ hillslope slopes (``last_slopes``) for the slope statistics of the audit.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from typing import Any, Protocol, cast
 
 import numpy as np
 
@@ -28,9 +28,25 @@ from lemcvt.models.common import (
 )
 
 
+class NonlinearModel(Protocol):
+    """The callable returned by :func:`partitioned_threshold_model_nonlinear`, with its instrumentation attributes."""
+
+    last_n_iter: int
+    last_picard: Any
+    last_slopes: Any
+    last_hillslope_indices: Any
+    last_z_flat: Any
+    grid_data: dict
+    compute_slopes: Any
+    compute_slopes_v1: Any
+
+    def __call__(self, A_crit: float, D_linear: float, S_c: float, max_iter: int = 50, tol: float = 1e-6,
+                 diagnostics: bool = False) -> tuple[np.ndarray, np.ndarray]: ...
+
+
 def partitioned_threshold_model_nonlinear(
     Z0: np.ndarray, A: np.ndarray, FD: np.ndarray, dx: float, m: float, U: float, K: float,
-) -> Callable[..., tuple[np.ndarray, np.ndarray]]:
+) -> NonlinearModel:
     """Build ``f(A_crit, D_linear, S_c, max_iter=50, tol=1e-6) -> (Z, channel_mask)``."""
     gd = extract_grid_data(Z0, A, FD, dx)
     n = gd["n"]
@@ -213,4 +229,4 @@ def partitioned_threshold_model_nonlinear(
     output_function.grid_data = gd  # type: ignore[attr-defined]
     output_function.compute_slopes = _compute_slopes  # type: ignore[attr-defined]
     output_function.compute_slopes_v1 = _compute_slopes_v1  # type: ignore[attr-defined]
-    return output_function
+    return cast(NonlinearModel, output_function)

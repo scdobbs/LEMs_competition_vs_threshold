@@ -313,9 +313,9 @@ def audit_estimators(out_dir: Path) -> list[Path]:
                     ci = a.get("C_ht_ci68") or [np.nan, np.nan]
                     los.append(ci[0])
                     his.append(ci[1])
-                vals, los, his = map(np.array, (vals, los, his))
-                ax.bar(x + (k - 2.5) * w, vals, w, color=color, alpha=0.9 if s == "all" else 0.5, hatch=hatch, edgecolor="k", lw=0.3,
-                       yerr=np.vstack([vals - los, his - vals]), capsize=1.5, error_kw={"lw": 0.6},
+                vals_a, los_a, his_a = (np.asarray(v, dtype=float) for v in (vals, los, his))
+                ax.bar(x + (k - 2.5) * w, vals_a, w, color=color, alpha=0.9 if s == "all" else 0.5, hatch=hatch, edgecolor="k", lw=0.3,
+                       yerr=np.vstack([vals_a - los_a, his_a - vals_a]), capsize=1.5, error_kw={"lw": 0.6},
                        label=f"A_c {net}{' m^2' if net != 'rollover' else ''}, {s}")
                 k += 1
         mr = [p["tiles"][t]["hilltops"].get("measure_run_C_ht", {}).get("C_ht") or np.nan for t in st]

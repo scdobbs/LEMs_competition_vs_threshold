@@ -171,7 +171,7 @@ def fit_from_stats(sxx: np.ndarray, sxy: np.ndarray, syy: np.ndarray, thetas: np
         ssr_b = syy[:, None] - sxy * sxy / sxx
     ssr = np.nansum(ssr_b, axis=0)
     j = int(np.nanargmin(ssr))
-    ks = float(sxy[:, j].sum() / sxx[:, j].sum())
+    ks = float(sxy[:, j].sum()) / float(sxx[:, j].sum())
     ss_tot = float(syy.sum())
     out.update({"theta_star": float(thetas[j]), "ks": ks, "r2": float(1 - ssr[j] / ss_tot) if ss_tot > 0 else None,
                 "ssr_total": ssr.tolist(), "theta_at_edge": bool(j in (0, thetas.size - 1))})
@@ -266,6 +266,7 @@ def piecewise_fits(x: np.ndarray, y: np.ndarray, w: np.ndarray, min_sep: int = 2
         beta, ssr = _wls(_pw_design(x, [x[i]]), y, w)
         if best2 is None or ssr < best2[1]:
             best2 = (x[i], ssr, beta)
+    assert best2 is not None
     bx, ssr2, beta2 = best2
     out["two"] = {"break_log10A": float(bx), "slope_below": float(beta2[1]), "slope_above": float(beta2[1] + beta2[2]),
                   "ssr": ssr2, "bic": n * math.log(ssr2 / n) + 4 * math.log(n)}
@@ -281,7 +282,7 @@ def piecewise_fits(x: np.ndarray, y: np.ndarray, w: np.ndarray, min_sep: int = 2
                                                                         float(beta3[1] + beta3[2] + beta3[3])],
                         "ssr": ssr3, "bic": n * math.log(ssr3 / n) + 6 * math.log(n)}
     bics = {k: out[k]["bic"] for k in ("one", "two", "three") if k in out}
-    out["bic_best"] = min(bics, key=bics.get)
+    out["bic_best"] = min(bics, key=lambda k: bics[k])
     return out
 
 
@@ -327,9 +328,9 @@ def scaling_break(Z, A, FD, dx, dy, A_roll: float, n_boot: int = N_BOOT, seed: i
             f = piecewise_fits(xb, yb, wb)
             if "two" in f:
                 brks.append(f["two"]["break_log10A"])
-        brks = np.array(brks)
-        fits["break_bootstrap"] = {"n": int(brks.size), "ci68_log10A": [float(np.percentile(brks, 16)), float(np.percentile(brks, 84))],
-                                   "ci95_log10A": [float(np.percentile(brks, 2.5)), float(np.percentile(brks, 97.5))],
+        brks_a = np.array(brks)
+        fits["break_bootstrap"] = {"n": int(brks_a.size), "ci68_log10A": [float(np.percentile(brks_a, 16)), float(np.percentile(brks_a, 84))],
+                                   "ci95_log10A": [float(np.percentile(brks_a, 2.5)), float(np.percentile(brks_a, 97.5))],
                                    "median_log10A": float(np.median(brks)), "unit": "pixel"}
         bl = fits["two"]["break_log10A"]
         at = (la >= bl - 0.05) & (la < bl + 0.05)
@@ -418,7 +419,7 @@ def synthetic_ridges(widths_m: Sequence[float], c_true: float, facet_len_m: floa
             if "tin" in variants:
                 variants["tin_noise"] = variants["tin"] + rng.normal(0, noise_sigma, z.shape)
         crest = (u <= dx * 0.51)
-        case = {"width_m": W, "recovered": {}}
+        case: dict[str, Any] = {"width_m": W, "recovered": {}}
         for name, zz in variants.items():
             rec = []
             for w in half_widths:
@@ -610,10 +611,10 @@ def run_measure_diagnostics(tiles: Sequence[str], n_boot: int = N_BOOT, run_id: 
     rec.add_params("synthetic_ridges", syn)
     # long tables for plotting
     rows = []
-    for t, r in results.items():
+    for t, res_t in results.items():
         for kind in ("fine_ladder", "fixed_ladder", "interior_ladder"):
-            for s in r[kind]:
-                rows.append({"tile": t, "site": r["site"], "ladder": kind, **{k: v for k, v in s.items() if not isinstance(v, list | dict)},
+            for s in res_t[kind]:
+                rows.append({"tile": t, "site": res_t["site"], "ladder": kind, **{k: v for k, v in s.items() if not isinstance(v, list | dict)},
                              "theta_lo68": (s.get("theta_ci68") or [None, None])[0], "theta_hi68": (s.get("theta_ci68") or [None, None])[1],
                              "theta_lo95": (s.get("theta_ci95") or [None, None])[0], "theta_hi95": (s.get("theta_ci95") or [None, None])[1],
                              "ks_lo68": (s.get("ks_ci68") or [None, None])[0], "ks_hi68": (s.get("ks_ci68") or [None, None])[1]})

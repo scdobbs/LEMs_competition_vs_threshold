@@ -31,7 +31,7 @@ import math
 import time
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -204,6 +204,7 @@ def run_tile_v2(tile: str, stages: Sequence[str] = STAGES_V2, acrit_grid: str = 
     if "partitioned" in stages or "m_profile" in stages:
         prof_p = PartitionedProfiler(Z0, A, FD, dx, U, m_values=[mp.m])
     if "partitioned" in stages:
+        assert prof_p is not None
         t0 = time.perf_counter()
         grid, ginfo = _grid_for(td, acrit_grid, thin_n)
         extras = {}
@@ -284,7 +285,7 @@ def run_tile_v2(tile: str, stages: Sequence[str] = STAGES_V2, acrit_grid: str = 
                    "converged": pic["converged"], "final_update": pic["iterations"][-1]["update_max_abs"] if pic["iterations"] else None,
                    "frac_hillslope_gt_0.5Sc": float(np.mean(ratio > 0.5)) if ratio.size else None,
                    "frac_hillslope_gt_0.9Sc": float(np.mean(ratio > 0.9)) if ratio.size else None,
-                   "max_slope_ratio": float(ratio.max()) if ratio.size else None,
+                   "max_slope_ratio": float(np.max(ratio)) if ratio.size else None,
                    "kind": kind, "wall_s": time.perf_counter() - t1}
             rows.append(row)
             traj.record({"log10_A_crit": math.log10(a_c), "log10_D": math.log10(mp.D0), "log10_K": math.log10(mp.K0_partitioned), "kind": kind},
@@ -335,6 +336,7 @@ def run_tile_v2(tile: str, stages: Sequence[str] = STAGES_V2, acrit_grid: str = 
 
     # ------------------------------------------------------------------ m profile (5.2)
     if "m_profile" in stages:
+        assert prof_p is not None
         t0 = time.perf_counter()
         ua = unique_areas(A, *ACRIT_RANGE)
         grid = thin_log_uniform(ua, m_acrit_n)
@@ -397,10 +399,10 @@ def refine_partitioned(tile: str, source_run: str | Path, max_extra: int = 400, 
     rec.add_params("refined_from", src.name)
     grid = np.sort(prof0.A_crit.to_numpy())
     ua = unique_areas(A, *ACRIT_RANGE)
-    centres = [float(prof0.A_crit[prof0.mse_stage2.idxmin()]), float(prof0.A_crit[prof0.mse_joint.idxmin()])]
+    centres = [float(prof0.A_crit.iloc[int(np.argmin(prof0.mse_stage2.to_numpy()))]), float(prof0.A_crit.iloc[int(np.argmin(prof0.mse_joint.to_numpy()))])]
     d0b = mp.D0_B if ("mse_stage2_B" in prof0.columns and mp.D0_B is not None) else None
     if d0b is not None:
-        centres.append(float(prof0.A_crit[prof0.mse_stage2_B.idxmin()]))
+        centres.append(float(prof0.A_crit.iloc[int(np.argmin(prof0.mse_stage2_B.to_numpy()))]))
     for key in ("acrit", "joint"):
         if key in ref:
             centres.append(float(ref[key]["A_crit"]))
@@ -435,7 +437,7 @@ def refine_partitioned(tile: str, source_run: str | Path, max_extra: int = 400, 
     if fill_interval:
         # addendum 5, 3.2: every unique drainage area inside the `fill_interval` (5 %) intervals of the refined profile,
         # for the stage-2 and the joint objective, not only around the minima
-        rows_m = merged.to_dict("records")
+        rows_m = cast(list[dict[str, Any]], merged.to_dict("records"))
         targets = set()
         for col in ("mse_stage2", "mse_joint") + (("mse_stage2_B",) if d0b is not None else ()):
             ident = identifiability(rows_m, col, levels=(fill_interval,))
@@ -454,7 +456,7 @@ def refine_partitioned(tile: str, source_run: str | Path, max_extra: int = 400, 
             merged = pd.concat([merged, pd.DataFrame(res_f.pop("rows"))], ignore_index=True).sort_values("A_crit").reset_index(drop=True)
         fill_info["wall_s"] = time.perf_counter() - t0
     rec.write_table(merged, "acrit_profile")
-    rows = merged.to_dict("records")
+    rows = cast(list[dict[str, Any]], merged.to_dict("records"))
     j2 = int(np.argmin([r["mse_stage2"] for r in rows]))
     jj = int(np.argmin([r["mse_joint"] for r in rows]))
     s2 = {"A_crit": rows[j2]["A_crit"], "mse": rows[j2]["mse_stage2"], "K": mp.K0_partitioned, "D": mp.D0, "index": j2,
@@ -621,7 +623,7 @@ def run_nonlinear_joint(tile: str, source_run: str | Path | None = None, k_facto
                          "final_update": pic["iterations"][-1]["update_max_abs"] if pic["iterations"] else None,
                          "frac_hillslope_gt_0.5Sc": float(np.mean(ratio > 0.5)) if ratio.size else None,
                          "frac_hillslope_gt_0.9Sc": float(np.mean(ratio > 0.9)) if ratio.size else None,
-                         "max_slope_ratio": float(ratio.max()) if ratio.size else None, "wall_s": time.perf_counter() - t1})
+                         "max_slope_ratio": float(np.max(ratio)) if ratio.size else None, "wall_s": time.perf_counter() - t1})
             traj.record({"log10_A_crit": math.log10(a_c), "log10_D": math.log10(D), "log10_K": math.log10(K), "kind": "grid"}, m_, cached=False)
         done = len(rows)
         best = min(rows, key=lambda r: r["mse"])
@@ -737,7 +739,7 @@ def run_dinf_joint(tile: str, thin_n: int = THIN_N, refine_max: int = 400, save_
     rec.add_trajectory(traj)
     df = pd.DataFrame(rows).sort_values("A_crit").reset_index(drop=True)
     rec.write_table(df, "acrit_profile")
-    rows_s = df.to_dict("records")
+    rows_s = cast(list[dict[str, Any]], df.to_dict("records"))
     j2 = int(np.argmin([r["mse_stage2"] for r in rows_s]))
     jj = int(np.argmin([r["mse_joint"] for r in rows_s]))
     s2 = {"A_crit": rows_s[j2]["A_crit"], "mse": rows_s[j2]["mse_stage2"], "K": mp.K0_partitioned, "D": mp.D0, "n_channel": rows_s[j2]["n_channel"]}

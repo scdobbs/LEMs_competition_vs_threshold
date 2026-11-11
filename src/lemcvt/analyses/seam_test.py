@@ -151,7 +151,7 @@ def run_seam_test(tile: str = "AP1", thin_n: int = 2000, refine_max: int = 400, 
                                   "where": df["where"][jj]},
                 "stage2_identifiability": identifiability(rows, "mse_stage2"), "joint_identifiability": identifiability(rows, "mse_joint")}
 
-    part = {"all": _summ(df_all), "masked": _summ(df_m), "n_evaluations": int(df_all.shape[0]), "grid": {"thin_n": thin_n, "n_refine": int(extra_a.size), "n_unique": int(ua.size)},
+    part: dict[str, Any] = {"all": _summ(df_all), "masked": _summ(df_m), "n_evaluations": int(df_all.shape[0]), "grid": {"thin_n": thin_n, "n_refine": int(extra_a.size), "n_unique": int(ua.size)},
             "n_cells_misfit_all": int(keep_all.sum()), "n_cells_misfit_masked": int(keep_masked.sum())}
     shape = {"joint_profile_max_rel_shape_diff": float(np.nanmax(np.abs((df_all.mse_joint / df_all.mse_joint.min()) / (df_m.mse_joint / df_m.mse_joint.min()) - 1))),
              "stage2_profile_max_rel_shape_diff": float(np.nanmax(np.abs((df_all.mse_stage2 / df_all.mse_stage2.min()) / (df_m.mse_stage2 / df_m.mse_stage2.min()) - 1)))}

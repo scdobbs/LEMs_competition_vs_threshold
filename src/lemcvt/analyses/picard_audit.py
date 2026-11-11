@@ -45,7 +45,7 @@ def slope_stats(slopes: np.ndarray, S_c: float) -> dict[str, float]:
     r = s / S_c
     return {"n": int(s.size), "frac_gt_0.5Sc": float(np.mean(r > 0.5)), "frac_gt_0.9Sc": float(np.mean(r > 0.9)),
             "frac_gt_0.99Sc": float(np.mean(r > 0.99)), "frac_gt_Sc": float(np.mean(r > 1.0)),
-            "max_ratio": float(r.max()) if r.size else float("nan"), "median_ratio": float(np.median(r)) if r.size else float("nan"),
+            "max_ratio": float(np.max(r)) if r.size else float("nan"), "median_ratio": float(np.median(r)) if r.size else float("nan"),
             "p90_ratio": float(np.percentile(r, 90)) if r.size else float("nan")}
 
 

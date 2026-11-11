@@ -183,6 +183,15 @@ C_ht(L_f) within the tested range, the 68 % bands at 15 m excluding the ±10 % b
 (iii) therefore does not stand on AP, and no measured value was written into the tile configs (the rule of
 §2.2). The curves are in `reports/v2/figures_v2/a5_option_iii_window_test.png`.
 
+The D₀ bracket (addendum 6, §1.1). Because the option (iii) test failed on AP, D₀ there is treated as a
+bracket, not a measurement: D₀,A = U/C_ht(L_f) (option (iii) at L_f = 11 m, the primary input at both sites,
+written as `measured.C_ht` / `model.D0`) and D₀,B = U/C_ht(L_w) on the same option (iii) pixel set, with L_w the
+largest tested window not exceeding the tile's median crest width (AP1 31 m, AP2 15 m, AP3 11 m, AP4 41 m, AP5
+15 m; GM1 15, GM2 15, GM3 11, GM4 15, GM5 15 m; `measured.C_ht_B`, `measured.L_w_m`, `model.D0_B`). On GM option
+(iii) stands and D₀,B is reported for symmetry (within 5 % of D₀,A). Runs take `--d0-variant A|B`; the stage-2
+profile at D₀,B comes from the same reductions as the one at D₀,A (`mse_stage2_B`). Every AP statement about D
+recovery cites both ends.
+
 K₀ at a fixed exponent (addendum 5, §1.2; the same command). With the exponent m fixed per site (the S(m)
 minimum: AP 0.47, GM 0.31), k_s is the pooled through-origin χ–z slope at θ = m over the channel network above
 A_c = 10³ m² (10⁴ m² reported, not used), with the basin filters of §3.1, n_eff and a basin bootstrap of k_s at

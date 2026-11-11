@@ -322,8 +322,8 @@ def _padded_hydro(z: np.ndarray, dx: float, pad: int = 12):
     ny, nx = z.shape
     zp = np.pad(z, pad, mode="reflect")
     yy, xx = np.indices(zp.shape)
-    dist = np.maximum.reduce([np.maximum(pad - yy, 0), np.maximum(yy - (ny + pad - 1), 0),
-                              np.maximum(pad - xx, 0), np.maximum(xx - (nx + pad - 1), 0)])
+    dist = np.max(np.stack([np.maximum(pad - yy, 0), np.maximum(yy - (ny + pad - 1), 0),
+                            np.maximum(pad - xx, 0), np.maximum(xx - (nx + pad - 1), 0)]), axis=0)
     zp = zp - 2.0 * dist * dx
     zf = priority_flood_fill(zp, dx)
     fd = d8_flow_direction(zf)

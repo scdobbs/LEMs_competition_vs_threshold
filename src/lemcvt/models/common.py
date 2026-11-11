@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from collections import deque
+from typing import Any
 
 import numpy as np
 from scipy.sparse import coo_matrix, lil_matrix
@@ -158,7 +159,7 @@ try:  # Phase 3 step 5: the same loop compiled with numba when available
                 tail += 1
         return z
 
-    _bfs_integrate = _bfs_integrate_nb
+    _bfs_integrate: Any = _bfs_integrate_nb
     HAVE_NUMBA = True
 except Exception:  # noqa: BLE001
     _bfs_integrate = _bfs_integrate_py

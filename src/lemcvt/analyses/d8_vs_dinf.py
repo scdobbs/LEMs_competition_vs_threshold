@@ -147,7 +147,7 @@ def synthetic_cases(n: int = 201, dx: float = 1.0) -> dict[str, Any]:
         f = partitioned_threshold_model_dinf(zf, area, fd, dx, m, U, K, angles, r_facet, facet_idx, A_dinf)
         Z_di, mask_di = f(A_crit, D)
         Z_v1, _ = partitioned_threshold_model_dinf_v1(zf, area, fd, dx, m, U, K, angles, r_facet, facet_idx, A_dinf)(A_crit, D)
-        rec = {"relief": relief, "n_channel_d8": int(mask_d8.sum()), "n_channel_dinf": int(mask_di.sum()),
+        rec: dict[str, Any] = {"relief": relief, "n_channel_d8": int(mask_d8.sum()), "n_channel_dinf": int(mask_di.sum()),
                "n_mask_differs": int(np.sum(mask_d8 != mask_di)),
                "max_abs_dZ_dinf_minus_d8_over_relief": float(np.nanmax(np.abs(Z_di - Z_d8)) / relief),
                "max_abs_dZ_dinf_v1_minus_d8_over_relief": float(np.nanmax(np.abs(Z_v1 - Z_d8)) / relief),

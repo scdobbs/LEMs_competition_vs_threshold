@@ -461,7 +461,7 @@ def run_seamfix(tile: str = "AP1", write: bool = True, update_manifest: bool = T
         m0, m1 = valid & (A0 >= a_c), valid & (A_new >= a_c)
         masks[name] = {"A_crit": float(a_c), "n_channel_old": int(m0.sum()), "n_channel_new": int(m1.sum()),
                        "n_gained": int((m1 & ~m0).sum()), "n_lost": int((m0 & ~m1).sum()), "n_differ": int((m0 != m1).sum())}
-    changes = {"n_cells_area_changed": int(changed.sum()), "frac_cells_area_changed": float(changed.sum() / valid.sum()),
+    changes: dict[str, Any] = {"n_cells_area_changed": int(changed.sum()), "frac_cells_area_changed": float(changed.sum() / valid.sum()),
                "rel_change_quantiles": _quantiles(rel[changed]), "abs_rel_change_quantiles": _quantiles(np.abs(rel[changed])),
                "n_increase": int(np.sum(changed & (A_new > A0))), "n_decrease": int(np.sum(changed & (A_new < A0))),
                "max_abs_change_cells": float(np.nanmax(np.abs(A_new - A0)[valid]) / cell),
