@@ -719,8 +719,7 @@ def slurm_submit(step, tiles, labels, command_, stages, optimizer, m_range, unit
     elif step == "phase6_partitioned":
         # thin profile, staircase refinement, then every unique area inside the 5 % intervals (addendum 5, 3.2); the refine step
         # takes the just-written run (the latest partitioned run of the tile with this D0 variant)
-        cmd = (f"bash -c 'lemcvt -v tile run --tile $LABEL --stages partitioned --optimizer v2 --acrit-grid thin --d0-variant {d0_variant} && "
-               f"lemcvt -v tile v2-refine --tile $LABEL --fill-interval 0.05 --d0-variant {d0_variant}'")
+        cmd = f"bash reports/v2/scripts/phase6_partitioned_task.sh $LABEL {d0_variant}"
     elif step == "phase6_nonlinear":
         cmd = f"lemcvt -v tile run --tile $LABEL --stages nonlinear --optimizer v2 --no-derived --d0-variant {d0_variant}"
     elif step == "phase6_nonlinear_joint":
