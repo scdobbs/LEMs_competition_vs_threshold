@@ -128,24 +128,26 @@ stable rule. Where no tie exists the results are bit-identical to Phase 1.
   partitioned model to 1e-10 of relief (`tests/test_dinf_rebuild.py`, aligned V-valley and
   plane). The `d8_vs_dinf` comparison was rerun with it (checkpoint report of 2026-11-10).
 
-## N9. AP1 drainage directions and areas corrected on the processing seam (addendum 5, section 2.1)
+## N9. AP1 seam: in-tile correction implemented, found invalid for AP1, not applied (addendum 5, section 2.1)
 
-- **What:** the stored AP1 `*_fd` grid has 345 interior cells on rows 389-390 whose codes are not the
-  steepest descent of the filled grid (checkpoint 4b/5, 4.2: TopoAnalysis's slab convention at a mosaic
-  block boundary), and the stored `*_area` was accumulated through them. `lemcvt seamfix` writes
-  `AP_1m_best_tile_fd_seamfix.tif` and `AP_1m_best_tile_area_seamfix.tif` (manifest kind `input_seamfix`):
-  the 345 codes replaced by the steepest-descent code of the metre filled grid, and each cell's passed area
-  moved from its old downstream path to its new one inside the tile (`lemcvt.analyses.seamfix`).
-- **Rule that makes it exact:** TopoAnalysis's `Area` passes a cell's total to its receiver in elevation
-  order (N1), so a cell that points uphill hands its area to a receiver that never passes it on; the
-  path updates propagate only while the next cell is processed later. On a synthetic mosaic with a planted
-  two-row seam the in-tile correction equals the clipped full recomputation bit for bit
-  (`tests/test_seamfix.py`); on AP1 it agrees with an independent recomputation from the external inflow to
-  2e-8 cells. A path that leaves the tile and re-enters it cannot be seen from the tile; the re-entered area
-  would stay at the edge cell where it enters (documented in the same test).
-- **Where results differ:** every model and measurement on AP1 that reads the area or direction grids, once
-  the AP1 config points at the corrected grids. The originals are kept and the config still points at them:
-  addendum 5 writes the configs only after the 2.2 test, which failed on AP (Phase 6 report of 2026-11-10).
+- **What was asked:** replace the 345 stored AP1 `*_fd` codes on rows 389-390 that are not the steepest descent
+  (checkpoint 4b/5, 4.2) and move each cell's stored area from its old downstream path to its new one inside the tile.
+- **What was built:** `lemcvt seamfix` (`lemcvt.analyses.seamfix`). The path update is exact for grids whose area
+  was accumulated through their directions by TopoAnalysis's `Area` (elevation order, N1), including cells that
+  point uphill, whose area the receiver never passes on: on a synthetic mosaic with a planted two-row seam the
+  in-tile correction reproduces the clipped full recomputation bit for bit (`tests/test_seamfix.py`), and an
+  independent recomputation from the external inflow agrees with it on AP1 to 2e-8 cells.
+- **Why it is not applied:** the premise fails on AP1. The stored area is the accumulation of its in-tile donors
+  under the stored directions at every interior cell except 699 on rows 389-391 (133, 565 and 1), where the two
+  disagree by up to 5.9e4 cells; it is not consistent with the corrected directions either (959 cells on rows
+  388-391); and the stored filled elevation drops by 0.17 m from row 389 to 390 against 0.09-0.10 m between the
+  neighbouring rows, by an amount that varies column by column (5-95 %: -0.23 to +0.36 m), so no constant offset
+  recovers the stored codes. The three AP1 grids come from mutually inconsistent processing on those rows, and
+  the directive's correction, which trusts the stored area, yields 397 cells below one cell (minimum -3.7e4
+  cells). The grids `*_seamfix.tif` written by the first run (`20261111T003616Z_seamfix_AP1`) are invalid and are
+  **not** in the manifest; the AP1 config keeps the stored grids. No model or measurement result changes.
+- **Where results could differ later:** only if AP1's grids are regenerated from the mosaic (not on Sherlock) or
+  the tile is re-extracted; the Phase 6 report of 2026-11-10 lists the options.
 
 ## Sorts examined and left unchanged
 
