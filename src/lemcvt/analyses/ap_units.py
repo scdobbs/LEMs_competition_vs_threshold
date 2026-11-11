@@ -197,7 +197,7 @@ def _feet_runs(tile: str) -> dict[str, Path]:
     return out
 
 
-def _cmp(a: np.ndarray, b: np.ndarray) -> float:
+def _cmp(a: Any, b: Any) -> float:
     a, b = np.asarray(a, float), np.asarray(b, float)
     ok = np.isfinite(a) & np.isfinite(b)
     return float(np.max(np.abs(a[ok] / b[ok] - 1.0))) if ok.any() else float("nan")

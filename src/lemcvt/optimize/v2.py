@@ -288,19 +288,22 @@ class PartitionedProfiler:
         return Z
 
 
-def _row(red: PartitionedReduction, t: dict[str, Any], U, K0, D0, lo, hi) -> dict[str, Any]:
+def _row(red: PartitionedReduction, t: dict[str, Any], U, K0, D0, lo, hi, D0_B: float | None = None) -> dict[str, Any]:
     mse_stage2 = red.mse_from_terms(t, U / K0, U / D0)
     v, where = box_quadratic_min(t["G"], t["g"], lo, hi)
-    return {"A_crit": red.A_crit, "m": red.m, "n_channel": int(red.channel_mask.sum()), "n_hillslope": red.n_hillslope,
-            "mse_stage2": mse_stage2, "mse_joint": red.mse_from_terms(t, v[0], v[1]), "K_opt": float(U / v[0]),
-            "D_opt": float(U / v[1]), "where": where, "wall_s": red.wall_s,
-            "G00": float(t["G"][0, 0]), "G01": float(t["G"][0, 1]), "G11": float(t["G"][1, 1]),
-            "g0": float(t["g"][0]), "g1": float(t["g"][1]), "rr": float(t["rr"])}
+    out = {"A_crit": red.A_crit, "m": red.m, "n_channel": int(red.channel_mask.sum()), "n_hillslope": red.n_hillslope,
+           "mse_stage2": mse_stage2, "mse_joint": red.mse_from_terms(t, v[0], v[1]), "K_opt": float(U / v[0]),
+           "D_opt": float(U / v[1]), "where": where, "wall_s": red.wall_s,
+           "G00": float(t["G"][0, 0]), "G01": float(t["G"][0, 1]), "G11": float(t["G"][1, 1]),
+           "g0": float(t["g"][0]), "g1": float(t["g"][1]), "rr": float(t["rr"])}
+    if D0_B is not None:
+        out["mse_stage2_B"] = red.mse_from_terms(t, U / K0, U / D0_B)     # addendum 6, 5.2: stage 2 at the other end of the D0 bracket
+    return out
 
 
 def partitioned_profile(prof: PartitionedProfiler, A_crits: np.ndarray, m: float, K_bounds, D_bounds, K0: float, D0: float,
                         traj: Trajectory | None = None, extra_points: dict[str, tuple[float, float, float]] | None = None,
-                        log_every: int = 100) -> dict[str, Any]:
+                        log_every: int = 100, D0_B: float | None = None) -> dict[str, Any]:
     """MSE(A_crit) profile of the linear partitioned model at fixed m.
 
     At every A_crit: the MSE at (K0, D0) (the v1 stage-2 objective) and the exact box-constrained
@@ -318,11 +321,14 @@ def partitioned_profile(prof: PartitionedProfiler, A_crits: np.ndarray, m: float
     for i, a_c in enumerate(A_crits):
         red = prof.reduce(a_c, m)
         t = red.mse_terms(prof.Z_obs_flat)
-        row = _row(red, t, U, K0, D0, lo, hi)
+        row = _row(red, t, U, K0, D0, lo, hi, D0_B=D0_B)
         rows.append(row)
         if traj is not None:
             traj.record({"log10_A_crit": math.log10(a_c), "log10_D": math.log10(D0), "log10_K": math.log10(K0), "m": m,
                          "kind": "stage2"}, row["mse_stage2"], cached=False)
+            if D0_B is not None:
+                traj.record({"log10_A_crit": math.log10(a_c), "log10_D": math.log10(D0_B), "log10_K": math.log10(K0), "m": m,
+                             "kind": "stage2_B"}, row["mse_stage2_B"], cached=True)
             traj.record({"log10_A_crit": math.log10(a_c), "log10_D": math.log10(row["D_opt"]), "log10_K": math.log10(row["K_opt"]),
                          "m": m, "kind": "joint"}, row["mse_joint"], cached=True)
         if log_every and (i % log_every == 0 or i == len(A_crits) - 1):
@@ -339,6 +345,11 @@ def partitioned_profile(prof: PartitionedProfiler, A_crits: np.ndarray, m: float
                                 "D": rows[jj]["D_opt"], "where": rows[jj]["where"], "index": jj, "n_channel": rows[jj]["n_channel"]}
         out["stage2_identifiability"] = identifiability(rows, "mse_stage2")
         out["joint_identifiability"] = identifiability(rows, "mse_joint")
+        if D0_B is not None:
+            jb = int(np.argmin([r["mse_stage2_B"] for r in rows]))
+            out["stage2_B_optimum"] = {"A_crit": rows[jb]["A_crit"], "mse": rows[jb]["mse_stage2_B"], "K": K0, "D": D0_B, "index": jb,
+                                       "n_channel": rows[jb]["n_channel"]}
+            out["stage2_B_identifiability"] = identifiability(rows, "mse_stage2_B")
     if extra_points:
         cert = {}
         for name, (a_c, K, D) in extra_points.items():

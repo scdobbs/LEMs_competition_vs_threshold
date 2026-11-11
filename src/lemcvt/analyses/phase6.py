@@ -17,8 +17,8 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from lemcvt.config import REPO_ROOT, TILE_IDS, config_root, load_site, load_tile_config
-from lemcvt.results import find_runs, git_hash
+from lemcvt.config import TILE_IDS, config_root, load_site, load_tile_config
+from lemcvt.results import find_runs
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +58,11 @@ def build_tile_config(tile: str, inputs: dict[str, Any], inputs_meta: dict[str, 
     ks_1e4 = ti["ks"]["10000"]
     o3 = ti["option_iii"]
     site_pool = inputs["sites"][raw["site"]]["ks_site_pooled"]
+    # addendum 6, 1.1: the other end of the D0 bracket, C_ht at L_w = the largest tested window not exceeding the
+    # tile's median crest width (the window test's own range), on the same option (iii) pixel set
+    tested = o3["test"]["windows_tested_nominal_m"]
+    L_w = max(tested) if tested else 11
+    row_w = next(r for r in o3["rows"] if r["L_nominal_m"] == L_w)
 
     v1ref = dict(raw.get("v1_reference", {}))
     if "model" not in v1ref:
@@ -82,6 +87,12 @@ def build_tile_config(tile: str, inputs: dict[str, Any], inputs_meta: dict[str, 
         "K0": float(site.U / ks_used["ks"]),
         "D0": float(site.U / o3["C_ht_at_L_f"]),
         "ks_1e4_reported_not_used": float(ks_1e4["ks"]) if ks_1e4.get("ks") else None,
+        "C_ht_B": float(row_w["C_ht"]),
+        "L_w_m": int(L_w),
+        "D0_B": float(site.U / row_w["C_ht"]),
+        "D0_bracket_note": ("addendum 6, 1.1: D0 (= D0_A, option (iii) at L_f = 11 m) is the primary input at both sites; D0_B = U/C_ht(L_w) on the "
+                            "same pixel set, L_w the largest tested window not exceeding the median crest width. On AP the option (iii) test failed "
+                            "and D0 is a bracket [D0_A, D0_B]; on GM it stands and D0_B is reported for symmetry."),
         "provenance": {
             "m": {"definition": "site constant: minimum of the site exponent profile S(m) over the five tiles (addendum 5, 1.1)",
                   "S_interval_1pct": m_prov.get("interval_1pct", {}).get("intervals"), "S_interval_5pct": m_prov.get("interval_5pct", {}).get("intervals"),
@@ -94,6 +105,8 @@ def build_tile_config(tile: str, inputs: dict[str, Any], inputs_meta: dict[str, 
                    "ks_1e4": {"ks": ks_1e4.get("ks"), "n_basins": ks_1e4.get("n_basins"), "n_eff_centred": ks_1e4.get("n_eff_centred"),
                               "ci68": ks_1e4.get("ks_ci68")},
                    **inputs_meta},
+            "C_ht_B": {"definition": "median -laplacian at L_w on the option (iii) pixel set (addendum 6, 1.1)", "L_w_m": int(L_w), "L_w_grid_m": row_w["L_m"],
+                       "ci68": row_w.get("C_ht_ci68"), "ci95": row_w.get("C_ht_ci95"), "ratio_to_C_ht_A": row_w.get("ratio_to_L_f"), **inputs_meta},
             "C_ht": {"definition": "curvature option (iii): median -laplacian at the fixed window L_f on the rollover-network hilltop set with the L_f/2 exclusion (addendum 5, 1.3)",
                      "L_f_m": o3["L_f_m"], "n_pixels": o3["n_pixels"], "n_segments": o3["n_segments"], "ci68": o3.get("C_ht_ci68_at_L_f"),
                      "ci95": o3.get("C_ht_ci95_at_L_f"), "D0_ci68": o3.get("D0_ci68"), "D0_ci95": o3.get("D0_ci95"),
@@ -112,6 +125,7 @@ def build_tile_config(tile: str, inputs: dict[str, Any], inputs_meta: dict[str, 
         "K0_ad": "U/ks",
         "K0_partitioned": "U/ks",
         "D0": "U/C_ht",
+        "D0_B": "U/C_ht_B",
         "K_bounds": [float(cfg_m.model.K_bounds[0]), float(cfg_m.model.K_bounds[1])],
         "D_bounds": [float(cfg_m.model.D_bounds[0]), float(cfg_m.model.D_bounds[1])],
         "A_crit_0": old_model["A_crit_0"],
@@ -122,11 +136,12 @@ def build_tile_config(tile: str, inputs: dict[str, Any], inputs_meta: dict[str, 
     }
     out = {"tile": raw["tile"], "site": raw["site"], "grids": grids, "units": raw["units"], "measured": measured, "model": model,
            "measured_v1": raw["measured_v1"], "v1_reference": v1ref}
-    header = (f"# Tile {tile}: Phase 6 configuration (addendum 5, section 2.3; written by `lemcvt phase6 write-configs` from run\n"
+    header = (f"# Tile {tile}: Phase 6 configuration (addendum 5, section 2.3, and addendum 6, 1.1-1.3; written by `lemcvt phase6 write-configs` from run\n"
               f"# {inputs_meta.get('run')} at git {inputs_meta.get('git_hash')}).\n"
               f"# `measured` holds the v2 pipeline's inputs with provenance: m is the site constant (S(m) minimum), ks the pooled\n"
               f"# through-origin chi-z slope at theta = m above A_c = 1e3 m^2 (K0 = U/ks), C_ht by curvature option (iii)\n"
-              f"# (L_f = 11 cells, rollover-network hilltop set, L_f/2 exclusion; D0 = U/C_ht). The model block refers to z in\n"
+              f"# (L_f = 11 cells, rollover-network hilltop set, L_f/2 exclusion; D0 = U/C_ht) and, as the other end of the D0 bracket\n"
+              f"# (addendum 6), C_ht_B at L_w = {L_w} m on the same pixel set (D0_B = U/C_ht_B, used with --d0-variant B). The model block refers to z in\n"
               f"# metres (param_z_units: m); the K and D bounds are the Phase 5.3 metre bounds. nonlinear_max_iter is 100\n"
               f"# (decision 6). The v1 values stay under `measured_v1` and `v1_reference` (`v1_reference.model` is the v1 model\n"
               f"# block, used by the loader for feet runs with --units feet; `v1_reference.grids`, where present, the original\n"
@@ -168,7 +183,7 @@ def write_tile_configs(tiles=TILE_IDS, inputs_run: str | Path | None = None, sea
         if write:
             path.write_text(text)
             chk = load_tile_config(tile)         # the loader must accept it and resolve K0, D0
-            written[tile] = {"path": str(path), "m": chk.model.m, "K0_partitioned": chk.model.K0_partitioned, "D0": chk.model.D0,
+            written[tile] = {"path": str(path), "m": chk.model.m, "K0_partitioned": chk.model.K0_partitioned, "D0": chk.model.D0, "D0_B": chk.model.D0_B,
                              "K0_ad": chk.model.K0_ad, "param_scale": chk.model.param_scale, "grids": chk.grids, "nonlinear_max_iter": chk.model.nonlinear_max_iter}
             feet = load_tile_config(tile, reproduce_v1_units=True)
             written[tile]["v1_feet_reload"] = {"m": feet.model.m, "K0_partitioned": feet.model.K0_partitioned, "D0": feet.model.D0, "grids": feet.grids}
@@ -216,18 +231,20 @@ def estimate(tiles=TILE_IDS, fill_counts: dict[str, int] | None = None) -> dict[
         it = {"AP": 12.0, "GM": 20.0}[site]           # mean Picard iterations per evaluation (checkpoint 4b/5: AP 6-12; GM 6-50 with cap hits)
         add(f"3.3 nonlinear A_crit profile ({site})", len(st), 260 * it * c["picard_iteration"][site] / 3600,
             note=f"260 Picard solves, ~{it:.0f} iterations each (cap 100)")
-        # 3.4 nonlinear joint: 30 x 25 Picard solves; small D saturates the slopes and hits the cap
-        frac_cap = {"AP": 0.10, "GM": 0.32}[site]      # share of the D grid below ~D0/2
+        # 3.4 nonlinear joint: 30 x 20 Picard solves over D = 1.5e-3 .. 5e-2 (addendum 6, 1.4); the lowest D values still saturate on GM
+        frac_cap = {"AP": 0.05, "GM": 0.20}[site]      # share of the D grid below ~D0/2 (GM D0 ~ 9e-3; AP D0 ~ 3e-3)
         mean_it = frac_cap * 100 + (1 - frac_cap) * 10
-        exp_nlj = 750 * mean_it * c["picard_iteration"][site] / 3600
-        add(f"3.4 nonlinear joint (A_crit, D) profile ({site})", len(st), exp_nlj, note=f"750 Picard solves; ~{100 * frac_cap:.0f} % at the cap")
+        exp_nlj = 600 * mean_it * c["picard_iteration"][site] / 3600
+        add(f"3.4 nonlinear joint (A_crit, D) profile ({site})", len(st), exp_nlj, note=f"600 Picard solves; ~{100 * frac_cap:.0f} % at the cap")
         kchk = [t for t in st if t in ("GM1", "AP5")]
         if kchk:
             add(f"3.4 K check x0.95, x1.05 ({', '.join(kchk)})", 2 * len(kchk), exp_nlj, note="same grid at K x 0.95 and K x 1.05")
         if site in ("AP", "GM") and any(t in ("AP1", "GM1") for t in st):
             add(f"3.5 D-inf joint profile ({site}1)", 1, (2000 + 300) * c["dinf_lu"][site] / 3600, mem="32G",
                 note="2000 thinned unique A_dinf values + refinement; one LU of the coupled system each")
-    add("3.6 resolution sweep (config params, D8 + D-inf)", len(tiles), 0.5, cpus=2, mem="24G", note="25 dx x 2 routings per tile")
+    add("3.6 resolution sweep (config params, D8 + D-inf) at D0_A, and at D0_B on AP", len(tiles) + 5, 0.5, cpus=2, mem="24G", note="25 dx x 2 routings per tile")
+    add("A6 3: AP1 seam test (joint, stage 2 and AD profiles, masked and unmasked)", 1, 12.0, mem="16G", note="2000 + 400 LU + 220 AD solves, two Gram matrices each")
+    add("A6 5.2-5.3: stage 2 and nonlinear at D0_B on AP", 5, 4.33 + 0.5, note="nonlinear profile at D0_B (260 Picard solves) + stage-2 profile on the thin grid")
     add("3.6 supp_fig5 synthetic + d8_vs_dinf at the measured parameters (metres)", 1, 1.0, mem="64G", note="d8_vs_dinf still assembles the v1 AD D-inf model with LIL loops")
     add("2.1 + 2.2 + tests: seam fix, measured inputs, tests on serc", 1, 1.0, mem="32G", note="Phase 6.0 utilities job")
     add("3.7 + 3.6 + 3.8: D-recovery, slope-area, figures, record", 1, 1.0, mem="32G", note="after every model run")
@@ -248,7 +265,7 @@ def fill_counts_from_m_profiles(m_site: dict[str, float], level: float = 0.05) -
 
     runs = latest_m_profile_runs()
     out: dict[str, Any] = {"per_tile": {}}
-    for t, (r, p) in runs.items():
+    for t, (r, _p) in runs.items():
         df = pd.read_parquet(r / "m_profile.parquet")
         sub = df[np.isclose(df.m, m_site[t[:2]])]
         if sub.empty:

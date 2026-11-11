@@ -129,3 +129,48 @@ def nonlinear_joint(out_dir: Path) -> list[Path]:
     fig.savefig(out.with_suffix(".pdf"))
     plt.close(fig)
     return [out, out.with_suffix(".pdf")]
+
+
+def curvature_compare(out_dir: Path) -> list[Path]:
+    """Addendum 6, 4: C_ht(L) on the option (iii) set from the observed DEM and the three fitted surfaces, one panel per tile."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    run, p = _latest("curvature_compare")
+    tiles = [t for t in TILE_IDS if t in p["tiles"]]
+    fig, axes = plt.subplots(2, 5, figsize=(17, 6.5), sharex=True)
+    styles = {"observed": ("k", "o-"), "linear_joint": ("C3", "s-"), "nonlinear_joint": ("C2", "^-"), "ad": ("C0", "d-")}
+    for ax, t in zip(axes.ravel(), tiles, strict=False):
+        r = p["tiles"][t]
+        for name, (col, st) in styles.items():
+            s = r["surfaces"].get(name)
+            if not s:
+                continue
+            L = np.array([int(k) for k in s["C_ht_L"]])
+            C = np.array(list(s["C_ht_L"].values()), float)
+            lab = name if name == "observed" else f"{name} (obs/model at 11 m: {s['ratio_obs_over_model_L'].get('11', float('nan')):.2f})"
+            ax.plot(L, np.abs(C), st, color=col, ms=3.5, lw=1, label=lab)
+        for lab_, val, col in (("D0_A", r.get("D0"), "0.4"), ("D0_B", r.get("D0_B"), "0.7")):
+            if val:
+                ax.axhline(r["U"] / val, color=col, ls=":", lw=0.8, label=f"U/{lab_} = {r['U'] / val:.2e}")
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xticks([7, 11, 21, 51])
+        ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
+        ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+        ax.set_title(f"{t} ({r['n_pixels']} px)", fontsize=9)
+        ax.grid(alpha=0.3, which="both")
+        ax.legend(fontsize=5, loc="lower left")
+    for ax in axes[1]:
+        ax.set_xlabel("window length L (m, nominal)")
+    for ax in axes[:, 0]:
+        ax.set_ylabel("|median laplacian| (1/m)")
+    fig.suptitle(f"Addendum 6, 4: C_ht(L) on the option (iii) pixel set, observed and fitted surfaces (run {run.name})", fontsize=10)
+    fig.tight_layout()
+    out = out_dir / "a6_curvature_compare.png"
+    fig.savefig(out, dpi=130)
+    fig.savefig(out.with_suffix(".pdf"))
+    plt.close(fig)
+    return [out, out.with_suffix(".pdf")]

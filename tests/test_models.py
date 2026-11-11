@@ -178,9 +178,8 @@ class TestPhase3VectorisedAssembly:
     """Phase 3 step 2: the vectorised hillslope assembly and slopes reproduce the v1 loops bit for bit."""
 
     def _grids(self):
-        from tests.synthetic_tile import hydro_from_padded, synthetic_dem
-
         from lemcvt.models.common import extract_grid_data, precompute_channel_network
+        from synthetic_tile import hydro_from_padded, synthetic_dem
 
         z = synthetic_dem(60, 60, 1.0, seed=7)
         zf, fd, area = hydro_from_padded(z, 1.0)
@@ -250,7 +249,7 @@ class TestPhase3VectorisedAssembly:
         np.testing.assert_array_equal(b, bv)
 
     def test_slopes_bit_identical(self):
-        from tests.synthetic_tile import hydro_from_padded, synthetic_dem
+        from synthetic_tile import hydro_from_padded, synthetic_dem
 
         z = synthetic_dem(50, 50, 1.0, seed=8)
         zf, fd, area = hydro_from_padded(z, 1.0)
@@ -265,7 +264,7 @@ class TestPhase3AdvectionDiffusionAssembly:
     """Phase 3 step 3: vectorised AD assembly with build-time Dirichlet rows equals the v1 construction bit for bit."""
 
     def test_solution_bit_identical(self):
-        from tests.synthetic_tile import hydro_from_padded, synthetic_dem
+        from synthetic_tile import hydro_from_padded, synthetic_dem
 
         z = synthetic_dem(60, 60, 1.0, seed=7)
         zf, fd, area = hydro_from_padded(z, 1.0)
@@ -280,7 +279,7 @@ class TestPhase3AdvectionDiffusionAssembly:
             np.testing.assert_allclose(b[np.isfinite(b)], a[np.isfinite(a)], rtol=1e-14, atol=0)
 
     def test_matrix_identical_to_v1_round_trip(self):
-        from tests.synthetic_tile import hydro_from_padded, synthetic_dem
+        from synthetic_tile import hydro_from_padded, synthetic_dem
 
         z = synthetic_dem(40, 40, 1.0, seed=9)
         zf, fd, area = hydro_from_padded(z, 1.0)
@@ -314,7 +313,7 @@ class TestPhase3ChiNetwork:
     """Phase 3 step 4: the once-integrated chi network reproduces the per-K rebuild to rounding."""
 
     def test_channel_elevations_and_surfaces(self):
-        from tests.synthetic_tile import hydro_from_padded, synthetic_dem
+        from synthetic_tile import hydro_from_padded, synthetic_dem
 
         z = synthetic_dem(80, 80, 1.0, seed=7)
         zf, fd, area = hydro_from_padded(z, 1.0)
@@ -339,9 +338,8 @@ class TestPhase3ChannelNetworkBFS:
     """Phase 3 step 5: vectorised receiver tables + compiled BFS reproduce the v1 construction bit for bit."""
 
     def test_channel_network_identical(self):
-        from tests.synthetic_tile import hydro_from_padded, synthetic_dem
-
         from lemcvt.models.common import extract_grid_data, precompute_channel_network, precompute_channel_network_v1
+        from synthetic_tile import hydro_from_padded, synthetic_dem
 
         z = synthetic_dem(80, 80, 1.0, seed=7)
         zf, fd, area = hydro_from_padded(z, 1.0)
@@ -357,10 +355,9 @@ class TestPhase3ChannelNetworkBFS:
         np.testing.assert_array_equal(a[4], b[4])
 
     def test_d8_area_accumulation_identical(self):
-        from tests.synthetic_tile import synthetic_dem
-
         import lemcvt.hydro.d8 as d8m
         from lemcvt.hydro.fill import priority_flood_fill
+        from synthetic_tile import synthetic_dem
 
         z = synthetic_dem(70, 70, 1.0, seed=3)
         zf = priority_flood_fill(np.pad(z, 5, mode="reflect"), 1.0)
@@ -379,7 +376,7 @@ class TestPicardInstrumentation:
     """Addendum 3, section 3: the instrumented Picard loop reproduces the v1 loop bit for bit and records its record."""
 
     def _tile(self):
-        from tests.synthetic_tile import hydro_from_padded, synthetic_dem
+        from synthetic_tile import hydro_from_padded, synthetic_dem
 
         z = synthetic_dem(60, 60, 1.0, seed=7)
         zf, fd, area = hydro_from_padded(z, 1.0)

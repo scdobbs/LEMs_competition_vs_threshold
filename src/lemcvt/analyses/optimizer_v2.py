@@ -45,9 +45,9 @@ from lemcvt.models.partitioned import partitioned_threshold_model
 from lemcvt.models.partitioned_nonlinear import partitioned_threshold_model_nonlinear
 from lemcvt.optimize.v1 import Trajectory
 from lemcvt.optimize.v2 import (
-    _row,
     ADProfiler,
     PartitionedProfiler,
+    _row,
     ad_profile,
     exponent_profile,
     identifiability,
@@ -128,18 +128,21 @@ def _ad_gradient_direct(ad, U, K, D, Z0, rel_step=1e-6) -> dict[str, float]:
 def run_tile_v2(tile: str, stages: Sequence[str] = STAGES_V2, acrit_grid: str = "thin", thin_n: int = THIN_N,
                 nl_n: int = NL_GRID_N, nl_refine_max: int = NL_REFINE_MAX, m_values=M_GRID, m_acrit_n: int = M_ACRIT_N,
                 save_grids: bool = True, derived_grids: bool = False, crop: tuple[int, int, int, int] | None = None,
-                run_id: str | None = None, results_root=None, reproduce_v1_units: bool | None = None) -> RunRecorder:
+                run_id: str | None = None, results_root=None, reproduce_v1_units: bool | None = None,
+                d0_variant: str = "A") -> RunRecorder:
     stages = tuple(s for s in STAGES_V2 if s in set(stages) | ({"partitioned"} if {"acrit", "joint"} & set(stages) else set()))
     if not stages:
         raise ValueError(f"no valid stage in {stages}; choose from {STAGES_V2} (acrit/joint -> partitioned)")
     td = load_tile(tile, crop=crop, sanity=crop is None, reproduce_v1_units=reproduce_v1_units)
-    mp = td.cfg.model
+    from lemcvt.config import apply_d0_variant
+
+    mp = apply_d0_variant(td.cfg.model, d0_variant)       # addendum 6, 1.1: D0_B runs for the AP bracket
     Z0, A, FD, dx, U = td.Z, td.A, td.FD, td.dx, mp.U
     ref = td.cfg.v1_reference.get("stages", {})
     if run_id is None:
         from lemcvt.results import new_run_id
 
-        run_id = new_run_id("tile_run", f"{tile}_v2_{'-'.join(stages)}")
+        run_id = new_run_id("tile_run", f"{tile}_v2_{'-'.join(stages)}" + ("_D0B" if mp.d0_variant == "B" else ""))
     rec = RunRecorder("tile_run", tile, run_id=run_id, root=results_root)
     rec.add_params("tile", tile)
     rec.add_params("optimizer", "v2")
@@ -148,7 +151,8 @@ def run_tile_v2(tile: str, stages: Sequence[str] = STAGES_V2, acrit_grid: str = 
     rec.add_params("model", {"m": mp.m, "U": U, "n": mp.n, "S_c": mp.S_c, "K0_ad": mp.K0_ad, "K0_partitioned": mp.K0_partitioned,
                              "D0": mp.D0, "K_bounds": mp.K_bounds, "D_bounds": mp.D_bounds, "A_crit_0": mp.A_crit_0,
                              "A_crit_bounds": mp.A_crit_bounds, "param_z_units": mp.param_z_units, "param_scale": mp.param_scale,
-                             "z_units_working": td.z_units_working})
+                             "z_units_working": td.z_units_working, "D0_B": mp.D0_B, "d0_variant": mp.d0_variant,
+                             "nonlinear_max_iter": mp.nonlinear_max_iter})
     stage_results: dict[str, Any] = {}
     v2: dict[str, Any] = {}
     forward_runs: list[dict[str, Any]] = []
@@ -210,12 +214,20 @@ def run_tile_v2(tile: str, stages: Sequence[str] = STAGES_V2, acrit_grid: str = 
         if "nonlinear" in ref:
             extras["v1_nonlinear_acrit_linear_model"] = (float(ref["nonlinear"]["A_crit"]), mp.K0_partitioned, mp.D0)
         traj = Trajectory("partitioned", ("log10_A_crit", "log10_D", "log10_K", "m", "kind"))
+        d0b = mp.D0_B if (mp.D0_B is not None and mp.d0_variant == "A") else None
         res = partitioned_profile(prof_p, grid, mp.m, mp.K_bounds, mp.D_bounds, mp.K0_partitioned, mp.D0, traj=traj,
-                                  extra_points=extras)
+                                  extra_points=extras, D0_B=d0b)
         rec.add_trajectory(traj)
         rows = res.pop("rows")
         rec.write_table(pd.DataFrame(rows), "acrit_profile")
         s2, jo = res["stage2_optimum"], res["joint_optimum"]
+        if "stage2_B_optimum" in res:
+            sb = res["stage2_B_optimum"]
+            Zb_, maskb_ = partitioned_threshold_model(Z0, A, FD, dx, mp.m, U, mp.K0_partitioned)(sb["A_crit"], mp.D0_B)
+            forward_runs.append({"key": "acrit_opt_D0B", "model": "partitioned", "params": {"U": U, "K": mp.K0_partitioned, "D": mp.D0_B, "A_crit": sb["A_crit"]},
+                                 "mse": mse(Zb_, Z0), "files": _save(Zb_, "acrit_opt", "_D0B"), "n_channel": int(maskb_.sum())})
+            stage_results["acrit_D0B"] = {"params": {"A_crit": sb["A_crit"]}, "mse": sb["mse"], "mse_direct": mse(Zb_, Z0), "K": mp.K0_partitioned, "D": mp.D0_B,
+                                          "message": "stage 2 at D0_B (addendum 6, 5.2), same reductions", "x_log10": [math.log10(sb["A_crit"])]}
         # direct forward solves at the v2 optima: the reduction against the v1-path model
         pm = partitioned_threshold_model(Z0, A, FD, dx, mp.m, U, mp.K0_partitioned)
         Z2, mask2 = pm(s2["A_crit"], mp.D0)
@@ -347,12 +359,12 @@ def run_tile_v2(tile: str, stages: Sequence[str] = STAGES_V2, acrit_grid: str = 
     rec.add_params("v2", v2)
     rec.add_params("v1_reference", ref)
     rec.finalize(config_snapshot(td.cfg, {"crop": crop, "acrit_grid": acrit_grid, "thin_n": thin_n, "nl_n": nl_n,
-                                          "m_acrit_n": m_acrit_n}))
+                                          "m_acrit_n": m_acrit_n, "d0_variant": mp.d0_variant}))
     return rec
 
 
 def refine_partitioned(tile: str, source_run: str | Path, max_extra: int = 400, run_id: str | None = None,
-                       results_root=None, fill_interval: float | None = None) -> RunRecorder:
+                       results_root=None, fill_interval: float | None = None, derived_grids: bool = True) -> RunRecorder:
     """Staircase refinement of a thinned partitioned profile (addendum 3, 5.1 budget rule follow-up).
 
     The thinned grid samples one unique drainage area in about 20; the staircase can have its minimum at a
@@ -369,13 +381,15 @@ def refine_partitioned(tile: str, source_run: str | Path, max_extra: int = 400, 
     p0 = json.loads((src / "params.json").read_text())
     prof0 = pd.read_parquet(src / "acrit_profile.parquet")
     td = load_tile(tile)
-    mp = td.cfg.model
+    from lemcvt.config import apply_d0_variant
+
+    mp = apply_d0_variant(td.cfg.model, p0.get("model", {}).get("d0_variant", "A"))
     Z0, A, FD, dx, U = td.Z, td.A, td.FD, td.dx, mp.U
     ref = td.cfg.v1_reference.get("stages", {})
     if run_id is None:
         from lemcvt.results import new_run_id
 
-        run_id = new_run_id("tile_run", f"{tile}_v2_partitioned-refined")
+        run_id = new_run_id("tile_run", f"{tile}_v2_partitioned-refined" + ("_D0B" if mp.d0_variant == "B" else ""))
     rec = RunRecorder("tile_run", tile, run_id=run_id, root=results_root)
     for k in ("tile", "optimizer", "inputs", "model", "v1_reference"):
         rec.add_params(k, p0[k])
@@ -384,6 +398,9 @@ def refine_partitioned(tile: str, source_run: str | Path, max_extra: int = 400, 
     grid = np.sort(prof0.A_crit.to_numpy())
     ua = unique_areas(A, *ACRIT_RANGE)
     centres = [float(prof0.A_crit[prof0.mse_stage2.idxmin()]), float(prof0.A_crit[prof0.mse_joint.idxmin()])]
+    d0b = mp.D0_B if ("mse_stage2_B" in prof0.columns and mp.D0_B is not None) else None
+    if d0b is not None:
+        centres.append(float(prof0.A_crit[prof0.mse_stage2_B.idxmin()]))
     for key in ("acrit", "joint"):
         if key in ref:
             centres.append(float(ref[key]["A_crit"]))
@@ -410,7 +427,7 @@ def refine_partitioned(tile: str, source_run: str | Path, max_extra: int = 400, 
         extras["v1_joint"] = (float(ref["joint"]["A_crit"]), float(ref["joint"]["K"]), float(ref["joint"]["D"]))
     t0 = time.perf_counter()
     res = partitioned_profile(prof, extra_a, mp.m, mp.K_bounds, mp.D_bounds, mp.K0_partitioned, mp.D0, traj=traj,
-                              extra_points=extras, log_every=50)
+                              extra_points=extras, log_every=50, D0_B=d0b)
     rec.add_trajectory(traj)
     rows_new = res.pop("rows")
     merged = pd.concat([prof0, pd.DataFrame(rows_new)], ignore_index=True).sort_values("A_crit").reset_index(drop=True)
@@ -420,7 +437,7 @@ def refine_partitioned(tile: str, source_run: str | Path, max_extra: int = 400, 
         # for the stage-2 and the joint objective, not only around the minima
         rows_m = merged.to_dict("records")
         targets = set()
-        for col in ("mse_stage2", "mse_joint"):
+        for col in ("mse_stage2", "mse_joint") + (("mse_stage2_B",) if d0b is not None else ()):
             ident = identifiability(rows_m, col, levels=(fill_interval,))
             for lo, hi in ident[f"level_{fill_interval:g}"]["intervals"]:
                 targets |= set(ua[(ua >= lo) & (ua <= hi)].tolist())
@@ -432,7 +449,7 @@ def refine_partitioned(tile: str, source_run: str | Path, max_extra: int = 400, 
                     fill_info["mse_stage2"], fill_info["mse_joint"])
         if fill_a.size:
             traj_f = Trajectory("partitioned_fill", ("log10_A_crit", "log10_D", "log10_K", "m", "kind"))
-            res_f = partitioned_profile(prof, fill_a, mp.m, mp.K_bounds, mp.D_bounds, mp.K0_partitioned, mp.D0, traj=traj_f, log_every=500)
+            res_f = partitioned_profile(prof, fill_a, mp.m, mp.K_bounds, mp.D_bounds, mp.K0_partitioned, mp.D0, traj=traj_f, log_every=500, D0_B=d0b)
             rec.add_trajectory(traj_f)
             merged = pd.concat([merged, pd.DataFrame(res_f.pop("rows"))], ignore_index=True).sort_values("A_crit").reset_index(drop=True)
         fill_info["wall_s"] = time.perf_counter() - t0
@@ -445,6 +462,11 @@ def refine_partitioned(tile: str, source_run: str | Path, max_extra: int = 400, 
     jo = {"A_crit": rows[jj]["A_crit"], "mse": rows[jj]["mse_joint"], "K": rows[jj]["K_opt"], "D": rows[jj]["D_opt"],
           "where": rows[jj]["where"], "index": jj, "n_channel": rows[jj]["n_channel"]}
     out = dict(p0["v2"]["partitioned"])
+    if d0b is not None:
+        jb = int(np.argmin([r["mse_stage2_B"] for r in rows]))
+        out["stage2_B_optimum"] = {"A_crit": rows[jb]["A_crit"], "mse": rows[jb]["mse_stage2_B"], "K": mp.K0_partitioned, "D": d0b, "index": jb,
+                                   "n_channel": rows[jb]["n_channel"]}
+        out["stage2_B_identifiability"] = identifiability(rows, "mse_stage2_B")
     out.update({"stage2_optimum": s2, "joint_optimum": jo, "stage2_identifiability": identifiability(rows, "mse_stage2"),
                 "joint_identifiability": identifiability(rows, "mse_joint"), "certificate": res.get("certificate", out.get("certificate")),
                 "refinement": {"source_run": src.name, "centres": centres, "n_extra": int(extra_a.size), "wall_s": time.perf_counter() - t0,
@@ -469,9 +491,19 @@ def refine_partitioned(tile: str, source_run: str | Path, max_extra: int = 400, 
          "mse": mse2, "files": write_model_outputs(rec, td.filled, Z2, f"{td.cfg.site}_1m_best_tile_{V1_PREFIX['acrit_opt']}", derived=False),
          "n_channel": int(mask2.sum())},
         {"key": "joint_opt", "model": "partitioned", "params": {"U": U, "K": jo["K"], "D": jo["D"], "A_crit": jo["A_crit"]},
-         "mse": msej, "files": write_model_outputs(rec, td.filled, Zj, f"{td.cfg.site}_1m_best_tile_{V1_PREFIX['joint_opt']}", derived=False),
+         "mse": msej, "files": write_model_outputs(rec, td.filled, Zj, f"{td.cfg.site}_1m_best_tile_{V1_PREFIX['joint_opt']}", derived=derived_grids),
          "n_channel": int(maskj.sum())}]
-    sr = dict(p0["stages_results"])
+    if d0b is not None:
+        sb = out["stage2_B_optimum"]
+        Zb_, maskb_ = pm(sb["A_crit"], d0b)
+        forward_runs.append({"key": "acrit_opt_D0B", "model": "partitioned", "params": {"U": U, "K": mp.K0_partitioned, "D": d0b, "A_crit": sb["A_crit"]},
+                             "mse": mse(Zb_, Z0), "files": write_model_outputs(rec, td.filled, Zb_, f"{td.cfg.site}_1m_best_tile_{V1_PREFIX['acrit_opt']}_D0B", derived=False),
+                             "n_channel": int(maskb_.sum())})
+        sr_extra = {"acrit_D0B": {"params": {"A_crit": sb["A_crit"]}, "mse": sb["mse"], "mse_direct": mse(Zb_, Z0), "K": mp.K0_partitioned, "D": d0b,
+                                  "message": "stage 2 at D0_B (addendum 6, 5.2), same reductions", "x_log10": [math.log10(sb["A_crit"])]}}
+    else:
+        sr_extra = {}
+    sr = dict(p0["stages_results"]) | sr_extra
     sr["acrit"] = {**sr["acrit"], "params": {"A_crit": s2["A_crit"]}, "mse": s2["mse"], "mse_direct": mse2, "n_fev": out["n_evaluations"],
                    "message": f"thinned profile + {extra_a.size} staircase values around the minima", "x_log10": [math.log10(s2["A_crit"])]}
     sr["joint"] = {**sr["joint"], "params": {"A_crit": jo["A_crit"], "D": jo["D"], "K": jo["K"]}, "mse": jo["mse"], "mse_direct": msej,
@@ -490,8 +522,8 @@ def refine_partitioned(tile: str, source_run: str | Path, max_extra: int = 400, 
 # ----------------------------------------------------------------------------- addendum 5, 3.4: nonlinear joint profile
 
 NLJ_N_ACRIT = 30
-NLJ_N_D = 25
-NLJ_D_RANGE = (1e-3, 1e-1)
+NLJ_N_D = 20                       # addendum 6, 1.4: 20 log-spaced D values from 1.5e-3 to 5e-2 m^2/yr
+NLJ_D_RANGE = (1.5e-3, 5e-2)
 NLJ_WIDEN = 3.0
 
 
@@ -576,7 +608,7 @@ def run_nonlinear_joint(tile: str, source_run: str | Path | None = None, k_facto
     rows: list[dict[str, Any]] = []
     t0 = time.perf_counter()
     n_tot = grid_a.size * grid_d.size
-    for ia, a_c in enumerate(grid_a):
+    for a_c in grid_a:
         for D in grid_d:
             t1 = time.perf_counter()
             Z, mask = pmnl(float(a_c), float(D), mp.S_c, mp.nonlinear_max_iter, mp.nonlinear_tol)
@@ -640,7 +672,7 @@ def run_dinf_joint(tile: str, thin_n: int = THIN_N, refine_max: int = 400, save_
     """
     from lemcvt.hydro.dinf import compute_dinf
     from lemcvt.models.dinf_partitioned import partitioned_threshold_model_dinf
-    from lemcvt.optimize.v2 import PartitionedReduction, box_quadratic_min
+    from lemcvt.optimize.v2 import PartitionedReduction
 
     td = load_tile(tile, crop=crop, sanity=crop is None)
     mp = td.cfg.model

@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -49,10 +50,24 @@ def _model_filled_grid(td, key: str, run_dir: Path | None) -> np.ndarray:
     return z * td.z_factor if td.z_factor != 1.0 else z
 
 
+def _phase6_dirs(tile: str) -> dict[str, Path]:
+    """Phase 6 (addendum 6): AD-no-opt and AD-opt from the latest v2 AD run, the joint grid from the refined partitioned run."""
+    from lemcvt.analyses.curvature_compare import _runs_by_stage
+
+    runs = _runs_by_stage(tile)
+    out = {}
+    if "ad" in runs:
+        out["AD_no_opt"] = runs["ad"][0]
+        out["AD_opt"] = runs["ad"][0]
+    if "joint" in runs:
+        out["part"] = runs["joint"][0]
+    return out
+
+
 def run_slope_area(tiles: Sequence[str] = V1_TILES, run_dirs: dict[str, Path] | None = None, use_latest_runs: bool = False,
                    vertical_interval: float = 10, nbins: int = 24, run_id: str | None = None,
-                   results_root=None) -> RunRecorder:
-    rec = RunRecorder("slope_area", "_".join(tiles), run_id=run_id, root=results_root)
+                   results_root=None, phase6: bool = False) -> RunRecorder:
+    rec = RunRecorder("slope_area", "_".join(tiles) if len(tiles) <= 3 else f"{len(tiles)}tiles", run_id=run_id, root=results_root)
     out = {}
     frames = []
     snaps = {}
@@ -61,14 +76,20 @@ def run_slope_area(tiles: Sequence[str] = V1_TILES, run_dirs: dict[str, Path] | 
         snaps[tile] = config_snapshot(td.cfg)
         min_area = V1_MIN_AREA[td.cfg.site]
         run_dir = None
-        if run_dirs and tile in run_dirs:
+        per_key: dict[str, Path] = {}
+        if phase6:
+            per_key = _phase6_dirs(tile)
+            missing = [k for k in MODEL_KEYS if k not in per_key]
+            if missing:
+                raise FileNotFoundError(f"{tile}: no Phase 6 run for {missing}")
+        elif run_dirs and tile in run_dirs:
             run_dir = Path(run_dirs[tile])
         elif use_latest_runs:
             run_dir = latest_run("tile_run", tile)
         grids = {"orig": td.Z}
         for key in MODEL_KEYS:
-            grids[key] = _model_filled_grid(td, key, run_dir)
-        res = {"min_area": min_area, "model_source": str(run_dir) if run_dir else "v1 saved grids"}
+            grids[key] = _model_filled_grid(td, key, per_key.get(key, run_dir))
+        res: dict[str, Any] = {"min_area": min_area, "model_source": ({k: str(v) for k, v in per_key.items()} if phase6 else (str(run_dir) if run_dir else "v1 saved grids"))}
         for key, z in grids.items():
             Ks, theta, dbg = slope_area_regression_binned(z, td.A, td.FD, td.dx, min_area=min_area,
                                                           vertical_interval=vertical_interval, nbins=nbins,

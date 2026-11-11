@@ -257,7 +257,7 @@ def run_phase6_inputs(tiles: Sequence[str], n_boot: int = N_BOOT, run_id: str | 
         # the 02b set for the record: the measure set without exclusion at the tile's plateau window L*
         w_star = int(cp.get("w_star") or 0)
         seg0, _n0 = label(mask0, structure=np.ones((3, 3)))
-        rec02b = _median_with_bootstrap(-total_curvature(Z, w_star, dx, dy)[mask0], seg0[mask0], n_boot) if w_star else {"C_ht": None}
+        rec02b: dict[str, Any] = _median_with_bootstrap(-total_curvature(Z, w_star, dx, dy)[mask0], seg0[mask0], n_boot) if w_star else {"C_ht": None}
         rec02b.update({"w": w_star, "L_star_m": cp.get("L_star_m"), "measure_run_C_ht": cp.get("C_ht"), "measure_run": cp.get("_run"),
                        "D0": float(U / rec02b["C_ht"]) if rec02b.get("C_ht") else None, "definition": "measure set, no exclusion, plateau window L*"})
         out["set_02b"] = rec02b

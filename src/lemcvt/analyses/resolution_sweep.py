@@ -96,9 +96,12 @@ def run_at_target_dx(filled_1m, dx_target: float, U: float, K: float, D: float, 
 
 def run_resolution_sweep(tiles: Sequence[str], routings: Sequence[str] = ("d8", "dinf"), dx_min: float = 5.0,
                          dx_max: float = 100.0, n_dx: int = 25, params: str = "v1", run_id: str | None = None,
-                         results_root=None) -> RunRecorder:
-    label = "_".join(tiles) if len(tiles) <= 3 else f"{tiles[0]}-{tiles[-1]}_{len(tiles)}tiles"
+                         results_root=None, d0_variant: str = "A") -> RunRecorder:
+    from lemcvt.config import apply_d0_variant
+
+    label = ("_".join(tiles) if len(tiles) <= 3 else f"{tiles[0]}-{tiles[-1]}_{len(tiles)}tiles") + ("_D0B" if d0_variant.upper() == "B" else "")
     rec = RunRecorder("sweep_resolution", label, run_id=run_id, root=results_root)
+    rec.add_params("d0_variant", d0_variant.upper())
     targets = dx_targets(dx_min, dx_max, n_dx)
     rec.add_params("dx_targets", targets)
     rec.add_params("routings", list(routings))
@@ -118,7 +121,8 @@ def run_resolution_sweep(tiles: Sequence[str], routings: Sequence[str] = ("d8", 
             K, D = V1_KD[site][idx]
             theta = V1_THETA[site][idx]
         else:
-            U, K, D, theta = cfg.model.U, cfg.model.K0_partitioned, cfg.model.D0, cfg.model.m
+            mp = apply_d0_variant(cfg.model, d0_variant)
+            U, K, D, theta = mp.U, mp.K0_partitioned, mp.D0, mp.m
         for dx_t in targets:
             t0 = time.perf_counter()
             try:

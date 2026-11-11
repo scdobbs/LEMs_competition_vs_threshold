@@ -40,6 +40,7 @@ FIGURE_BUILDERS: dict[str, str] = {
     "exponent_site": "lemcvt.figures.optimizer_v2:exponent_site",
     "phase6_window_test": "lemcvt.figures.phase6:window_test",
     "phase6_nonlinear_joint": "lemcvt.figures.phase6:nonlinear_joint",
+    "phase6_curvature_compare": "lemcvt.figures.phase6:curvature_compare",
 }
 
 

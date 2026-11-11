@@ -88,11 +88,11 @@ steps:
     cpus: 1
     mem: 8G
     core_hours_estimate_per_task: 15
-  phase6_nonlinear_joint:   # 750 Picard solves over (A_crit, D); small D hits the cap
-    time: "2-03:00:00"
+  phase6_nonlinear_joint:   # 600 Picard solves over (A_crit, D) = 30 x 20, D = 1.5e-3 .. 5e-2 (addendum 6, 1.4); the lowest D still hits the cap on GM
+    time: "1-12:00:00"
     cpus: 1
     mem: 8G
-    core_hours_estimate_per_task: 51
+    core_hours_estimate_per_task: 36
   phase6_dinf_joint:    # ~2300 LU factorisations of the coupled D-inf system
     time: "15:00:00"
     cpus: 1

@@ -148,6 +148,10 @@ class ModelParams:
     methods: dict[str, str] = field(default_factory=lambda: {
         "ad": "L-BFGS-B", "acrit": "Nelder-Mead", "nonlinear": "Nelder-Mead", "joint": "Nelder-Mead",
     })
+    D0_B: float | None = None
+    """Addendum 6, 1.1: the other end of the D0 bracket (U/C_ht at the window L_w); None before Phase 6."""
+    d0_variant: str = "A"
+    """Which D0 the run uses: ``A`` (the primary, option (iii) at L_f) or ``B`` (see :func:`apply_d0_variant`)."""
     param_z_units: str = "m"
     """Vertical unit the declared K0, D0 and bounds refer to (``ftUS`` on the AP tiles, v1 values)."""
     param_scale: float = 1.0
@@ -191,7 +195,23 @@ def _resolve_expr(v: Any, ctx: dict[str, float], where: str) -> float:
         return float(np.power(ctx["U"] / ctx["ks"], 1.0 / ctx["n"]))
     if v == "U/C_ht":
         return ctx["U"] / ctx["C_ht"]
-    raise ConfigError(f"{where}: cannot interpret value {v!r} (number, 'U/ks' or 'U/C_ht')")
+    if v == "U/C_ht_B":
+        return ctx["U"] / ctx["C_ht_B"]
+    raise ConfigError(f"{where}: cannot interpret value {v!r} (number, 'U/ks', 'U/C_ht' or 'U/C_ht_B')")
+
+
+def apply_d0_variant(model: ModelParams, variant: str) -> ModelParams:
+    """Addendum 6, 1.1: run with D0 = D0_B instead of the primary D0 (``variant="B"``); the choice is recorded."""
+    variant = (variant or "A").upper()
+    if variant == "A":
+        return model
+    if variant != "B":
+        raise ConfigError(f"unknown D0 variant {variant!r} (A or B)")
+    if model.D0_B is None:
+        raise ConfigError("D0 variant B requested but the tile config has no D0_B (measured.C_ht_B)")
+    model.D0 = float(model.D0_B)
+    model.d0_variant = "B"
+    return model
 
 
 def load_tile_config(tile: str, reproduce_v1_units: bool | None = None) -> TileConfig:
@@ -240,8 +260,9 @@ def load_tile_config(tile: str, reproduce_v1_units: bool | None = None) -> TileC
         src = measured or mv
     ks_v = src.get("ks")
     cht_v = src.get("C_ht", src.get("hilltop_curvature"))
+    cht_b = src.get("C_ht_B")
     ctx = {"U": site.U, "n": site.n, "ks": float(ks_v) if ks_v is not None else float("nan"),
-           "C_ht": float(cht_v) if cht_v is not None else float("nan")}
+           "C_ht": float(cht_v) if cht_v is not None else float("nan"), "C_ht_B": float(cht_b) if cht_b is not None else float("nan")}
     model = ModelParams(
         m=float(mdl["m"]), U=site.U, n=site.n, S_c=float(mdl.get("S_c", site.S_c)),
         K0_ad=_resolve_expr(mdl["K0_ad"], ctx, f"{path}: K0_ad"),
@@ -256,6 +277,8 @@ def load_tile_config(tile: str, reproduce_v1_units: bool | None = None) -> TileC
     )
     if "methods" in mdl:
         model.methods.update({k: str(v) for k, v in mdl["methods"].items()})
+    if mdl.get("D0_B") is not None:
+        model.D0_B = _resolve_expr(mdl["D0_B"], ctx, f"{path}: D0_B")
     # Phase 5 (addendum 4, sections 3 and 5.3): K- and D-type parameters declared for z in `param_z_units`
     # are scaled to the working vertical unit; z_m = z_ft / c <=> K_m = c K_ft, D_m = c D_ft
     from lemcvt.io.units import z_scale_factor
@@ -268,6 +291,8 @@ def load_tile_config(tile: str, reproduce_v1_units: bool | None = None) -> TileC
         model.K0_ad *= scale
         model.K0_partitioned *= scale
         model.D0 *= scale
+        if model.D0_B is not None:
+            model.D0_B *= scale
         model.K_bounds = (model.K_bounds[0] * scale, model.K_bounds[1] * scale)
         model.D_bounds = (model.D_bounds[0] * scale, model.D_bounds[1] * scale)
         logger.info("%s: K0, D0 and the K, D bounds declared for z in %s multiplied by %.10f for the metre grid",

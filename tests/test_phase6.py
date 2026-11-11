@@ -95,8 +95,8 @@ def test_config_measured_block_and_v1_model_block(env):
     path = env["configs"] / "tiles" / "GM1.yaml"
     d = yaml.safe_load(path.read_text())
     v1_model = dict(d["model"])
-    d["measured"] = {"m": 0.31, "ks": 4.0, "C_ht": 1.6e-2, "z_units": "m", "provenance": {"run": "test"}}
-    d["model"] = dict(v1_model) | {"m": 0.31, "param_z_units": "m", "nonlinear_max_iter": 100}
+    d["measured"] = {"m": 0.31, "ks": 4.0, "C_ht": 1.6e-2, "C_ht_B": 1.2e-2, "z_units": "m", "provenance": {"run": "test"}}
+    d["model"] = dict(v1_model) | {"m": 0.31, "param_z_units": "m", "nonlinear_max_iter": 100, "D0_B": "U/C_ht_B"}
     d["v1_reference"] = {"stages": {}, "model": dict(v1_model) | {"param_z_units": "m"}}
     path.write_text(yaml.safe_dump(d, sort_keys=False))
     cfg = load_tile_config("GM1")
@@ -105,6 +105,11 @@ def test_config_measured_block_and_v1_model_block(env):
     assert cfg.model.D0 == pytest.approx(1.47e-4 / 1.6e-2)
     assert cfg.model.nonlinear_max_iter == 100
     assert cfg.measured["ks"] == 4.0
+    assert cfg.model.D0_B == pytest.approx(1.47e-4 / 1.2e-2)
+    from lemcvt.config import apply_d0_variant
+
+    mb = apply_d0_variant(load_tile_config("GM1").model, "B")
+    assert mb.D0 == pytest.approx(1.47e-4 / 1.2e-2) and mb.d0_variant == "B"
     feet = load_tile_config("GM1", reproduce_v1_units=True)
     assert feet.model.m == v1_model["m"]
     assert feet.model.K0_partitioned == pytest.approx(1.47e-4 / 5.0)      # the v1 measured_v1 block
@@ -116,12 +121,34 @@ def test_config_measured_block_and_v1_model_block(env):
               "tiles": {"GM1": {"ks": {"1000": {"ks": 4.0, "n_basins": 9, "n_eff_centred": 2.8, "ks_ci68": [3.5, 4.7]},
                                        "10000": {"ks": 3.5, "n_basins": 1, "n_eff_centred": 1.0}},
                                 "option_iii": {"C_ht_at_L_f": 1.6e-2, "L_f_m": 11.0, "n_pixels": 300, "n_segments": 40, "C_ht_ci68_at_L_f": [1.5e-2, 1.7e-2],
-                                               "D0_ci68": [8.6e-3, 9.8e-3], "test": {"pass": True, "rule": "r", "n_windows_tested": 2}}}},
+                                               "D0_ci68": [8.6e-3, 9.8e-3], "test": {"pass": True, "rule": "r", "n_windows_tested": 2, "windows_tested_nominal_m": [11, 15]},
+                                               "rows": [{"L_nominal_m": 11, "L_m": 11.0, "C_ht": 1.6e-2}, {"L_nominal_m": 15, "L_m": 15.0, "C_ht": 1.4e-2, "ratio_to_L_f": 0.875}]}}},
               "sites": {"GM": {"ks_site_pooled": {"1000": {"ks": 4.0}, "10000": {"ks": 3.5}}, "option_iii_test": {"pass": True}}}}
     cfg_dict, header = build_tile_config("GM1", inputs, {"run": "r", "git_hash": "g"}, None, None)
     assert cfg_dict["model"]["param_z_units"] == "m" and cfg_dict["model"]["nonlinear_max_iter"] == 100
     assert cfg_dict["measured"]["K0"] == pytest.approx(1.47e-4 / 4.0)
+    assert cfg_dict["measured"]["L_w_m"] == 15 and cfg_dict["measured"]["D0_B"] == pytest.approx(1.47e-4 / 1.4e-2)
     assert "model" in cfg_dict["v1_reference"]
     path.write_text(header + yaml.safe_dump(cfg_dict, sort_keys=False))
     cfg2 = load_tile_config("GM1")
     assert cfg2.model.K0_partitioned == pytest.approx(1.47e-4 / 4.0) and cfg2.model.D0 == pytest.approx(1.47e-4 / 1.6e-2)
+    assert cfg2.model.D0_B == pytest.approx(1.47e-4 / 1.4e-2)
+
+
+def test_stage2_at_D0_B_uses_the_same_reductions(env):
+    """Addendum 6, 5.2: with D0_B in the config the partitioned stage carries the stage-2 profile at D0_B too."""
+    rec = run_tile_v2("GM1", stages=["partitioned"], acrit_grid="thin", thin_n=30, save_grids=False)
+    p = json.loads((rec.dir / "params.json").read_text())
+    v = p["v2"]["partitioned"]
+    assert p["model"]["D0_B"] is not None
+    assert "stage2_B_optimum" in v and v["stage2_B_optimum"]["D"] == pytest.approx(p["model"]["D0_B"])
+    import pandas as pd
+
+    prof = pd.read_parquet(rec.dir / "acrit_profile.parquet")
+    assert "mse_stage2_B" in prof.columns and np.isfinite(prof.mse_stage2_B).all()
+    assert "acrit_D0B" in p["stages_results"]
+    ref = refine_partitioned("GM1", rec.dir, max_extra=10, fill_interval=0.05)
+    q = json.loads((ref.dir / "params.json").read_text())
+    assert "stage2_B_optimum" in q["v2"]["partitioned"] and "mse_stage2_B" in q["v2"]["partitioned"]["interval_fill"]
+    assert any(f["key"] == "acrit_opt_D0B" for f in q["forward_runs"])
+    assert any(name.endswith("_filled.tif") and "a_crit-k-d-opt" in name for name in json.loads((ref.dir / "run.json").read_text())["grids"])

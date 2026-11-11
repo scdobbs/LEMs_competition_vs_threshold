@@ -170,7 +170,7 @@ def correct_area_in_tile(fd_old: np.ndarray, area_old: np.ndarray, Z: np.ndarray
     area = area_old.astype(np.float64).copy()
     ny, nx = fd.shape
     order = np.argsort(area_old[seam_rc[:, 0], seam_rc[:, 1]], kind="stable")      # stored area ascending: upstream first
-    records = []
+    records: list[dict[str, Any]] = []
     for k in order.tolist():
         r, c = int(seam_rc[k, 0]), int(seam_rc[k, 1])
         a = passed_local(fd, area, Z, (r, c))
@@ -185,7 +185,7 @@ def correct_area_in_tile(fd_old: np.ndarray, area_old: np.ndarray, Z: np.ndarray
                         "drop_to_old_receiver": float(Z[r, c] - Z[r_old]) if r_old else None,
                         "drop_to_new_receiver": float(Z[r, c] - Z[r_new]) if r_new else None,
                         "old_path": rec_old, "new_path": rec_new})
-    info = {"n_seam": int(seam_rc.shape[0]), "records": records,
+    info: dict[str, Any] = {"n_seam": int(seam_rc.shape[0]), "records": records,
             "n_old_paths_exit_tile": sum(1 for q in records if q["old_path"]["stop"] == "tile_exit"),
             "n_new_paths_exit_tile": sum(1 for q in records if q["new_path"]["stop"] == "tile_exit"),
             "n_old_paths_stopped_uphill": sum(1 for q in records if q["old_path"]["stop"] == "uphill_receiver_processed_first"),
@@ -242,8 +242,7 @@ def _passed_py(order, target, area_f):
 try:
     import numba as _nb
 
-    _passed_nb = _nb.njit(cache=True)(_passed_py)
-    _passed = _passed_nb
+    _passed: Any = _nb.njit(cache=True)(_passed_py)
 except Exception:  # noqa: BLE001
     _passed = _passed_py
 

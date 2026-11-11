@@ -1,41 +1,123 @@
-# Tile AP4: values as run in v1 (reference/v1_reference.json). Phase 1/2 reproduce v1;
-# Phase 5 (addendum 4, 2026-11-10): reproduce_v1_units is false, z is converted to metres at load time
-# with the exact US survey foot (1200/3937 m); the K- and D-type values below are the v1 feet-based
-# values (param_z_units: ftUS) and the loader multiplies K0_ad, K0_partitioned, D0, K_bounds and
-# D_bounds by c = 3937/1200 = 3.28083333 (K_m = c K_ft, D_m = c D_ft). The scaled bounds are
-# recorded in every run's config snapshot (model_resolved). Feet runs remain possible through the
-# loader's reproduce_v1_units override (lemcvt ... --units feet).
+# Tile AP4: Phase 6 configuration (addendum 5, section 2.3, and addendum 6, 1.1-1.3; written by `lemcvt phase6 write-configs` from run
+# 20261111T002913Z_phase6_inputs_10tiles at git 6f956a6d1fb0d3150c2345c15e7353d23fe0ecff-dirty).
+# `measured` holds the v2 pipeline's inputs with provenance: m is the site constant (S(m) minimum), ks the pooled
+# through-origin chi-z slope at theta = m above A_c = 1e3 m^2 (K0 = U/ks), C_ht by curvature option (iii)
+# (L_f = 11 cells, rollover-network hilltop set, L_f/2 exclusion; D0 = U/C_ht) and, as the other end of the D0 bracket
+# (addendum 6), C_ht_B at L_w = 41 m on the same pixel set (D0_B = U/C_ht_B, used with --d0-variant B). The model block refers to z in
+# metres (param_z_units: m); the K and D bounds are the Phase 5.3 metre bounds. nonlinear_max_iter is 100
+# (decision 6). The v1 values stay under `measured_v1` and `v1_reference` (`v1_reference.model` is the v1 model
+# block, used by the loader for feet runs with --units feet; `v1_reference.grids`, where present, the original
+# grids replaced by the seam-corrected ones).
 tile: AP4
 site: AP
 grids:
   filled: AP/tile4/AP_1m_best_tile_filled.tif
   area: AP/tile4/AP_1m_best_tile_area.tif
   fd: AP/tile4/AP_1m_best_tile_fd.tif
-  sha256: {filled: cfbd3462b79a497d4d16bfd46257a21b24a8797ef6202af1c331164168493d1c,
-    area: 9556c455050db6b16e169c5ecbbacfe6e5301dabe2879ac2318ec5501cc87794, fd: 0ba12accf8d8179c153d877afbdf22c17893aca891cc521fb53b66ade9d44c7c}
+  sha256: {filled: cfbd3462b79a497d4d16bfd46257a21b24a8797ef6202af1c331164168493d1c, area: 9556c455050db6b16e169c5ecbbacfe6e5301dabe2879ac2318ec5501cc87794,
+    fd: 0ba12accf8d8179c153d877afbdf22c17893aca891cc521fb53b66ade9d44c7c}
   shape: [1015, 1015]
   dx: 0.9751997044335207
   dy: 0.9751305418722148
   crs_epsg: 26917
 units: {z_units: ftUS, xy_units: m, reproduce_v1_units: false}
-measured_v1: {theta: 0.438, ks: 27.907, hilltop_curvature: 0.02194, units_note: ks
-    and hilltop_curvature measured with z in feet (AP); divide by 3.2808 for metres,
-  source: legacy/measurement_notebooks/updated_best_fit_tile_finder.ipynb cells 11
-    (chi batch) and 12 (curvature)}
+measured:
+  m: 0.47
+  ks: 11.931690431136218
+  C_ht: 0.015154933214988895
+  z_units: m
+  ks_units: m^(2 m) with m = 0.47, A0 = 1 m^2
+  K0: 4.609573162950601e-06
+  D0: 0.0036291812850486587
+  ks_1e4_reported_not_used: 12.211599215690104
+  C_ht_B: 0.007124333380643651
+  L_w_m: 41
+  D0_B: 0.007720020535455487
+  D0_bracket_note: 'addendum 6, 1.1: D0 (= D0_A, option (iii) at L_f = 11 m) is the primary input at both sites;
+    D0_B = U/C_ht(L_w) on the same pixel set, L_w the largest tested window not exceeding the median crest width.
+    On AP the option (iii) test failed and D0 is a bracket [D0_A, D0_B]; on GM it stands and D0_B is reported for
+    symmetry.'
+  provenance:
+    m:
+      definition: 'site constant: minimum of the site exponent profile S(m) over the five tiles (addendum 5, 1.1)'
+      S_interval_1pct:
+      - [0.44, 0.49]
+      S_interval_5pct:
+      - [0.41, 0.53]
+      S_min: 5.364050651431784
+      m_profile_runs: {AP1: 20261110T160413Z_tile_run_AP1_v2_m_profile, AP2: 20261110T160413Z_tile_run_AP2_v2_m_profile,
+        AP3: 20261110T160405Z_tile_run_AP3_v2_m_profile, AP4: 20261110T160405Z_tile_run_AP4_v2_m_profile, AP5: 20261110T160405Z_tile_run_AP5_v2_m_profile}
+      leave_one_out_m: {AP1: 0.44, AP2: 0.45, AP3: 0.48, AP4: 0.47, AP5: 0.49}
+    ks:
+      definition: pooled through-origin chi-z slope at theta = m over the channel network above A_c = 1e3 m^2 (addendum
+        5, 1.2)
+      A_c: 1000.0
+      n_basins: 30
+      n_eff_centred: 2.2985071776521964
+      n_eff_through_origin: 1.9566646567264836
+      n_eff_lt_3: true
+      ci68: [9.900720561454179, 12.430564058701394]
+      ci95: [7.643690653283601, 12.70928423767573]
+      bootstrap: {unit: basin, n_boot: 200, usable: false}
+      site_pooled_ks_1e3: 11.601618409149374
+      site_pooled_ks_1e4: 12.99034053744678
+      ks_1e4:
+        ks: 12.211599215690104
+        n_basins: 5
+        n_eff_centred: 2.0638231350241356
+        ci68: [7.779689041631303, 14.109407217305208]
+      run: 20261111T002913Z_phase6_inputs_10tiles
+      git_hash: 6f956a6d1fb0d3150c2345c15e7353d23fe0ecff-dirty
+      slurm_job_id: '51836825'
+    C_ht_B:
+      definition: median -laplacian at L_w on the option (iii) pixel set (addendum 6, 1.1)
+      L_w_m: 41
+      L_w_grid_m: 39.98318788177435
+      ci68: [0.006587507086330865, 0.007845766304074683]
+      ci95: [0.0059230323019714036, 0.008340471989189286]
+      ratio_to_C_ht_A: 0.47009995224507967
+      run: 20261111T002913Z_phase6_inputs_10tiles
+      git_hash: 6f956a6d1fb0d3150c2345c15e7353d23fe0ecff-dirty
+      slurm_job_id: '51836825'
+    C_ht:
+      definition: 'curvature option (iii): median -laplacian at the fixed window L_f on the rollover-network hilltop
+        set with the L_f/2 exclusion (addendum 5, 1.3)'
+      L_f_m: 10.727196748768728
+      n_pixels: 4711
+      n_segments: 579
+      ci68: [0.014327533888213246, 0.01648049884224484]
+      ci95: [0.013268707561656757, 0.017266335634758295]
+      D0_ci68: [0.0033372776228725093, 0.0038387625134320255]
+      D0_ci95: [0.0031853892547577555, 0.00414509097773292]
+      window_test:
+        median_crest_width_m: 43.61215764101792
+        windows_tested_nominal_m: [11, 15, 21, 25, 31, 41]
+        n_windows_tested: 6
+        max_abs_deviation: 0.5299000477549203
+        pass: false
+        only_L_f_in_range: false
+      site_test_pass: false
+      run: 20261111T002913Z_phase6_inputs_10tiles
+      git_hash: 6f956a6d1fb0d3150c2345c15e7353d23fe0ecff-dirty
+      slurm_job_id: '51836825'
 model:
-  param_z_units: ftUS   # K0_ad, K0_partitioned (U/ks), D0 (U/C_ht), K_bounds, D_bounds refer to z in ftUS (v1)
-  m: 0.438
+  param_z_units: m
+  m: 0.47
   S_c: 1.27
   K0_ad: U/ks
   K0_partitioned: U/ks
   D0: U/C_ht
-  K_bounds: [1.0e-12, 0.02]   # ftUS-based; in metres x c -> [3.28083e-12, 0.0656167] (Phase 5.3)
-  D_bounds: [4.0e-07, 0.05]   # ftUS-based; in metres x c -> [1.31233e-06, 0.164042] (Phase 5.3)
+  D0_B: U/C_ht_B
+  K_bounds: [3.2808333333333335e-12, 0.06561666666666667]
+  D_bounds: [1.3123333333333335e-06, 0.1640416666666667]
   A_crit_0: 5000
-  A_crit_bounds: [100.0, 100000.0]
-  nonlinear_max_iter: 50
+  A_crit_bounds: &id001 [100.0, 100000.0]
+  nonlinear_max_iter: 100
   nonlinear_tol: 1.0e-06
-  methods: {ad: L-BFGS-B, acrit: Nelder-Mead, nonlinear: Nelder-Mead, joint: Nelder-Mead}
+  methods: &id002 {ad: L-BFGS-B, acrit: Nelder-Mead, nonlinear: Nelder-Mead, joint: Nelder-Mead}
+measured_v1: {theta: 0.438, ks: 27.907, hilltop_curvature: 0.02194, units_note: ks and hilltop_curvature measured
+    with z in feet (AP); divide by 3.2808 for metres, source: legacy/measurement_notebooks/updated_best_fit_tile_finder.ipynb
+    cells 11 (chi batch) and 12 (curvature)}
 v1_reference:
   notebook: notebooks/model_runs/allegheny_tile4_complete.ipynb
   stages:
@@ -43,6 +125,19 @@ v1_reference:
     acrit: {duration_s: 1382.206, A_crit: 995.01, MSE: 597.97}
     nonlinear: {duration_s: 99314.613, A_crit: 5263.5, MSE: 310.6}
     joint: {duration_s: 11225.618, K: 2.0368e-06, D: 0.0061006, A_crit: 7797.9, MSE: 370.05}
-  saved_grids: {ad_no_opt: AP/tile4/outputs/AP_1m_best_tile_AD-no-opt_elevation.tif,
-    ad_opt: AP/tile4/outputs/AP_1m_best_tile_AD-opt_elevation.tif, acrit_opt: AP/tile4/outputs/AP_1m_best_tile_Partitioned-model-a_crit-opt_elevation.tif,
-    joint_opt: AP/tile4/outputs/AP_1m_best_tile_Partitioned-model-a_crit-k-d-opt_elevation.tif}
+  saved_grids: {ad_no_opt: AP/tile4/outputs/AP_1m_best_tile_AD-no-opt_elevation.tif, ad_opt: AP/tile4/outputs/AP_1m_best_tile_AD-opt_elevation.tif,
+    acrit_opt: AP/tile4/outputs/AP_1m_best_tile_Partitioned-model-a_crit-opt_elevation.tif, joint_opt: AP/tile4/outputs/AP_1m_best_tile_Partitioned-model-a_crit-k-d-opt_elevation.tif}
+  model:
+    param_z_units: ftUS
+    m: 0.438
+    S_c: 1.27
+    K0_ad: U/ks
+    K0_partitioned: U/ks
+    D0: U/C_ht
+    K_bounds: [1.0e-12, 0.02]
+    D_bounds: [4.0e-07, 0.05]
+    A_crit_0: 5000
+    A_crit_bounds: *id001
+    nonlinear_max_iter: 50
+    nonlinear_tol: 1.0e-06
+    methods: *id002
