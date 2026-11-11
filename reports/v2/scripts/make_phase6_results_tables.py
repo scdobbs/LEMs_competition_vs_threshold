@@ -71,7 +71,7 @@ def tile_runs(stage: str, variant: str = "A", k_factor: float | None = 1.0, suff
             continue
         if suffix and not d.name.endswith(suffix):
             continue
-        if stage == "nonlinear_joint" and k_factor is not None and p["v2"]["nonlinear_joint"]["setup"].get("k_factor", 1.0) != k_factor:
+        if stage == "nonlinear_joint" and ("split" in p["v2"]["nonlinear_joint"]["setup"] or (k_factor is not None and p["v2"]["nonlinear_joint"]["setup"].get("k_factor", 1.0) != k_factor)):
             continue
         if p.get("model", {}).get("nonlinear_max_iter", 50) != 100 and stage in ("nonlinear", "nonlinear_joint"):
             continue        # Phase 6 runs only (cap 100)

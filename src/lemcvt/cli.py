@@ -211,16 +211,31 @@ def tile_v2_refine(tile_id, source_run, max_extra, fill_interval, d0_variant, ru
 @click.option("--n-d", default=20, show_default=True)
 @click.option("--d-range", default="1.5e-3,5e-2", show_default=True, help="addendum 6, 1.4")
 @click.option("--widen", default=3.0, show_default=True, help="Widen the linear joint 5 % interval by this factor on each side.")
+@click.option("--split", default=None, help="k/n: evaluate only every n-th A_crit value starting at k (parallel parts; merge with v2-nonlinear-joint-merge).")
 @click.option("--crop", default=None)
 @click.option("--no-grids", is_flag=True)
 @click.option("--run-id", default=None)
-def tile_v2_nonlinear_joint(tile_id, source_run, k_factor, n_acrit, n_d, d_range, widen, crop, no_grids, run_id) -> None:
+def tile_v2_nonlinear_joint(tile_id, source_run, k_factor, n_acrit, n_d, d_range, widen, split, crop, no_grids, run_id) -> None:
     """Addendum 5, 3.4: nonlinear MSE over (A_crit, D) at K fixed to the linear joint optimum (S_c = 1.27, Picard cap from the config)."""
     from lemcvt.analyses.optimizer_v2 import run_nonlinear_joint
 
     lo, hi = (float(v) for v in d_range.split(","))
+    sp = tuple(int(v) for v in split.split("/")) if split else None
     rec = run_nonlinear_joint(tile_id, source_run=source_run, k_factor=k_factor, n_acrit=n_acrit, n_d=n_d, d_range=(lo, hi), widen=widen,
-                              save_grids=not no_grids, crop=_parse_crop(crop), run_id=run_id)
+                              save_grids=not no_grids, crop=_parse_crop(crop), run_id=run_id, split=sp)
+    click.echo(f"results: {rec.dir}")
+
+
+@tile.command("v2-nonlinear-joint-merge")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--k-factor", default=1.0, show_default=True)
+@click.option("--no-grids", is_flag=True)
+@click.option("--run-id", default=None)
+def tile_v2_nonlinear_joint_merge(tile_id, k_factor, no_grids, run_id) -> None:
+    """Merge the split parts of a nonlinear joint profile into one run (optimum re-solved, contours, profiles)."""
+    from lemcvt.analyses.optimizer_v2 import merge_nonlinear_joint
+
+    rec = merge_nonlinear_joint(tile_id, k_factor=k_factor, save_grids=not no_grids, run_id=run_id)
     click.echo(f"results: {rec.dir}")
 
 

@@ -90,7 +90,7 @@ def nonlinear_joint(out_dir: Path) -> list[Path]:
             rj = json.loads((r / "run.json").read_text())
         except Exception:  # noqa: BLE001
             continue
-        if "nonlinear_joint" not in p.get("v2", {}) or (rj.get("config") or {}).get("crop") or p["v2"]["nonlinear_joint"]["setup"]["k_factor"] != 1.0:
+        if "nonlinear_joint" not in p.get("v2", {}) or (rj.get("config") or {}).get("crop") or p["v2"]["nonlinear_joint"]["setup"]["k_factor"] != 1.0 or "split" in p["v2"]["nonlinear_joint"]["setup"]:
             continue
         runs[p["tile"]] = (r, p)
     tiles = [t for t in TILE_IDS if t in runs]

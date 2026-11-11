@@ -49,7 +49,7 @@ def _runs_by_stage(tile: str) -> dict[str, tuple[Path, dict]]:
             out["ad"] = (r, p)
         if "partitioned" in v2 and r.name.endswith("partitioned-refined"):
             out["joint"] = (r, p)
-        if "nonlinear_joint" in v2 and v2["nonlinear_joint"]["setup"].get("k_factor", 1.0) == 1.0:
+        if "nonlinear_joint" in v2 and v2["nonlinear_joint"]["setup"].get("k_factor", 1.0) == 1.0 and "split" not in v2["nonlinear_joint"]["setup"]:
             out["nonlinear_joint"] = (r, p)
         if "nonlinear" in v2:
             out["nonlinear"] = (r, p)

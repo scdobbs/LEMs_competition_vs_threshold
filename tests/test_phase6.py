@@ -152,3 +152,25 @@ def test_stage2_at_D0_B_uses_the_same_reductions(env):
     assert "stage2_B_optimum" in q["v2"]["partitioned"] and "mse_stage2_B" in q["v2"]["partitioned"]["interval_fill"]
     assert any(f["key"] == "acrit_opt_D0B" for f in q["forward_runs"])
     assert any(name.endswith("_filled.tif") and "a_crit-k-d-opt" in name for name in json.loads((ref.dir / "run.json").read_text())["grids"])
+
+
+def test_nonlinear_joint_split_and_merge(env):
+    """The split parts of the (A_crit, D) grid merge into the same rows as one unsplit run."""
+    from lemcvt.analyses.optimizer_v2 import merge_nonlinear_joint
+
+    rec = run_tile_v2("GM1", stages=["partitioned"], acrit_grid="thin", thin_n=40, save_grids=False)
+    ref = refine_partitioned("GM1", rec.dir, max_extra=5, run_id="p6_refined_for_split")
+    full = run_nonlinear_joint("GM1", source_run=ref.dir, n_acrit=4, n_d=2, d_range=(5e-3, 5e-2), save_grids=False, run_id="p6_nlj_full")
+    for k in range(2):
+        run_nonlinear_joint("GM1", source_run=ref.dir, n_acrit=4, n_d=2, d_range=(5e-3, 5e-2), save_grids=False, split=(k, 2), run_id=f"p6_nlj_split{k}")
+    merged = merge_nonlinear_joint("GM1", save_grids=False, run_id="p6_nlj_merged")
+    import pandas as pd
+
+    a = pd.read_parquet(full.dir / "nonlinear_joint_profile.parquet").sort_values(["A_crit", "D"]).reset_index(drop=True)
+    b = pd.read_parquet(merged.dir / "nonlinear_joint_profile.parquet").sort_values(["A_crit", "D"]).reset_index(drop=True)
+    assert len(a) == len(b) == 8
+    assert np.allclose(a.mse.to_numpy(), b.mse.to_numpy(), rtol=1e-12)
+    pf = json.loads((full.dir / "params.json").read_text())["v2"]["nonlinear_joint"]
+    pm = json.loads((merged.dir / "params.json").read_text())["v2"]["nonlinear_joint"]
+    assert pm["optimum"]["A_crit"] == pf["optimum"]["A_crit"] and pm["optimum"]["D"] == pf["optimum"]["D"]
+    assert "split" not in pm["setup"] and len(pm["setup"]["merged_from"]) == 2

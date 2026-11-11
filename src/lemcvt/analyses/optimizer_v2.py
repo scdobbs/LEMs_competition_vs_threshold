@@ -563,7 +563,7 @@ def _contours(rows: list[dict[str, Any]], levels=(0.01, 0.05)) -> dict[str, Any]
 def run_nonlinear_joint(tile: str, source_run: str | Path | None = None, k_factor: float = 1.0, n_acrit: int = NLJ_N_ACRIT,
                         n_d: int = NLJ_N_D, d_range=NLJ_D_RANGE, widen: float = NLJ_WIDEN, save_grids: bool = True,
                         crop: tuple[int, int, int, int] | None = None, run_id: str | None = None, results_root=None,
-                        label: str | None = None) -> RunRecorder:
+                        label: str | None = None, split: tuple[int, int] | None = None) -> RunRecorder:
     """Addendum 5, 3.4: MSE of the nonlinear partitioned model over a grid of (A_crit, D) with K fixed at the linear
     joint optimum of ``source_run`` (times ``k_factor`` for the K check), S_c from the config, Picard cap from the config.
 
@@ -587,7 +587,8 @@ def run_nonlinear_joint(tile: str, source_run: str | Path | None = None, k_facto
     if run_id is None:
         from lemcvt.results import new_run_id
 
-        run_id = new_run_id("tile_run", f"{tile}_v2_nonlinear_joint" + (f"_{label}" if label else "") + (f"_Kx{k_factor:g}" if k_factor != 1.0 else ""))
+        run_id = new_run_id("tile_run", f"{tile}_v2_nonlinear_joint" + (f"_{label}" if label else "") + (f"_Kx{k_factor:g}" if k_factor != 1.0 else "")
+                            + (f"_split{split[0]}of{split[1]}" if split else ""))
     rec = RunRecorder("tile_run", tile, run_id=run_id, root=results_root)
     rec.add_params("tile", tile)
     rec.add_params("optimizer", "v2")
@@ -599,11 +600,15 @@ def run_nonlinear_joint(tile: str, source_run: str | Path | None = None, k_facto
                              "z_units_working": td.z_units_working, "nonlinear_max_iter": mp.nonlinear_max_iter, "nonlinear_tol": mp.nonlinear_tol})
     lo_i, hi_i = float(i5["A_crit_min"]), float(i5["A_crit_max"])
     ua = unique_areas(A, lo_i / widen, hi_i * widen)
-    grid_a = thin_log_uniform(ua, n_acrit)
+    grid_a_full = thin_log_uniform(ua, n_acrit)
+    grid_a = grid_a_full[split[0]::split[1]] if split else grid_a_full      # one of `n` interleaved subsets of the A_crit grid
     grid_d = np.logspace(math.log10(d_range[0]), math.log10(d_range[1]), n_d)
     setup = {"source_run": src.name, "K_joint": K_joint, "k_factor": float(k_factor), "K": K, "linear_joint_optimum": jo,
              "linear_joint_interval_5pct": [lo_i, hi_i], "A_crit_range": [lo_i / widen, hi_i * widen], "n_unique_in_range": int(ua.size),
-             "A_crit_grid": grid_a.tolist(), "D_grid": grid_d.tolist(), "S_c": mp.S_c, "picard_cap": mp.nonlinear_max_iter, "tol": mp.nonlinear_tol}
+             "A_crit_grid": grid_a.tolist(), "A_crit_grid_full": grid_a_full.tolist(), "D_grid": grid_d.tolist(), "S_c": mp.S_c,
+             "picard_cap": mp.nonlinear_max_iter, "tol": mp.nonlinear_tol}
+    if split:
+        setup["split"] = [int(split[0]), int(split[1])]
     rec.add_params("setup", setup)
     pmnl = partitioned_threshold_model_nonlinear(Z0, A, FD, dx, mp.m, U, K)
     traj = Trajectory("nonlinear_joint", ("log10_A_crit", "log10_D", "log10_K", "kind"))
@@ -768,4 +773,90 @@ def run_dinf_joint(tile: str, thin_n: int = THIN_N, refine_max: int = 400, save_
     logger.info("D-inf joint %s: A_crit %.1f K %.4e D %.4e MSE %.4f (%s; direct %.4f) in %.0f s", tile, jo["A_crit"], jo["K"], jo["D"], jo["mse"], jo["where"],
                 msej, out["wall_s"])
     rec.finalize(config_snapshot(td.cfg, {"crop": crop, "thin_n": thin_n, "refine_max": refine_max}))
+    return rec
+
+
+def merge_nonlinear_joint(tile: str, k_factor: float = 1.0, run_id: str | None = None, results_root=None, save_grids: bool = True) -> RunRecorder:
+    """Merge the `split k of n` partial nonlinear-joint runs of a tile (same source run, K and D grid) into one run with the
+    layout of an unsplit run: concatenated rows, the optimum re-solved once for its grid, contours and profiles."""
+    from lemcvt.results import find_runs
+
+    parts = []
+    for r in find_runs("tile_run", tile):
+        try:
+            p = json.loads((r / "params.json").read_text())
+            rj = json.loads((r / "run.json").read_text())
+        except Exception:  # noqa: BLE001
+            continue
+        v = p.get("v2", {}).get("nonlinear_joint")
+        if not v or (rj.get("config") or {}).get("crop") or "split" not in v["setup"] or v["setup"].get("k_factor", 1.0) != k_factor:
+            continue
+        parts.append((r, p))
+    if not parts:
+        raise FileNotFoundError(f"{tile}: no split nonlinear-joint runs with K factor {k_factor}")
+    # the latest complete set: group by (source_run, n), keep the newest run per k
+    by_key: dict[tuple[str, int], dict[int, tuple[Path, dict]]] = {}
+    for r, p in parts:
+        st = p["v2"]["nonlinear_joint"]["setup"]
+        by_key.setdefault((st["source_run"], st["split"][1]), {})[st["split"][0]] = (r, p)
+    key = max(by_key, key=lambda k: max(r.name for r, _ in by_key[k].values()))
+    group = by_key[key]
+    n = key[1]
+    missing = [k for k in range(n) if k not in group]
+    if missing:
+        raise FileNotFoundError(f"{tile}: split parts {missing} of {n} missing for source {key[0]}")
+    p0 = group[0][1]
+    st0 = p0["v2"]["nonlinear_joint"]["setup"]
+    rows = []
+    for k in range(n):
+        r, p = group[k]
+        df = pd.read_parquet(r / "nonlinear_joint_profile.parquet")
+        rows += df.to_dict("records")
+    df_all = pd.DataFrame(rows).sort_values(["A_crit", "D"]).reset_index(drop=True)
+    rows = cast(list[dict[str, Any]], df_all.to_dict("records"))
+    td = load_tile(tile)
+    mp = td.cfg.model
+    Z0, A, FD, dx, U = td.Z, td.A, td.FD, td.dx, mp.U
+    K = float(st0["K"])
+    if run_id is None:
+        from lemcvt.results import new_run_id
+
+        run_id = new_run_id("tile_run", f"{tile}_v2_nonlinear_joint" + (f"_Kx{k_factor:g}" if k_factor != 1.0 else "") + "_merged")
+    rec = RunRecorder("tile_run", tile, run_id=run_id, root=results_root)
+    for key_ in ("tile", "optimizer", "stages", "inputs", "model", "v1_reference"):
+        rec.add_params(key_, p0[key_])
+    setup = dict(st0)
+    setup.pop("split", None)
+    setup["A_crit_grid"] = st0["A_crit_grid_full"]
+    setup["merged_from"] = {str(k): group[k][0].name for k in range(n)}
+    rec.add_params("setup", setup)
+    rec.write_table(df_all, "nonlinear_joint_profile")
+    grid_a = np.array(setup["A_crit_grid"], float)
+    grid_d = np.array(setup["D_grid"], float)
+    jb = int(np.argmin([r["mse"] for r in rows]))
+    best = rows[jb]
+    t0 = time.perf_counter()
+    pmnl = partitioned_threshold_model_nonlinear(Z0, A, FD, dx, mp.m, U, K)
+    Zb, maskb = pmnl(best["A_crit"], best["D"], mp.S_c, mp.nonlinear_max_iter, mp.nonlinear_tol)
+    files = write_model_outputs(rec, td.filled, Zb, f"{td.cfg.site}_1m_best_tile_Partitioned-model-nonlinear-joint-opt", derived=False) if save_grids else []
+    cont = _contours(rows)
+    prof_a = [{"A_crit": float(a), "mse": float(min(r["mse"] for r in rows if r["A_crit"] == a)), "D": float(min((r for r in rows if r["A_crit"] == a), key=lambda r: r["mse"])["D"])} for a in grid_a if any(r["A_crit"] == a for r in rows)]
+    prof_d = [{"D": float(d), "mse": float(min(r["mse"] for r in rows if r["D"] == d)), "A_crit": float(min((r for r in rows if r["D"] == d), key=lambda r: r["mse"])["A_crit"])} for d in grid_d if any(r["D"] == d for r in rows)]
+    wall = sum(group[k][1]["v2"]["nonlinear_joint"]["wall_s"] for k in range(n))
+    v2 = {"nonlinear_joint": {"optimum": best, "contours": cont, "profile_A_crit": prof_a, "profile_D": prof_d, "n_evaluations": len(rows),
+                              "n_hit_cap": int(sum(1 for r in rows if not r["converged"])),
+                              "n_hit_cap_in_5pct_contour": int(sum(1 for r in rows if not r["converged"] and r["mse"] <= cont["mse_min"] * 1.05)),
+                              "on_grid_edge": {"A_crit": bool(best["A_crit"] in (grid_a[0], grid_a[-1])), "D": bool(best["D"] in (grid_d[0], grid_d[-1]))},
+                              "wall_s": wall, "wall_s_parts": {str(k): group[k][1]["v2"]["nonlinear_joint"]["wall_s"] for k in range(n)}, "setup": setup}}
+    rec.add_params("forward_runs", [{"key": "nonlinear_joint_opt", "model": "partitioned_nonlinear",
+                                     "params": {"U": U, "K": K, "D": best["D"], "S_c": mp.S_c, "A_crit": best["A_crit"]}, "mse": mse(Zb, Z0),
+                                     "files": files, "n_channel": int(maskb.sum()), "picard": pmnl.last_picard}])
+    rec.add_params("stages_results", {"nonlinear_joint": {"params": {"A_crit": best["A_crit"], "D": best["D"], "K": K}, "mse": best["mse"],
+                                                          "n_fev": len(rows), "n_solves": len(rows), "n_iter": None, "wall_s": wall, "success": True,
+                                                          "message": f"grid {grid_a.size} x {grid_d.size} over (A_crit, D) at fixed K, merged from {n} parts",
+                                                          "x_log10": [math.log10(best["A_crit"]), math.log10(best["D"])]}})
+    rec.add_params("v2", v2)
+    logger.info("merged nonlinear joint %s from %d parts: optimum A_crit %.1f D %.3e MSE %.4f (%d of %d at the cap) [%.0f s]", tile, n, best["A_crit"],
+                best["D"], best["mse"], v2["nonlinear_joint"]["n_hit_cap"], len(rows), time.perf_counter() - t0)
+    rec.finalize(config_snapshot(td.cfg, {"merged_from": setup["merged_from"], "k_factor": k_factor}))
     return rec
