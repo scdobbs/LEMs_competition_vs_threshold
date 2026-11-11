@@ -173,6 +173,21 @@ a pixel of that network dropped; C_ht is the median of −∇²z at L_f with the
 D₀ = U/C_ht, and the synthetic width bias is reported at the post-exclusion median and
 25th-percentile crest widths (2 × distance to the rollover network).
 
+Option (iii) window test (addendum 5, §2.2; `lemcvt phase6 inputs`, run 20261111T002913Z_phase6_inputs_10tiles).
+Pre-registered: on the option (iii) pixel set, the median −∇²z at L = 7, 9, 11, 15, 21, 25, 31, 41 and 51 m
+(nominal; half-widths 3–25 cells) with segment-bootstrap 68 % bands; for every window from L_f up to the set's
+own median crest width (2 × the distance to the rollover network), C_ht must stay within ±10 % of C_ht(L_f);
+the option stands when ≥ 4 of 5 tiles pass at each site. Result: GM 5 of 5 pass (deviations ≤ 4.5 %); AP 1 of 5
+(AP3 trivially, no window other than L_f below its 12.5 m median width; AP1, AP2, AP4, AP5 fall 15–53 % below
+C_ht(L_f) within the tested range, the 68 % bands at 15 m excluding the ±10 % band on AP1, AP2 and AP4). Option
+(iii) therefore does not stand on AP, and no measured value was written into the tile configs (the rule of
+§2.2). The curves are in `reports/v2/figures_v2/a5_option_iii_window_test.png`.
+
+K₀ at a fixed exponent (addendum 5, §1.2; the same command). With the exponent m fixed per site (the S(m)
+minimum: AP 0.47, GM 0.31), k_s is the pooled through-origin χ–z slope at θ = m over the channel network above
+A_c = 10³ m² (10⁴ m² reported, not used), with the basin filters of §3.1, n_eff and a basin bootstrap of k_s at
+that fixed θ; K₀ = U/k_s. The values equal the audit's `ks_at_theta` curve at θ = m exactly.
+
 Hilltop set used by the diagnostics (addendum 4, §6.4.1). `lemcvt.measure.diagnostics.hilltop_widths`
 built its hilltop mask without the outlet-basin relabelling that `measure` applies (every divide
 cell next to a cell draining to a different channel *pixel*; 24 000–36 000 pixels per tile

@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import time
 from pathlib import Path
 from typing import Any
@@ -278,6 +279,48 @@ def recompute_with_external_inflow(fd_new: np.ndarray, fd_old: np.ndarray, area_
     return accumulate(fd_new, Z, dx**2 + ext), ext
 
 
+# ----------------------------------------------------------------------------- consistency of the stored grids
+
+def _inconsistency(fd: np.ndarray, A: np.ndarray, Z: np.ndarray, cell: float, tol: float = 0.5) -> dict[str, Any]:
+    """Interior cells where the stored area is not the accumulation of its in-tile donors under ``fd`` (|ext| > tol cell)."""
+    ext = external_inflow(fd, A, Z, math.sqrt(cell))
+    interior = np.zeros(fd.shape, dtype=bool)
+    interior[1:-1, 1:-1] = True
+    bad = interior & np.isfinite(ext) & (np.abs(ext) > tol * cell)
+    rows = np.unique(np.argwhere(bad)[:, 0]) if bad.any() else np.array([], dtype=int)
+    v = ext[bad] / cell
+    return {"n_inconsistent_interior": int(bad.sum()), "rows": rows.tolist()[:20], "n_rows": int(rows.size),
+            "per_row": {str(int(r)): int(np.sum(np.argwhere(bad)[:, 0] == r)) for r in rows[:20]},
+            "abs_quantiles_cells": _quantiles(np.abs(v), (50, 90, 100)) if v.size else {}, "sum_positive_cells": float(v[v > 0].sum()) if v.size else 0.0,
+            "sum_negative_cells": float(v[v < 0].sum()) if v.size else 0.0, "tolerance_cells": tol}
+
+
+def grid_consistency(Z: np.ndarray, A0: np.ndarray, fd0: np.ndarray, fd_new: np.ndarray, A_new: np.ndarray, cell: float,
+                     seam_rows: tuple[int, int] = (389, 390)) -> dict[str, Any]:
+    """Three checks the correction's premise rests on: the stored area against the stored directions, the stored area
+    against the corrected directions, and the elevation step across the seam rows against its neighbours."""
+    out: dict[str, Any] = {"cell_area_m2": cell, "stored_area_vs_stored_fd": _inconsistency(fd0, A0, Z, cell),
+                           "stored_area_vs_corrected_fd": _inconsistency(fd_new, A0, Z, cell)}
+    r0 = seam_rows[0]
+    if r0 >= 3 and r0 + 3 < Z.shape[0]:
+        ref = ((Z[r0 - 2] - Z[r0 - 1]) + (Z[r0 - 1] - Z[r0]) + (Z[r0 + 1] - Z[r0 + 2]) + (Z[r0 + 2] - Z[r0 + 3])) / 4
+        steps = {}
+        for r in range(r0 - 2, r0 + 3):
+            d = (Z[r] - Z[r + 1] - ref)[2:-2]
+            d = d[np.isfinite(d)]
+            steps[f"{r}->{r + 1}"] = {"median_m": float(np.median(d)), "q5_m": float(np.percentile(d, 5)), "q95_m": float(np.percentile(d, 95)),
+                                     "mean_drop_m": float(np.nanmean((Z[r] - Z[r + 1])[2:-2]))}
+        out["elevation_step_minus_local_reference"] = steps
+    neg = np.isfinite(A_new) & (A_new < 0.5 * cell)
+    out["corrected_area"] = {"n_below_one_cell": int(neg.sum()), "min_cells": float(np.nanmin(A_new) / cell),
+                             "rows_below_one_cell": np.unique(np.argwhere(neg)[:, 0]).tolist()[:20] if neg.any() else []}
+    out["premise_holds"] = bool(out["stored_area_vs_stored_fd"]["n_inconsistent_interior"] == 0)
+    out["note"] = ("the directive's correction moves each seam cell's stored area along its paths, which is exact only if the stored "
+                   "area was accumulated through the stored directions (premise_holds). Where it was not, the moved amounts are "
+                   "wrong and the result can be negative.")
+    return out
+
+
 # ----------------------------------------------------------------------------- seam identification
 
 def classify_seam(Z_m: np.ndarray, Z_ft: np.ndarray | None, fd0: np.ndarray, rel_tol: float = 1e-9, abs_tol: float = 1e-9,
@@ -386,6 +429,15 @@ def run_seamfix(tile: str = "AP1", write: bool = True, update_manifest: bool = T
     rec.add_params("independent_recomputation", check)
     logger.info("%s: path correction against external-inflow recomputation: max |dA| = %.3g cells over %d cells", tile,
                 check["max_abs_diff_cells"], int(valid.sum()))
+
+    # consistency of the three stored grids on and around the seam (added after the first AP1 run: the correction
+    # assumes the stored area was accumulated through the stored directions, which must be checked, not assumed)
+    cell = float(np.nanmin(A0))
+    cons = grid_consistency(Z, A0, FD0, fd_new, A_new, cell)
+    rec.add_params("consistency", cons)
+    logger.info("%s: stored area inconsistent with the stored fd at %d interior cells (rows %s); corrected area below one cell at %d cells (min %.0f cells)",
+                tile, cons["stored_area_vs_stored_fd"]["n_inconsistent_interior"], cons["stored_area_vs_stored_fd"]["rows"],
+                cons["corrected_area"]["n_below_one_cell"], cons["corrected_area"]["min_cells"])
 
     # 2.1.3 re-entry
     reentry = {k: info[k] for k in ("n_old_paths_exit_tile", "n_new_paths_exit_tile", "n_old_paths_stopped_uphill",
