@@ -220,7 +220,10 @@ def tile_v2_nonlinear_joint(tile_id, source_run, k_factor, n_acrit, n_d, d_range
     from lemcvt.analyses.optimizer_v2 import run_nonlinear_joint
 
     lo, hi = (float(v) for v in d_range.split(","))
-    sp = tuple(int(v) for v in split.split("/")) if split else None
+    sp: tuple[int, int] | None = None
+    if split:
+        k_part, n_parts = (int(v) for v in split.split("/"))
+        sp = (k_part, n_parts)
     rec = run_nonlinear_joint(tile_id, source_run=source_run, k_factor=k_factor, n_acrit=n_acrit, n_d=n_d, d_range=(lo, hi), widen=widen,
                               save_grids=not no_grids, crop=_parse_crop(crop), run_id=run_id, split=sp)
     click.echo(f"results: {rec.dir}")

@@ -35,6 +35,16 @@ def ci(v, f=".3g"):
     return f"[{fmt(v[0], f)}, {fmt(v[1], f)}]" if v else "-"
 
 
+def ivl(v, f=".0f"):
+    """Identifiability intervals, a list of [lo, hi] pairs, as 'lo-hi; lo-hi'."""
+    if not v:
+        return "-"
+    try:
+        return "; ".join(f"{fmt(a, f)}-{fmt(b, f)}" for a, b in v)
+    except (TypeError, ValueError):
+        return str(v)
+
+
 def load(d: Path):
     try:
         return json.loads((d / "params.json").read_text()), json.loads((d / "run.json").read_text())
@@ -122,16 +132,16 @@ if p:
         q = p["partitioned"][mk]
         jo, s2 = q["joint_optimum"], q["stage2_optimum"]
         i1, i5 = q["joint_identifiability"]["level_0.01"], q["joint_identifiability"]["level_0.05"]
-        out.append(f"| linear joint | {mk} | {jo['A_crit']:.1f} | {jo['K']:.4e} | {jo['D']:.4e} | {jo['mse']:.5g} | {i1['intervals']} | {fmt(i5['A_crit_min'], '.0f')}-{fmt(i5['A_crit_max'], '.0f')} |")
+        out.append(f"| linear joint | {mk} | {jo['A_crit']:.1f} | {jo['K']:.4e} | {jo['D']:.4e} | {jo['mse']:.5g} | {ivl(i1['intervals'])} | {fmt(i5['A_crit_min'], '.0f')}-{fmt(i5['A_crit_max'], '.0f')} |")
         i1s = q["stage2_identifiability"]["level_0.01"]
-        out.append(f"| stage 2 at D0_A | {mk} | {s2['A_crit']:.1f} | - | - | {s2['mse']:.5g} | {i1s['intervals']} | - |")
+        out.append(f"| stage 2 at D0_A | {mk} | {s2['A_crit']:.1f} | - | - | {s2['mse']:.5g} | {ivl(i1s['intervals'])} | - |")
         ao = p["ad"][mk]["optimum"]
         out.append(f"| AD | {mk} | - | {ao['K']:.4e} | {ao['D']:.4e} | {ao['mse']:.5g} | r = {ao['r']:.4e} | - |")
     sh = p["partitioned"]["profile_shape"]
     out.append(f"\nProfile shapes (max relative difference of MSE/MSE_min between the masks): joint {sh['joint_profile_max_rel_shape_diff']:.3g}, stage 2 {sh['stage2_profile_max_rel_shape_diff']:.3g}.\n")
     out.append("| criterion | value | threshold | pass |")
     out.append("|---|---|---|---|")
-    out.append(f"| masked joint A_crit inside the unmasked 1 % interval | {v['joint_A_crit']['masked']:.1f} in {v['unmasked_1pct_intervals']} | - | {v['masked_joint_A_crit_inside_unmasked_1pct_interval']} |")
+    out.append(f"| masked joint A_crit inside the unmasked 1 % interval | {v['joint_A_crit']['masked']:.1f} in {ivl(v['unmasked_1pct_intervals'])} | - | {v['masked_joint_A_crit_inside_unmasked_1pct_interval']} |")
     out.append(f"| K relative change | {100 * v['K_rel_change']:.3f} % | < 2 % | {v['K_rel_change'] < 0.02} |")
     out.append(f"| D relative change | {100 * v['D_rel_change']:.3f} % | < 5 % | {v['D_rel_change'] < 0.05} |")
     out.append(f"| AD r change (decades) | {v['ad_r_log10_change']:.4f} | < 0.1 | {v['ad_r_log10_change'] < 0.1} |")
@@ -179,9 +189,9 @@ if pt:
         i1s, i1b = v["stage2_identifiability"]["level_0.01"], (v.get("stage2_B_identifiability") or {}).get("level_0.01", {})
         i1, i5 = v["joint_identifiability"]["level_0.01"], v["joint_identifiability"]["level_0.05"]
         fill = v.get("interval_fill", {})
-        out.append(f"| {t} | `{d.name}` ({r.get('slurm_job_id')}) | {v['n_evaluations']} ({fill.get('n_unique_evaluated', '-')}) | {s2['A_crit']:.1f} ({s2['mse']:.5g}) | {i1s['intervals']} | "
-                   f"{fmt(sb['A_crit'] if sb else None, '.1f')} ({fmt(sb['mse'] if sb else None, '.5g')}) | {i1b.get('intervals', '-')} | {jo['A_crit']:.1f} | {jo['K']:.4e} | {jo['D']:.4e} | {jo['mse']:.5g} | "
-                   f"{i1['intervals']} | {fmt(i5['A_crit_min'], '.0f')}-{fmt(i5['A_crit_max'], '.0f')} ({i5['n_grid_points']}) | "
+        out.append(f"| {t} | `{d.name}` ({r.get('slurm_job_id')}) | {v['n_evaluations']} ({fill.get('n_unique_evaluated', '-')}) | {s2['A_crit']:.1f} ({s2['mse']:.5g}) | {ivl(i1s['intervals'])} | "
+                   f"{fmt(sb['A_crit'] if sb else None, '.1f')} ({fmt(sb['mse'] if sb else None, '.5g')}) | {ivl(i1b.get('intervals'))} | {jo['A_crit']:.1f} | {jo['K']:.4e} | {jo['D']:.4e} | {jo['mse']:.5g} | "
+                   f"{ivl(i1['intervals'])} | {fmt(i5['A_crit_min'], '.0f')}-{fmt(i5['A_crit_max'], '.0f')} ({i5['n_grid_points']}) | "
                    f"K {fmt(i1.get('K_min'), '.2e')}-{fmt(i1.get('K_max'), '.2e')}, D {fmt(i1.get('D_min'), '.2e')}-{fmt(i1.get('D_max'), '.2e')} | "
                    f"{fmt(v.get('direct_check', {}).get('joint', {}).get('rel_diff'), '.1e')} | {hours(v.get('refinement', {}))} + {hours(fill)} |")
 else:
@@ -268,7 +278,7 @@ if dj:
         d8 = pt.get(t)
         j8 = d8[1]["v2"]["partitioned"]["joint_optimum"] if d8 else None
         out.append(f"| {t} | `{d.name}` ({r.get('slurm_job_id')}) | {v['grid']['n_unique']} ({v['grid']['n_used']}) | {jo['A_crit']:.1f} | {jo['K']:.4e} | {jo['D']:.4e} | {jo['mse']:.5g} | {jo['where']} | "
-                   f"{i1['intervals']} | {v['direct_check']['joint']['rel_diff']:.1e} | {v['channel_monotonicity_at_optimum']['n_lower_than_every_receiver']} of {v['channel_monotonicity_at_optimum']['n_channel']} | "
+                   f"{ivl(i1['intervals'])} | {v['direct_check']['joint']['rel_diff']:.1e} | {v['channel_monotonicity_at_optimum']['n_lower_than_every_receiver']} of {v['channel_monotonicity_at_optimum']['n_channel']} | "
                    f"{fmt(j8['A_crit'] if j8 else None, '.1f')}, {fmt(j8['K'] if j8 else None, '.3e')}, {fmt(j8['D'] if j8 else None, '.3e')}, {fmt(j8['mse'] if j8 else None, '.5g')} | "
                    f"{fmt(jo['mse'] / j8['mse'] if j8 else None, '.2f')} | {hours(v)} |")
 else:
@@ -372,7 +382,7 @@ rec = repo / "tables" / "old_vs_new_record.md"
 if rec.exists():
     out.append(f"Built by `lemcvt phase6 record` (`tables/old_vs_new_record.csv`, {sum(1 for _ in open(repo / 'tables' / 'old_vs_new_record.csv')) - 1} rows). Tile and stage rows:\n")
     lines = rec.read_text().splitlines()
-    keep = [ln for ln in lines if not ("sweep ratio" in ln)]
+    keep = [ln for ln in lines if "sweep ratio" not in ln]
     out.extend(keep)
     n_sw = sum(1 for ln in lines if "sweep ratio" in ln)
     out.append(f"\n({n_sw} resolution-sweep ratio rows are in the CSV only.)")

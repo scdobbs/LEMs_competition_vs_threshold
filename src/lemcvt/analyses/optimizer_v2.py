@@ -807,12 +807,12 @@ def merge_nonlinear_joint(tile: str, k_factor: float = 1.0, run_id: str | None =
         raise FileNotFoundError(f"{tile}: split parts {missing} of {n} missing for source {key[0]}")
     p0 = group[0][1]
     st0 = p0["v2"]["nonlinear_joint"]["setup"]
-    rows = []
+    part_rows: list[dict[str, Any]] = []
     for k in range(n):
         r, p = group[k]
         df = pd.read_parquet(r / "nonlinear_joint_profile.parquet")
-        rows += df.to_dict("records")
-    df_all = pd.DataFrame(rows).sort_values(["A_crit", "D"]).reset_index(drop=True)
+        part_rows += cast(list[dict[str, Any]], df.to_dict("records"))
+    df_all = pd.DataFrame(part_rows).sort_values(["A_crit", "D"]).reset_index(drop=True)
     rows = cast(list[dict[str, Any]], df_all.to_dict("records"))
     td = load_tile(tile)
     mp = td.cfg.model
