@@ -102,7 +102,26 @@ def build_spec(step: str, labels: list[str], command_template: str, time: str | 
     return spec
 
 
+class SubmitEnvironmentError(RuntimeError):
+    """Addendum 7, 0.4: the rendered script carries the submitting shell's LEMCVT_DATA and LEMCVT_RESULTS."""
+
+
+def require_submit_env() -> tuple[str, str]:
+    """The data and results roots of the submitting shell; refuse to render when either is unset or empty.
+
+    `lemcvt slurm submit` writes ``export LEMCVT_RESULTS="${LEMCVT_RESULTS:-<value>}"`` into the job script, so an
+    empty value in the submitting shell makes every task fall back to the repository as its results root and find no
+    runs (submission fault 3 of the addendum 6 session)."""
+    data, results = os.environ.get("LEMCVT_DATA", ""), os.environ.get("LEMCVT_RESULTS", "")
+    missing = [k for k, v in (("LEMCVT_DATA", data), ("LEMCVT_RESULTS", results)) if not v.strip()]
+    if missing:
+        raise SubmitEnvironmentError(f"{' and '.join(missing)} must be exported (non-empty) in the submitting shell before a Slurm script is "
+                                     "rendered (addendum 7, 0.4); e.g. export LEMCVT_DATA=$GROUP_HOME/lemcvt_data/v1 LEMCVT_RESULTS=$GROUP_HOME/lemcvt_results")
+    return data, results
+
+
 def render(spec: JobSpec) -> str:
+    lemcvt_data, lemcvt_results = require_submit_env()
     tmpl = TEMPLATE.read_text()
     optional = []
     if spec.partition:
@@ -121,7 +140,7 @@ def render(spec: JobSpec) -> str:
         log_dir=str(spec.log_dir), labels_bash=labels_bash, threads=threads,
         micromamba=spec.micromamba, env_prefix=spec.env_prefix, repo=str(REPO_ROOT),
         command=spec.command_template, step=spec.step,
-        lemcvt_data=os.environ.get("LEMCVT_DATA", ""), lemcvt_results=os.environ.get("LEMCVT_RESULTS", ""),
+        lemcvt_data=lemcvt_data, lemcvt_results=lemcvt_results,
     )
 
 

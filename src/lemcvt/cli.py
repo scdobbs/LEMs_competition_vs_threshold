@@ -515,6 +515,38 @@ def phase6_estimate(tiles, from_m_profiles) -> None:
     click.echo(_json.dumps({k: v for k, v in est.items() if k not in ("items", "cost_assumptions")}, indent=1))
 
 
+@main.group()
+def phase7() -> None:
+    """Addendum 7: the slope-area units check (2b) and the D diagnostic by hillslope class (2)."""
+
+
+@phase7.command("slope-area-check")
+@click.option("--tiles", default="AP", show_default=True)
+@click.option("--run-id", default=None)
+def phase7_slope_area_check(tiles, run_id) -> None:
+    """Addendum 7, 2b.1-2b.3: relief, mean, MSE and channel-bin slopes of the Phase 6 joint grid as the figure read it (old path) and as written."""
+    from lemcvt.analyses.slope_area_fig import run_slope_area_units_check
+
+    rec = run_slope_area_units_check(_parse_tiles(tiles), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@phase7.command("d-diagnostic")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--thin-n", default=2000, show_default=True)
+@click.option("--refine-max", default=400, show_default=True)
+@click.option("--a-roll", default=None, type=float, help="Override the slope-area rollover (default: the latest measure_diagnostics run).")
+@click.option("--a-c", default=None, type=float, help="Override the rollover-network A_c of the option (iii) set (default: the measure run).")
+@click.option("--crop", default=None)
+@click.option("--run-id", default=None)
+def phase7_d_diagnostic(tile_id, thin_n, refine_max, a_roll, a_c, crop, run_id) -> None:
+    """Addendum 7, 2.1-2.3: observed curvature by hillslope class at the Phase 6 joint optimum, the class-restricted joint refits, the rule."""
+    from lemcvt.analyses.d_diagnostic import run_d_diagnostic
+
+    rec = run_d_diagnostic(tile_id, thin_n=thin_n, refine_max=refine_max, A_roll=a_roll, A_c=a_c, crop=_parse_crop(crop), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
 @main.command("slope-area")
 @click.option("--tiles", default="AP1,GM2", show_default=True)
 @click.option("--phase6", is_flag=True, help="Model grids from the Phase 6 runs (AD run and refined partitioned run) instead of the saved v1 grids.")
