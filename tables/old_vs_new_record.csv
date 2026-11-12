@@ -4,17 +4,17 @@ AP1,k_s,138.555,12.420840727262696,0.08964556116533287,measurement; m; vertical 
 AP1,C_ht,0.0199,0.015334133018650784,0.7705594481734062,measurement; vertical units; AP D0 bracket,1/ft,1/m,
 AP1,K0 = U/k_s,1.302340827348947e-06,4.4280416444983185e-06,3.400063602023494,measurement; m; vertical units,1/yr (converted x c),1/yr,
 AP1,D0 = U/C_ht,0.009067629815745396,0.003586769459551703,0.3955575527932882,measurement; vertical units; AP D0 bracket,m^2/yr (converted x c),m^2/yr,D0_B = 6.978e-03
-AP1,AD K,2.7159722583333336e-05,3.995008268292035e-05,1.4709311761319632,m; vertical units; AP1 seam; optimizer,1/yr (x c),1/yr,
-AP1,AD D,0.0017868074500000002,0.0005446698675522093,0.30482851834550456,m; vertical units; AP1 seam; optimizer,m^2/yr (x c),m^2/yr,
-AP1,AD MSE,34.649256395286976,59.01825736550466,1.7033051645383184,m; vertical units; AP1 seam; optimizer,m^2 (x 1/c^2),m^2,
-AP1,stage-2 A_crit,3063.4,823.2816923967276,0.2687476961535312,m; vertical units; AP1 seam; optimizer; measurement; AP D0 bracket,m^2,m^2,
-AP1,stage-2 MSE,178.02151733335722,289.2277726939492,1.6246787300006593,m; vertical units; AP1 seam; optimizer; measurement; AP D0 bracket,m^2 (x 1/c^2),m^2,
-AP1,joint A_crit,6414.3,6888.5671398460445,1.0739390330739198,m; vertical units; AP1 seam; optimizer,m^2,m^2,
-AP1,joint K,1.334610191666667e-06,3.995151255538226e-06,2.9934967382116753,m; vertical units; AP1 seam; optimizer,1/yr (x c),1/yr,
-AP1,joint D,0.017651211416666666,0.0169897748740282,0.9625274137267472,m; vertical units; AP1 seam; optimizer,m^2/yr (x c),m^2/yr,
-AP1,joint MSE,20.998029092832375,22.384355389358007,1.0660217342492802,m; vertical units; AP1 seam; optimizer,m^2 (x 1/c^2),m^2,
-AP1,nonlinear A_crit,4950.3,824.2323640969532,0.1665014977065942,m; vertical units; AP1 seam; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2,m^2,
-AP1,nonlinear MSE,18.84638607986893,217.7741225214694,11.555219212774608,m; vertical units; AP1 seam; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2 (x 1/c^2),m^2,
+AP1,AD K,2.7159722583333336e-05,3.995008268292035e-05,1.4709311761319632,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer,1/yr (x c),1/yr,
+AP1,AD D,0.0017868074500000002,0.0005446698675522093,0.30482851834550456,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer,m^2/yr (x c),m^2/yr,
+AP1,AD MSE,34.649256395286976,59.01825736550466,1.7033051645383184,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer,m^2 (x 1/c^2),m^2,
+AP1,stage-2 A_crit,3063.4,823.2816923967276,0.2687476961535312,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer; measurement; AP D0 bracket,m^2,m^2,
+AP1,stage-2 MSE,178.02151733335722,289.2277726939492,1.6246787300006593,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer; measurement; AP D0 bracket,m^2 (x 1/c^2),m^2,
+AP1,joint A_crit,6414.3,6888.5671398460445,1.0739390330739198,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer,m^2,m^2,
+AP1,joint K,1.334610191666667e-06,3.995151255538226e-06,2.9934967382116753,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer,1/yr (x c),1/yr,
+AP1,joint D,0.017651211416666666,0.0169897748740282,0.9625274137267472,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer,m^2/yr (x c),m^2/yr,
+AP1,joint MSE,20.998029092832375,22.384355389358007,1.0660217342492802,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer,m^2 (x 1/c^2),m^2,
+AP1,nonlinear A_crit,4950.3,824.2323640969532,0.1665014977065942,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2,m^2,
+AP1,nonlinear MSE,18.84638607986893,217.7741225214694,11.555219212774608,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2 (x 1/c^2),m^2,
 AP2,theta / m,0.592,0.47,0.7939189189189189,measurement; m,,,v1 per-tile theta; v2 site constant
 AP2,k_s,190.918,11.583555564793087,0.06067293584048171,measurement; m; vertical units,ft-based,m^(2 m),not comparable across theta; v1 AP in feet
 AP2,C_ht,0.01944,0.01709024456898894,0.8791278070467562,measurement; vertical units; AP D0 bracket,1/ft,1/m,
@@ -670,15 +670,15 @@ AP5,sweep ratio D-inf at dx 100.0,1.34,1.1543657472109934,0.861466975530592,meas
 AP1,slope-area ORIGINAL Ks,112.8,35.575419397112896,0.3153849237332704,vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
 AP1,slope-area ORIGINAL theta,0.542,0.5407318166392042,0.9976601783011148,vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
 AP1,slope-area ORIGINAL R2,0.962,0.9476941712159532,0.9851290761080596,vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
-AP1,slope-area AD no-opt Ks,0.5409,0.08928558680905656,0.16506856500102893,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
-AP1,slope-area AD no-opt theta,-0.07,-0.10671752570353503,1.5245360814790716,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
-AP1,slope-area AD no-opt R2,0.033,0.087506336748985,2.6517071742116665,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
-AP1,slope-area AD opt Ks,43.55,2.035395098211206,0.04673697125628487,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
-AP1,slope-area AD opt theta,0.46,0.40130632988389414,0.8724050649649873,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
-AP1,slope-area AD opt R2,0.977,0.976024546778209,0.9990015831916162,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
-AP1,slope-area PARTITIONED Ks,119.2,8.426935105338565,0.07069576430653159,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
-AP1,slope-area PARTITIONED theta,0.553,0.5217539293218513,0.9434971597140167,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
-AP1,slope-area PARTITIONED R2,1.0,0.9768319828136561,0.9768319828136561,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
+AP1,slope-area AD no-opt Ks,0.5409,0.24843615232067595,0.45930144633144004,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
+AP1,slope-area AD no-opt theta,-0.07,-0.11365087240934411,1.6235838915620586,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
+AP1,slope-area AD no-opt R2,0.033,0.1074078122414015,3.254782189133379,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
+AP1,slope-area AD opt Ks,43.55,7.2706178187979145,0.1669487444040853,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
+AP1,slope-area AD opt theta,0.46,0.4106249627148953,0.8926629624236854,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
+AP1,slope-area AD opt R2,0.977,0.9714102473892767,0.9942786564885125,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
+AP1,slope-area PARTITIONED Ks,119.2,13.991668102787527,0.11737976596298261,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
+AP1,slope-area PARTITIONED theta,0.553,0.47102254084373785,0.8517586633702311,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
+AP1,slope-area PARTITIONED R2,1.0,0.9951055223564005,0.9951055223564005,optimizer; measurement; m; vertical units; AP1 seam,,,Ks on AP in feet-based units in v1
 GM2,slope-area ORIGINAL Ks,2.488,2.4877194800344116,0.9998872508176896,,,,Ks on AP in feet-based units in v1
 GM2,slope-area ORIGINAL theta,0.306,0.3061824861452057,1.0005963599516527,,,,Ks on AP in feet-based units in v1
 GM2,slope-area ORIGINAL R2,0.962,0.9621222679067694,1.0001270976161845,,,,Ks on AP in feet-based units in v1

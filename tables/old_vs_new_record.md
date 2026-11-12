@@ -5,17 +5,17 @@
 | AP1 | C_ht | 0.0199 | 0.01533 | 0.7706 | measurement; vertical units; AP D0 bracket |
 | AP1 | K0 = U/k_s | 1.302e-06 | 4.428e-06 | 3.4 | measurement; m; vertical units |
 | AP1 | D0 = U/C_ht | 0.009068 | 0.003587 | 0.3956 | measurement; vertical units; AP D0 bracket |
-| AP1 | AD K | 2.716e-05 | 3.995e-05 | 1.471 | m; vertical units; AP1 seam; optimizer |
-| AP1 | AD D | 0.001787 | 0.0005447 | 0.3048 | m; vertical units; AP1 seam; optimizer |
-| AP1 | AD MSE | 34.65 | 59.02 | 1.703 | m; vertical units; AP1 seam; optimizer |
-| AP1 | stage-2 A_crit | 3063 | 823.3 | 0.2687 | m; vertical units; AP1 seam; optimizer; measurement; AP D0 bracket |
-| AP1 | stage-2 MSE | 178 | 289.2 | 1.625 | m; vertical units; AP1 seam; optimizer; measurement; AP D0 bracket |
-| AP1 | joint A_crit | 6414 | 6889 | 1.074 | m; vertical units; AP1 seam; optimizer |
-| AP1 | joint K | 1.335e-06 | 3.995e-06 | 2.993 | m; vertical units; AP1 seam; optimizer |
-| AP1 | joint D | 0.01765 | 0.01699 | 0.9625 | m; vertical units; AP1 seam; optimizer |
-| AP1 | joint MSE | 21 | 22.38 | 1.066 | m; vertical units; AP1 seam; optimizer |
-| AP1 | nonlinear A_crit | 4950 | 824.2 | 0.1665 | m; vertical units; AP1 seam; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear |
-| AP1 | nonlinear MSE | 18.85 | 217.8 | 11.56 | m; vertical units; AP1 seam; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear |
+| AP1 | AD K | 2.716e-05 | 3.995e-05 | 1.471 | m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer |
+| AP1 | AD D | 0.001787 | 0.0005447 | 0.3048 | m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer |
+| AP1 | AD MSE | 34.65 | 59.02 | 1.703 | m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer |
+| AP1 | stage-2 A_crit | 3063 | 823.3 | 0.2687 | m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer; measurement; AP D0 bracket |
+| AP1 | stage-2 MSE | 178 | 289.2 | 1.625 | m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer; measurement; AP D0 bracket |
+| AP1 | joint A_crit | 6414 | 6889 | 1.074 | m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer |
+| AP1 | joint K | 1.335e-06 | 3.995e-06 | 2.993 | m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer |
+| AP1 | joint D | 0.01765 | 0.01699 | 0.9625 | m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer |
+| AP1 | joint MSE | 21 | 22.38 | 1.066 | m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer |
+| AP1 | nonlinear A_crit | 4950 | 824.2 | 0.1665 | m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear |
+| AP1 | nonlinear MSE | 18.85 | 217.8 | 11.56 | m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear |
 | AP2 | theta / m | 0.592 | 0.47 | 0.7939 | measurement; m |
 | AP2 | k_s | 190.9 | 11.58 | 0.06067 | measurement; m; vertical units |
 | AP2 | C_ht | 0.01944 | 0.01709 | 0.8791 | measurement; vertical units; AP D0 bracket |
@@ -671,15 +671,15 @@
 | AP1 | slope-area ORIGINAL Ks | 112.8 | 35.58 | 0.3154 | vertical units; AP1 seam |
 | AP1 | slope-area ORIGINAL theta | 0.542 | 0.5407 | 0.9977 | vertical units; AP1 seam |
 | AP1 | slope-area ORIGINAL R2 | 0.962 | 0.9477 | 0.9851 | vertical units; AP1 seam |
-| AP1 | slope-area AD no-opt Ks | 0.5409 | 0.08929 | 0.1651 | optimizer; measurement; m; vertical units; AP1 seam |
-| AP1 | slope-area AD no-opt theta | -0.07 | -0.1067 | 1.525 | optimizer; measurement; m; vertical units; AP1 seam |
-| AP1 | slope-area AD no-opt R2 | 0.033 | 0.08751 | 2.652 | optimizer; measurement; m; vertical units; AP1 seam |
-| AP1 | slope-area AD opt Ks | 43.55 | 2.035 | 0.04674 | optimizer; measurement; m; vertical units; AP1 seam |
-| AP1 | slope-area AD opt theta | 0.46 | 0.4013 | 0.8724 | optimizer; measurement; m; vertical units; AP1 seam |
-| AP1 | slope-area AD opt R2 | 0.977 | 0.976 | 0.999 | optimizer; measurement; m; vertical units; AP1 seam |
-| AP1 | slope-area PARTITIONED Ks | 119.2 | 8.427 | 0.0707 | optimizer; measurement; m; vertical units; AP1 seam |
-| AP1 | slope-area PARTITIONED theta | 0.553 | 0.5218 | 0.9435 | optimizer; measurement; m; vertical units; AP1 seam |
-| AP1 | slope-area PARTITIONED R2 | 1 | 0.9768 | 0.9768 | optimizer; measurement; m; vertical units; AP1 seam |
+| AP1 | slope-area AD no-opt Ks | 0.5409 | 0.2484 | 0.4593 | optimizer; measurement; m; vertical units; AP1 seam |
+| AP1 | slope-area AD no-opt theta | -0.07 | -0.1137 | 1.624 | optimizer; measurement; m; vertical units; AP1 seam |
+| AP1 | slope-area AD no-opt R2 | 0.033 | 0.1074 | 3.255 | optimizer; measurement; m; vertical units; AP1 seam |
+| AP1 | slope-area AD opt Ks | 43.55 | 7.271 | 0.1669 | optimizer; measurement; m; vertical units; AP1 seam |
+| AP1 | slope-area AD opt theta | 0.46 | 0.4106 | 0.8927 | optimizer; measurement; m; vertical units; AP1 seam |
+| AP1 | slope-area AD opt R2 | 0.977 | 0.9714 | 0.9943 | optimizer; measurement; m; vertical units; AP1 seam |
+| AP1 | slope-area PARTITIONED Ks | 119.2 | 13.99 | 0.1174 | optimizer; measurement; m; vertical units; AP1 seam |
+| AP1 | slope-area PARTITIONED theta | 0.553 | 0.471 | 0.8518 | optimizer; measurement; m; vertical units; AP1 seam |
+| AP1 | slope-area PARTITIONED R2 | 1 | 0.9951 | 0.9951 | optimizer; measurement; m; vertical units; AP1 seam |
 | GM2 | slope-area ORIGINAL Ks | 2.488 | 2.488 | 0.9999 |  |
 | GM2 | slope-area ORIGINAL theta | 0.306 | 0.3062 | 1.001 |  |
 | GM2 | slope-area ORIGINAL R2 | 0.962 | 0.9621 | 1 |  |
