@@ -44,6 +44,8 @@ def er_star(out_dir: Path, network: str = "primary_1e3") -> list[Path]:
     set_nature_style()
     fig, axes = plt.subplots(2, 5, figsize=(16, 6.4), sharex=True, sharey=True)
     E_grid = np.logspace(-2, 2, 200)
+    cap_bins: list[dict] = []
+    cap_tiles: list[dict] = []
     for ax, tile in zip(axes.ravel(), tiles, strict=False):
         net = p["tiles"][tile]["networks"][network]
         sc = net["S_c_fit"].get("S_c", float("nan"))
@@ -68,6 +70,10 @@ def er_star(out_dir: Path, network: str = "primary_1e3") -> list[Path]:
         ax.loglog(E_grid, E_grid / 2, color="#eb6834", lw=0.8, ls="--", label="E*/2 (addendum 8 text)")
         rn = net["ratio_normalised"]
         ci = net["S_c_fit"].get("S_c_ci68") or [float("nan")] * 2
+        cap_bins += [{"tile": tile, "network": network, "E_star_bin_centre": x_, "R_star_median": m_, "R_star_q25": l_, "R_star_q75": h_, "run": run.name}
+                     for x_, m_, l_, h_ in zip(xc, med, lo, hi, strict=True)]
+        cap_tiles.append({"tile": tile, "network": network, "S_c_fit": sc, "S_c_ci68_lo": ci[0], "S_c_ci68_hi": ci[1],
+                          "ratio_normalised_median": rn["median"], "n_pixels": int(len(E)), "run": run.name})
         ax.set_title(f"{tile}: S_c {sc:.2f} [{ci[0]:.2f}, {ci[1]:.2f}]\n2Sbar/(C L) median {rn['median']:.2f}", fontsize=8)
         ax.set_xlim(1e-2, 1e2)
         ax.set_ylim(1e-3, 2)
@@ -78,7 +84,7 @@ def er_star(out_dir: Path, network: str = "primary_1e3") -> list[Path]:
     axes[0, 0].legend(fontsize=6, loc="upper left")
     fig.suptitle(f"E*-R* on the option (iii) hilltop pixels, network {network} (run {run.name})", fontsize=9)
     fig.tight_layout()
-    return save(fig, out_dir, "a8_er_star")
+    return save(fig, out_dir, "a8_er_star", caption={"bins": cap_bins, "tiles": cap_tiles})
 
 
 def slope_threshold(out_dir: Path) -> list[Path]:
@@ -92,11 +98,16 @@ def slope_threshold(out_dir: Path) -> list[Path]:
     tiles = [t for t in TILE_IDS if t in runs]
     set_nature_style()
     fig, axes = plt.subplots(2, 5, figsize=(16, 6.4))
+    cap_prof: list[pd.DataFrame] = []
+    cap_ho: list[dict] = []
     colors = {0.0: "#0b0b0b", 0.5: "#2a78d6", 1.0: "#1baf7a", 1.5: "#eda100", 2.0: "#eb6834", 2.5: "#4a3aa7"}
     for ax, tile in zip(axes.ravel(), tiles, strict=False):
         for a in sorted(runs[tile]):
             r, p = runs[tile][a]
             df = pd.read_parquet(r / "c_profile.parquet")
+            cap_prof.append(pd.DataFrame({"tile": tile, "alpha": a, "C": df["C"] if "C" in df else np.nan, "n_channel": df.n_channel,
+                                          "mse_joint": df.mse_joint, "mse_over_min": df.mse_joint / df.mse_joint.min(), "run": r.name}))
+            cap_ho.append({"tile": tile, "alpha": a, "mse_heldout_mean": p["result"]["holdout"]["mse_heldout_mean"], "mse_min": float(df.mse_joint.min()), "run": r.name})
             ax.plot(df.n_channel, df.mse_joint / df.mse_joint.min(), color=colors.get(a, "#9a9995"), lw=1, label=f"alpha {a:g}: held-out {p['result']['holdout']['mse_heldout_mean']:.2f}")
         ax.set_xscale("log")
         ax.set_ylim(0.95, 3)
@@ -107,4 +118,4 @@ def slope_threshold(out_dir: Path) -> list[Path]:
         ax.set_ylabel("MSE(C) / min")
     fig.suptitle("Linear joint MSE over the threshold C of A S^alpha >= C, against the channel-cell count (addendum 8, 3)", fontsize=9)
     fig.tight_layout()
-    return save(fig, out_dir, "a8_slope_threshold")
+    return save(fig, out_dir, "a8_slope_threshold", caption={"profiles": pd.concat(cap_prof, ignore_index=True), "holdout": cap_ho})

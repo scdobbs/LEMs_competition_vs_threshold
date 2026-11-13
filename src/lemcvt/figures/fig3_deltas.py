@@ -5,6 +5,11 @@ optimum (v2 r profile), the linear joint optimum (refined partitioned run) and t
 run), with dK = log10(K_fit / K0), K0 = U/k_s, and dD = log10(D_fit / D0). On AP, D0 is a bracket and dD is drawn at
 both ends (D0_A filled, D0_B open, joined); on GM at D0 (= D0_A). The manuscript figure's code is not in the v1
 repository.
+
+The nonlinear joint run is the Phase 6 one at S_c = 1.27 (no S_c override, K factor 1), as
+``lemcvt.analyses.nonlinear_fair._phase6_nonlinear_joint_optimum``: the addendum 9 runs at the fitted S_c are later
+and would otherwise be taken as the latest. Its panel carries the addendum 10, 1.1 label (centre form, nonstandard).
+The plotted values go to ``fig3_deltaK_deltaD.csv``.
 """
 
 from __future__ import annotations
@@ -15,17 +20,24 @@ import numpy as np
 import pandas as pd
 
 from lemcvt.config import TILE_IDS
-from lemcvt.figures.common import COL_AP, COL_GM, plt, save, set_nature_style
+from lemcvt.figures.common import CENTRE_FORM, CENTRE_FORM_TAG, COL_AP, COL_GM, plt, save, set_nature_style
 
-STAGES = (("ad", "Advection-diffusion"), ("joint", "Partitioned (linear joint)"), ("nonlinear_joint", "Partitioned (nonlinear joint)"))
+STAGES = (("ad", "Advection-diffusion"), ("joint", "Partitioned (linear joint)"), ("nonlinear_joint", f"Partitioned (nonlinear joint, S_c 1.27)\n{CENTRE_FORM_TAG}"))
 
 
 def collect_deltas() -> pd.DataFrame:
+    import json
+
     from lemcvt.analyses.curvature_compare import _runs_by_stage
+    from lemcvt.analyses.nonlinear_fair import _phase6_nonlinear_joint_optimum
 
     rows = []
     for tile in TILE_IDS:
         runs = _runs_by_stage(tile)
+        runs.pop("nonlinear_joint", None)   # _runs_by_stage does not exclude S_c overrides (addendum 9 runs)
+        p6 = _phase6_nonlinear_joint_optimum(tile)
+        if p6 is not None:
+            runs["nonlinear_joint"] = (p6["dir"], json.loads((p6["dir"] / "params.json").read_text()))
         for stage, _title in STAGES:
             if stage not in runs:
                 continue
@@ -41,7 +53,8 @@ def collect_deltas() -> pd.DataFrame:
             ends = [("A", D0_A)] + ([("B", float(D0_B))] if tile.startswith("AP") and D0_B else [])
             for end, D0 in ends:
                 rows.append({"tile": tile, "site": tile[:2], "stage": stage, "D0_end": end, "K0": K0, "D0": D0, "K": o["K"], "D": o["D"],
-                             "dK": np.log10(o["K"] / K0), "dD": np.log10(o["D"] / D0), "mse": o["mse"], "run": r.name})
+                             "dK": np.log10(o["K"] / K0), "dD": np.log10(o["D"] / D0), "mse": o["mse"], "run": r.name,
+                             "model_form": CENTRE_FORM if stage == "nonlinear_joint" else ""})
     if not rows:
         raise FileNotFoundError("no Phase 6 per-stage runs (AD, refined partitioned, merged nonlinear joint) found")
     return pd.DataFrame(rows)
@@ -74,6 +87,4 @@ def build(out_dir: Path) -> list[Path]:
     axes[0].set_ylabel(r"$\Delta D = \log_{10}(D_{\mathrm{fit}}/D_0)$")
     axes[0].legend(frameon=False, fontsize=5)
     fig.tight_layout()
-    paths = save(fig, out_dir, "fig3_deltaK_deltaD")
-    df.to_csv(out_dir / "fig3_deltaK_deltaD.csv", index=False)
-    return paths + [out_dir / "fig3_deltaK_deltaD.csv"]
+    return save(fig, out_dir, "fig3_deltaK_deltaD", caption=df)

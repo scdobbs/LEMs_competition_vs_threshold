@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 from lemcvt.config import TILE_IDS
-from lemcvt.figures.common import save, set_nature_style
+from lemcvt.figures.common import CENTRE_FORM, CENTRE_FORM_TAG, save, set_nature_style
 from lemcvt.figures.phase8 import _latest
 from lemcvt.results import find_runs
 
@@ -24,9 +24,9 @@ from lemcvt.results import find_runs
 SURFACE_STYLE = {"observed": ("#5f5e5a", "o"), "linear_joint": ("#2a78d6", "s"), "ad": ("#eb6834", "D"),
                  "nonlinear_joint_1.27": ("#1baf7a", "^"), "nonlinear_flux_fitted_Sc": ("#eda100", "v")}
 SURFACE_LABEL = {"observed": "observed DEM", "linear_joint": "linear joint", "ad": "AD optimum",
-                 "nonlinear_joint_1.27": "nonlinear joint, S_c 1.27 (v1 form)", "nonlinear_flux_fitted_Sc": "nonlinear flux form, fitted S_c"}
+                 "nonlinear_joint_1.27": f"nonlinear joint, S_c 1.27 {CENTRE_FORM_TAG}", "nonlinear_flux_fitted_Sc": "nonlinear flux form, fitted S_c"}
 OUTCOME_MARKER = {"converged": "o", "no_steady_solution": "x", "not_converged": "s"}
-RUN_STYLE = {("picard", "centre"): ("#5f5e5a", "Picard, v1 form"), ("newton", "centre"): ("#2a78d6", "Newton, v1 form"),
+RUN_STYLE = {("picard", "centre"): ("#5f5e5a", f"Picard, v1 {CENTRE_FORM_TAG}"), ("newton", "centre"): ("#2a78d6", f"Newton, v1 {CENTRE_FORM_TAG}"),
              ("newton", "flux"): ("#eb6834", "Newton, flux form")}
 
 
@@ -38,10 +38,15 @@ def pilot(out_dir: Path) -> list[Path]:
     tiles = sorted({k.split("/")[0] for k in per})
     set_nature_style()
     fig, axes = plt.subplots(1, len(tiles), figsize=(5.2 * len(tiles), 3.6), squeeze=False)
+    cap: list[pd.DataFrame] = []
+    cap_lines: list[dict] = []
     for ax, tile in zip(axes[0], tiles, strict=True):
-        frames = [pd.read_parquet([r for r in find_runs("a9_pilot") if r.name == per[k]["run"]][0] / "pilot_rows.parquet")
-                  for k in per if k.startswith(tile + "/")]
+        keys = [k for k in per if k.startswith(tile + "/")]
+        frames = [pd.read_parquet([r for r in find_runs("a9_pilot") if r.name == per[k]["run"]][0] / "pilot_rows.parquet").assign(run=per[k]["run"])
+                  for k in keys]
         s = pd.concat(frames, ignore_index=True)
+        cols = [c for c in ("solver", "form", "A_crit", "D", "S_c", "mse", "outcome", "run") if c in s.columns]
+        cap.append(s[cols].assign(tile=tile, model_form=np.where(s.form == "centre", CENTRE_FORM, "flux form")))
         for (solver, form), (col, lab) in RUN_STYLE.items():
             g = s[(s.solver == solver) & (s.form == form)].sort_values("D")
             if g.empty:
@@ -53,6 +58,7 @@ def pilot(out_dir: Path) -> list[Path]:
         c = per.get(f"{tile}/centre") or next(v for k, v in per.items() if k.startswith(tile + "/"))
         ax.axvline(float(c["linear_joint"]["D"]), color="#0b0b0b", lw=0.8, ls="--")
         ax.axvline(float(c["D0"]), color="#0b0b0b", lw=0.8, ls=":")
+        cap_lines.append({"tile": tile, "A_crit": c["A_crit"], "S_c": c["S_c"], "linear_joint_D": float(c["linear_joint"]["D"]), "D0_A": float(c["D0"]), "summary_run": run.name})
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_xlabel("D (m$^2$/yr)")
@@ -64,7 +70,7 @@ def pilot(out_dir: Path) -> list[Path]:
     axes[0, 0].legend(handles=handles, fontsize=6, loc="best")
     fig.suptitle(f"Addendum 9 pilot: one A_crit row across the D grid (summary run {run.name})", fontsize=9)
     fig.tight_layout()
-    return save(fig, out_dir, "a9_pilot")
+    return save(fig, out_dir, "a9_pilot", caption={"rows": pd.concat(cap, ignore_index=True), "lines": cap_lines})
 
 
 def fair(out_dir: Path) -> list[Path]:
@@ -76,11 +82,18 @@ def fair(out_dir: Path) -> list[Path]:
         raise FileNotFoundError("no merged a9_fair runs at the central S_c")
     set_nature_style()
     fig, axes = plt.subplots(2, 5, figsize=(16, 6.4), squeeze=False)
+    cap: list[pd.DataFrame] = []
+    cap_opt: list[dict] = []
     for ax, tile in zip(axes.ravel(), tiles, strict=False):
         m = p["per_tile"][tile]["central"]
         r = [x for x in find_runs("a9_fair_merged") if x.name == m["run"]][0]
         df = pd.read_parquet(r / "fair_rows.parquet")
         lin = float(m["linear_joint"]["mse"])
+        cap.append(pd.DataFrame({"tile": tile, "A_crit": df.A_crit, "D": df.D, "mse": df.mse, "mse_over_linear_joint": df.mse / lin,
+                                 "outcome": df.outcome, "run": r.name}))
+        cap_opt.append({"tile": tile, "S_c": m["S_c"], "optimum_A_crit": (m.get("optimum") or {}).get("A_crit"), "optimum_D": (m.get("optimum") or {}).get("D"),
+                        "mse_ratio_to_linear_joint": m.get("mse_ratio_to_linear_joint"), "linear_joint_D": float(m["linear_joint"]["D"]),
+                        "linear_joint_mse": lin, "D0_A": m["D0"], "D0_B": m.get("D0_B"), "run": r.name, "summary_run": run.name})
         conv = df[df.outcome == "converged"]
         sc = ax.scatter(conv.A_crit, conv.D, c=np.log10(conv.mse / lin), cmap="Blues_r", s=14, vmin=0, vmax=1, edgecolors="none")
         for oc, mk in (("no_steady_solution", "x"), ("not_converged", "s")):
@@ -104,7 +117,7 @@ def fair(out_dir: Path) -> list[Path]:
     axes[0, 0].legend(fontsize=5, loc="lower left")
     fig.colorbar(sc, ax=axes, shrink=0.6, label="log10(MSE / linear joint MSE), converged only")
     fig.suptitle(f"Nonlinear (flux form) joint profile at the fitted S_c; dashed D0_A, dotted D0_B (AP), blue the linear joint D (run {run.name})", fontsize=9)
-    return save(fig, out_dir, "a9_fair")
+    return save(fig, out_dir, "a9_fair", caption={"rows": pd.concat(cap, ignore_index=True), "optima": cap_opt})
 
 
 def morphology(out_dir: Path) -> list[Path]:
@@ -118,6 +131,7 @@ def morphology(out_dir: Path) -> list[Path]:
     set_nature_style()
     fig, axes = plt.subplots(2, 5, figsize=(16, 6.6), sharex=True, sharey=True, squeeze=False)
     E_grid = np.logspace(-2, 2, 200)
+    cap: list[dict] = []
     for ax, tile in zip(axes.ravel(), tiles, strict=False):
         s_all = df[(df.tile == tile) & df.used]
         obs = s_all[s_all.surface == "observed"]
@@ -133,6 +147,9 @@ def morphology(out_dir: Path) -> list[Path]:
             xc = [np.sqrt(edges[k] * edges[k + 1]) for k in range(len(edges) - 1) if (b == k).sum() >= 5]
             md = [np.median(R[b == k]) for k in range(len(edges) - 1) if (b == k).sum() >= 5]
             ax.plot(xc, md, marker=mk, color=col, ms=4, lw=1.2, label=SURFACE_LABEL[name])
+            cap += [{"tile": tile, "surface": name, "label": SURFACE_LABEL[name], "E_star_bin_centre": x_, "R_star_median": m_,
+                     "S_c_observed_fit": p["per_tile"][tile]["S_c_observed_fit"],
+                     "model_form": CENTRE_FORM if name == "nonlinear_joint_1.27" else "", "run": run.name} for x_, m_ in zip(xc, md, strict=True)]
         ax.loglog(E_grid, steady_nonlinear_R(E_grid), color="#0b0b0b", lw=1.0, label="steady nonlinear (Roering)")
         ax.loglog(E_grid, E_grid / 4, color="#0b0b0b", lw=0.8, ls="--", label="linear: R* = E*/4")
         ax.set_title(f"{tile}: S_c (obs. fit) {p['per_tile'][tile]['S_c_observed_fit']:.2f}", fontsize=8)
@@ -145,4 +162,4 @@ def morphology(out_dir: Path) -> list[Path]:
     axes[0, 0].legend(fontsize=5, loc="lower right")
     fig.suptitle(f"E*-R* of every fitted surface along the observed D8 paths, at the observed fitted S_c; grey: observed pixels (run {run.name})", fontsize=9)
     fig.tight_layout()
-    return save(fig, out_dir, "a9_morphology")
+    return save(fig, out_dir, "a9_morphology", caption=cap)

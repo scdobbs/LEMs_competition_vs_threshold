@@ -31,6 +31,7 @@ from lemcvt.results import find_runs
 logger = logging.getLogger(__name__)
 
 REF = REPO_ROOT / "reference" / "v1_reference.json"
+CENTRE_FORM_NOTE = "centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
 
 
 def _latest(step: str, pred=None, label: str | None = None):
@@ -102,8 +103,9 @@ def build_record(seam_verdict: str | None = None) -> pd.DataFrame:
         if "nonlinear" in runs:
             o = runs["nonlinear"][1]["v2"]["nonlinear"]["optimum"]
             cz = base + ["optimizer", "measurement"] + (["AP D0 bracket", "unconverged v1 nonlinear"] if ap else [])
-            add(tile, "nonlinear A_crit", st["nonlinear"]["A_crit"], o["A_crit"], cz, "m^2", "m^2")
-            add(tile, "nonlinear MSE", st["nonlinear"]["MSE"] * mse_f, o["mse"], cz, "m^2 (x 1/c^2)" if ap else "m^2", "m^2")
+            # addendum 10, 1.1: both the v1 and the v2 value solve the centre form D_eff lap(z) = -U (N10)
+            add(tile, "nonlinear A_crit", st["nonlinear"]["A_crit"], o["A_crit"], cz, "m^2", "m^2", note=CENTRE_FORM_NOTE)
+            add(tile, "nonlinear MSE", st["nonlinear"]["MSE"] * mse_f, o["mse"], cz, "m^2 (x 1/c^2)" if ap else "m^2", "m^2", note=CENTRE_FORM_NOTE)
     # d8_vs_dinf (v1 at measured parameters in feet on AP; v2 at the config parameters in metres)
     r, p = _latest("d8_vs_dinf", lambda q: q.get("params_source") == "config")
     if p:

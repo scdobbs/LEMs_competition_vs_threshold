@@ -35,7 +35,7 @@ from lemcvt.config import config_snapshot, load_tile, results_root
 from lemcvt.models.nonlinear_newton import CLIP
 from lemcvt.models.partitioned_nonlinear import partitioned_threshold_model_nonlinear
 from lemcvt.optimize.v2 import thin_log_uniform, unique_areas
-from lemcvt.results import RunRecorder, find_runs
+from lemcvt.results import RunRecorder, dump_json, find_runs
 
 logger = logging.getLogger(__name__)
 
@@ -190,6 +190,8 @@ def run_flux_part(tile: str, sc_label: str, split: tuple[int, int] | None = None
         df = pd.DataFrame(out_rows)
         df.to_parquet(rec.dir / "partial_rows.parquet", index=False)        # 2.2.3: a timeout loses at most one row
         df.to_parquet(gfile, index=False)
+        # params.json after every row too, so a part that hits its time limit can still be merged (status "partial")
+        dump_json(rec.params | {"best_converged": best, "status": "partial", "rows_done": int(df.A_crit_index.nunique())}, rec.dir / "params.json")
         g = _group_counts(grp, tile, sc_label)
         logger.info("%s S_c %s row %d done: %s; group not_converged %d of %d; best %s [%.0f s]", tile, sc_label, k,
                     df[df.A_crit_index == k].outcome.value_counts().to_dict(), g["not_converged"], g["n"],
@@ -287,7 +289,15 @@ def merge_flux(tile: str, sc_label: str, group: str | None = None, run_id: str |
     missing = [k for k in range(n) if k not in grp]
     if missing:
         raise FileNotFoundError(f"{tile} {sc_label}: parts {missing} of {n} missing")
-    df = pd.concat([pd.read_parquet(grp[k][0] / "flux_rows.parquet") for k in range(n)], ignore_index=True).sort_values(["A_crit", "D"]).reset_index(drop=True)
+    frames, partial = [], []
+    for k in range(n):
+        d = grp[k][0]
+        if (d / "flux_rows.parquet").exists():
+            frames.append(pd.read_parquet(d / "flux_rows.parquet"))
+        else:                                              # the part stopped (time limit) after its last complete row
+            frames.append(pd.read_parquet(d / "partial_rows.parquet"))
+            partial.append(d.name)
+    df = pd.concat(frames, ignore_index=True).sort_values(["A_crit", "D"]).reset_index(drop=True)
     s0 = grp[0][1]["setup"]
     rec = RunRecorder("a10_flux_merged", f"{tile}_{sc_label}", run_id=run_id, root=results_root_)
     rec.write_table(df, "flux_rows")
@@ -298,7 +308,7 @@ def merge_flux(tile: str, sc_label: str, group: str | None = None, run_id: str |
                            "counts": {k: int((df.outcome == k).sum()) for k in cls},
                            "counts_a9_rule": {k: int((df.outcome_a9 == k).sum()) for k in cls},
                            "linear_joint": s0["linear_joint_optimum"], "parts": {str(k): grp[k][0].name for k in range(n)},
-                           "stopped": {str(k): grp[k][1].get("stopped") for k in range(n)}, "D0": s0["D0"], "D0_B": s0["D0_B"]}
+                           "stopped": {str(k): grp[k][1].get("stopped") for k in range(n)}, "parts_incomplete": partial, "D0": s0["D0"], "D0_B": s0["D0_B"]}
     out["frac_not_converged"] = float(out["counts"]["not_converged"] / n_tot) if n_tot else float("nan")
     out["stop_rule_applied"] = bool(any(v for v in out["stopped"].values()))
     conv = df[df.outcome == "converged"]

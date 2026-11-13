@@ -52,6 +52,8 @@ SC_LABELS = ("central", "p16", "p84")
 RULE3: dict[str, Any] = {"mse_ratio_max": 1.05, "D_ratio": (0.67, 1.5), "AP_bracket_widen": 1.5, "min_tiles": 4, "untested_not_converged_frac": 0.30}
 RULE4: dict[str, Any] = {"factor": 1.25, "min_tiles": 4}
 PILOT_TILES = ("AP1", "GM1")
+# addendum 10, 1.1: every nonlinear result of v1, Phase 6 and addenda 8-9 carries this label
+CENTRE_FORM_LABEL = "centre form, D_eff lap(z) = -U (nonstandard)"
 CROP = (300, 600, 300, 600)
 
 
@@ -628,7 +630,7 @@ def _grid_of(run: Path, suffix: str) -> np.ndarray:
     return read_geotiff(hits[-1]).data.astype(float)
 
 
-def morphology_tile(tile: str, er_run: str = ER_STAR_RUN) -> tuple[dict[str, Any], pd.DataFrame]:
+def morphology_tile(tile: str, er_run: str = ER_STAR_RUN, with_a10_flux: bool = True) -> tuple[dict[str, Any], pd.DataFrame]:
     """Section 4.2 on one tile: every surface against the observed DEM on the same option (iii) pixels and D8 paths."""
     from lemcvt.analyses.er_star import trace_to_channel
     from lemcvt.measure.hilltop_curvature import total_curvature
@@ -657,12 +659,26 @@ def morphology_tile(tile: str, er_run: str = ER_STAR_RUN) -> tuple[dict[str, Any
         p6 = _phase6_nonlinear_joint_optimum(tile)
         assert p6 is not None
         o = p6["optimum"]
-        surfaces["nonlinear_joint_1.27"] = (_grid_of(p6["dir"], "Partitioned-model-nonlinear-joint-opt"), {"run": p6["run"], "A_crit": o["A_crit"], "D": o["D"], "K": p6["K"], "mse": o["mse"], "S_c": p6["S_c"]})
+        surfaces["nonlinear_joint_1.27"] = (_grid_of(p6["dir"], "Partitioned-model-nonlinear-joint-opt"), {"run": p6["run"], "A_crit": o["A_crit"], "D": o["D"], "K": p6["K"], "mse": o["mse"], "S_c": p6["S_c"],
+                                                                                                         "label": CENTRE_FORM_LABEL})
     hit = _latest_merged(tile, "central")
     if hit is not None and hit[1].get("files"):
         r, m = hit
         surfaces["nonlinear_flux_fitted_Sc"] = (_grid_of(r, "Partitioned-model-nonlinear-flux-joint-opt"), {"run": r.name, "A_crit": m["optimum"]["A_crit"], "D": m["optimum"]["D"],
                                                                                                           "K": m["K"], "mse": m["optimum"]["mse"], "S_c": m["S_c"]})
+    if with_a10_flux:
+        # addendum 10, section 3: the section 2 best flux-form surface of each S_c on GM, where one exists
+        from lemcvt.analyses.gm_flux import SC_LABELS as A10_SC
+        from lemcvt.analyses.gm_flux import latest_merged as a10_latest
+
+        for lab in A10_SC:
+            h10 = a10_latest(tile, lab)
+            if h10 is None or not h10[1].get("files"):
+                continue
+            r10, m10 = h10
+            surfaces[f"flux_a10_Sc{lab}"] = (_grid_of(r10, f"Partitioned-model-nonlinear-flux-Sc{lab}-opt"),
+                                             {"run": r10.name, "A_crit": m10["optimum"]["A_crit"], "D": m10["optimum"]["D"], "K": m10["K"],
+                                              "mse": m10["optimum"]["mse"], "S_c": m10["S_c"], "label": "flux form, div(D_eff grad z) = -U"})
     f = partitioned_threshold_model_nonlinear(Z0, A, FD, dx, mp.m, mp.U, float(jo["K"]))
     gd = f.grid_data
     edge = np.zeros(Z0.shape, dtype=bool)
@@ -705,13 +721,13 @@ def morphology_tile(tile: str, er_run: str = ER_STAR_RUN) -> tuple[dict[str, Any
     return info, pd.concat(frames, ignore_index=True)
 
 
-def run_morphology(tiles: Sequence[str], run_id: str | None = None, results_root_=None) -> RunRecorder:
+def run_morphology(tiles: Sequence[str], run_id: str | None = None, results_root_=None, with_a10_flux: bool = True) -> RunRecorder:
     rec = RunRecorder("a9_morphology", f"{len(tiles)}tiles" if len(tiles) > 3 else "_".join(tiles), run_id=run_id, root=results_root_)
     t0 = time.perf_counter()
     per: dict[str, Any] = {}
     frames = []
     for tile in tiles:
-        info, df = morphology_tile(tile)
+        info, df = morphology_tile(tile, with_a10_flux=with_a10_flux)
         per[tile] = info
         frames.append(df)
         logger.info("%s morphology: %s", tile, {k: v.get("reproduces_form") for k, v in info["surfaces"].items()})
@@ -732,5 +748,6 @@ def run_morphology(tiles: Sequence[str], run_id: str | None = None, results_root
     rec.add_params("counts", counts)
     rec.add_params("rule", RULE4)
     rec.add_params("wall_s", time.perf_counter() - t0)
-    rec.finalize({"tiles": list(tiles), "er_star_run": ER_STAR_RUN})
+    rec.add_params("labels", {"nonlinear_joint_1.27": CENTRE_FORM_LABEL})
+    rec.finalize({"tiles": list(tiles), "er_star_run": ER_STAR_RUN, "with_a10_flux": with_a10_flux})
     return rec

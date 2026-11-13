@@ -42,6 +42,8 @@ def build(out_dir: Path, run: Path | None = None) -> list[Path]:
     sites = [t[:2] for t in tiles]
     fig, axes = plt.subplots(3, len(tiles), figsize=(3.25 * len(tiles), 7.0), sharey=True, squeeze=False)
 
+    bins_rows: list[dict] = []
+    fit_rows: list[dict] = []
     smins, smaxs = [], []
     for tile in tiles:
         for series in ("orig", *[r[0] for r in ROWS]):
@@ -54,12 +56,25 @@ def build(out_dir: Path, run: Path | None = None) -> list[Path]:
         res = params["tiles"][tile]
         orig = res["orig"]
         dbg_o = _dbg(df, tile, "orig")
+        lo_o, hi_o = compute_iqr_errors(dbg_o)
+        for k in range(len(dbg_o["bin_logA"])):
+            bins_rows.append({"tile": tile, "series": "orig", "label": "observed", "A_bin": 10 ** dbg_o["bin_logA"][k],
+                              "S_median": 10 ** dbg_o["bin_logS"][k], "S_err_lo": lo_o[k], "S_err_hi": hi_o[k],
+                              "count": dbg_o["bin_counts"][k], "run": run.name})
+        fit_rows.append({"tile": tile, "series": "orig", "label": "observed", "Ks": orig["Ks"], "theta": orig["theta"],
+                         "R2": orig.get("R2", np.nan), "run": run.name})
         for row, (key, label, color) in enumerate(ROWS):
             ax = axes[row, col]
             mod = res[key]
             dbg_m = _dbg(df, tile, key)
             err_lo_o, err_hi_o = compute_iqr_errors(dbg_o)
             err_lo_m, err_hi_m = compute_iqr_errors(dbg_m)
+            for k in range(len(dbg_m["bin_logA"])):
+                bins_rows.append({"tile": tile, "series": key, "label": label, "A_bin": 10 ** dbg_m["bin_logA"][k],
+                                  "S_median": 10 ** dbg_m["bin_logS"][k], "S_err_lo": err_lo_m[k], "S_err_hi": err_hi_m[k],
+                                  "count": dbg_m["bin_counts"][k], "run": run.name})
+            fit_rows.append({"tile": tile, "series": key, "label": label, "Ks": mod["Ks"], "theta": mod["theta"],
+                             "R2": mod.get("R2", np.nan), "run": run.name})
             logA_min = min(np.nanmin(dbg_o["bin_logA"]), np.nanmin(dbg_m["bin_logA"]))
             logA_max = max(np.nanmax(dbg_o["bin_logA"]), np.nanmax(dbg_m["bin_logA"]))
             A_fit = np.logspace(logA_min, logA_max, 200)
@@ -92,4 +107,4 @@ def build(out_dir: Path, run: Path | None = None) -> list[Path]:
                 ax.set_xlabel(r"Drainage area $A$ (m$^2$)")
     provenance_note(axes[-1, -1], run)
     fig.tight_layout()
-    return save(fig, out_dir, "fig_slope_area")
+    return save(fig, out_dir, "fig_slope_area", caption={"bins": bins_rows, "fits": fit_rows})

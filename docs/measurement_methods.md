@@ -8,6 +8,23 @@ states the definitions and the reasons for each choice in enough detail for a
 Methods section. Where the choice has a free parameter, the sensitivity to it is
 part of the output (`params.json` and `curves.parquet` of a `measure` run).
 
+## 0. Final methods (v2.0.0)
+
+This section states the methods behind every measured input of the v2.0.0 results, as decided through addendum 10. The
+numbered sections below give the definitions in detail and the history of each choice. All values are in the tile configs
+(`configs/tiles/*.yaml`, block `measured`, with provenance: run id, git hash, n_eff, bootstrap interval), written by
+`lemcvt phase6 write-configs` from run `20261111T002913Z_phase6_inputs_10tiles`.
+
+| quantity | final method | where |
+| --- | --- | --- |
+| θ = m | **A site constant, not a per-tile concavity**: the minimum of the site profile S(m) = Σ_t MSE*_t(m)/MSE*_t,min of the linear partitioned model (MSE*_t minimised over A_crit, K, D at each m; m = 0.05-0.90 in steps of 0.01; addendum 4, 6.1; addendum 5, 1.1). **AP m = 0.47** (1 % interval 0.44-0.49), **GM m = 0.31** (0.29-0.33). The χ-z concavity of §3 is reported beside it; it is not a model input | checkpoint 4b/5 report §5 |
+| k_s | The pooled through-origin slope of z − z_outlet against χ at θ = m (A₀ = 1 m², the model's D8 areas and link lengths, §1), over the channel network **A ≥ 10³ m²**, basins with ≥ 10 channel pixels; basin bootstrap (200 draws). K₀ = U/k_s exactly (n = 1). n_eff (§3.1) is 1.1-2.0 on AP and 1.2-3.8 on GM, so the bootstrap intervals understate the uncertainty there. k_s at 10⁴ m² is reported, not used | §4, "K₀ at a fixed exponent" in §7 |
+| C_ht and D₀ | Curvature option (iii): −∇²z of the least-squares quadratic surface (§7) at the fixed window **L_f = 11 m**, chosen before any C_ht from the synthetic facet-plus-noise test (smallest window with < 1 % bias at both sites); median over the hilltop pixels (divides between the outlet basins of the rollover network, §6) farther than L_f/2 from that network; segment bootstrap (§8). D₀ = U/C_ht | §6-§8 |
+| D₀ on GM | **A measurement**: D₀,A = U/C_ht(11 m) = 7.6-10.1 × 10⁻³ m²/yr; the pre-registered window test passed on 5 of 5 tiles (deviations ≤ 4.5 %); D₀,B (at L_w) lies within 5 % of D₀,A | §7, window test |
+| D₀ on AP | **A bracket, not a measurement**: the window test failed on 4 of 5 tiles (C_ht falls 15-53 % below C_ht(11 m) within the tile's crest width), so D₀ ∈ [D₀,A, D₀,B] with D₀,A = U/C_ht(11 m) = 2.2-3.6 × 10⁻³ and D₀,B = U/C_ht(L_w) = 2.2-7.7 × 10⁻³ m²/yr, L_w the largest tested window not above the tile's median crest width (31, 15, 11, 41, 15 m on AP1-AP5). Every AP statement about D recovery cites both ends | §7, "The D₀ bracket" |
+| E*-R* | On each option (iii) hilltop pixel: C_ht at 11 m, L_H along the D8 steepest-descent path to the first cell of the **10³ m² network** (decisive; 10⁴ m² and the rollover network are sensitivity), S̄ = R/L_H; the normalised ratio 2S̄/(C_ht L_H), which is 1 on a linear hillslope (the linear limit is R* = E*/4); S_c fitted against the steady curve of Roering et al. (2007), with a segment bootstrap. The fitted S_c (0.27-0.34 AP, 0.26-0.63 GM) sits on the flat limb of the curve (S_c ≈ S̄/0.8) and is weakly constrained | §10 |
+| channel threshold | **For measurement:** A ≥ 10³ m² for k_s and for L_H; the slope-area rollover network (A_c* = 18-447 m², §2) for the hilltop divides; the model's A_crit never enters a measurement. **For the models:** A_crit is a fitted parameter of the linear joint profile (every unique area in its 5 % interval evaluated). A slope-dependent threshold A S^α ≥ C was tested and is not preferred at either site (addendum 8, §3; held-out MSE lower by > 2 % on 2 of 5 AP and 1 of 5 GM tiles); the area threshold stands | §2; addendum 8 report §4 |
+
 ## 1. Consistency with the models
 
 The partitioned model integrates channel elevations as

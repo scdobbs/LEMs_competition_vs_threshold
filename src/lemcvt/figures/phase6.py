@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 from lemcvt.config import TILE_IDS
+from lemcvt.figures.common import CENTRE_FORM, CENTRE_FORM_TAG, savefig_with_caption
 from lemcvt.results import find_runs
 
 
@@ -38,6 +39,7 @@ def window_test(out_dir: Path) -> list[Path]:
     run, p = _latest("phase6_inputs")
     tiles = [t for t in TILE_IDS if t in p["tiles"]]
     fig, axes = plt.subplots(2, 5, figsize=(17, 6.5), sharex=True)
+    cap: list[dict] = []
     for ax, t in zip(axes.ravel(), tiles, strict=False):
         o = p["tiles"][t]["option_iii"]
         rows = pd.DataFrame(o["rows"])
@@ -47,6 +49,9 @@ def window_test(out_dir: Path) -> list[Path]:
         hi = np.array([(r or [np.nan, np.nan])[1] for r in rows.get("C_ht_ci68", [None] * len(rows))], float)
         Cf = o["C_ht_at_L_f"]
         W50 = o["test"]["median_crest_width_m"]
+        cap += [{"tile": t, "L_nominal_m": L[k], "C_ht_median": C[k], "ci68_lo": lo[k], "ci68_hi": hi[k], "C_ht_at_L_f": Cf,
+                 "band_lo": 0.9 * Cf, "band_hi": 1.1 * Cf, "median_crest_width_m": W50, "max_abs_deviation": o["test"]["max_abs_deviation"],
+                 "pass": bool(o["test"]["pass"]), "n_pixels": o["n_pixels"], "n_segments": o["n_segments"], "run": run.name} for k in range(len(L))]
         ax.axhspan(0.9 * Cf, 1.1 * Cf, color="C2", alpha=0.15, lw=0, label="+-10 % of C_ht(L_f)")
         ax.axvspan(11, max(W50, 11), color="0.85", alpha=0.6, lw=0, label=f"tested range: L_f to W50 = {W50:.1f} m")
         ax.fill_between(L, lo, hi, color="C0", alpha=0.25, lw=0, label="68 % segment bootstrap")
@@ -71,10 +76,7 @@ def window_test(out_dir: Path) -> list[Path]:
                  fontsize=10)
     fig.tight_layout()
     out = out_dir / "a5_option_iii_window_test.png"
-    fig.savefig(out, dpi=130)
-    fig.savefig(out.with_suffix(".pdf"))
-    plt.close(fig)
-    return [out, out.with_suffix(".pdf")]
+    return savefig_with_caption(fig, out, cap)
 
 
 def nonlinear_joint(out_dir: Path) -> list[Path]:
@@ -92,15 +94,26 @@ def nonlinear_joint(out_dir: Path) -> list[Path]:
             continue
         if "nonlinear_joint" not in p.get("v2", {}) or (rj.get("config") or {}).get("crop") or p["v2"]["nonlinear_joint"]["setup"]["k_factor"] != 1.0 or "split" in p["v2"]["nonlinear_joint"]["setup"]:
             continue
+        if p["v2"]["nonlinear_joint"]["setup"].get("S_c_override") is not None:
+            continue    # the Phase 6 profile at S_c = 1.27; addendum 9 runs at the fitted S_c are later and not this figure
         runs[p["tile"]] = (r, p)
     tiles = [t for t in TILE_IDS if t in runs]
     if not tiles:
         raise FileNotFoundError("no nonlinear joint runs")
     fig, axes = plt.subplots(2, 5, figsize=(18, 7))
+    cap_grid: list[pd.DataFrame] = []
+    cap_opt: list[dict] = []
     for ax, t in zip(axes.ravel(), tiles, strict=False):
         r, p = runs[t]
         df = pd.read_parquet(r / "nonlinear_joint_profile.parquet")
         v = p["v2"]["nonlinear_joint"]
+        cap_grid.append(pd.DataFrame({"tile": t, "A_crit": df.A_crit, "D": df.D, "mse": df.mse, "mse_over_min": df.mse / v["contours"]["mse_min"],
+                                      "converged": df.converged, "model_form": CENTRE_FORM, "run": r.name}))
+        o_ = v["optimum"]
+        cap_opt.append({"tile": t, "A_crit": o_["A_crit"], "D": o_["D"], "K": v["setup"]["K"], "mse": o_["mse"], "S_c": p["model"]["S_c"],
+                        "D0": p["model"]["D0"], "n_cap_hits": int((~df.converged).sum()),
+                        **{f"{c}_{k}": v["contours"][c][k] for c in ("contour_0.01", "contour_0.05") for k in ("n_points", "A_crit_min", "A_crit_max", "D_min", "D_max")},
+                        "model_form": CENTRE_FORM, "run": r.name})
         A = np.sort(df.A_crit.unique())
         D = np.sort(df.D.unique())
         M = df.pivot(index="D", columns="A_crit", values="mse").loc[D, A].to_numpy()
@@ -122,13 +135,10 @@ def nonlinear_joint(out_dir: Path) -> list[Path]:
         ax.set_xlabel("A_crit (m$^2$)")
     for ax in axes[:, 0]:
         ax.set_ylabel("D (m$^2$/yr)")
-    fig.suptitle("Addendum 5, 3.4: nonlinear partitioned MSE over (A_crit, D) at the linear joint K (white: 1 %, black: 5 % contour)", fontsize=10)
+    fig.suptitle(f"Addendum 5, 3.4: nonlinear partitioned MSE over (A_crit, D) at the linear joint K, S_c 1.27 {CENTRE_FORM_TAG} (white: 1 %, black: 5 % contour)", fontsize=10)
     fig.tight_layout()
     out = out_dir / "a5_nonlinear_joint.png"
-    fig.savefig(out, dpi=130)
-    fig.savefig(out.with_suffix(".pdf"))
-    plt.close(fig)
-    return [out, out.with_suffix(".pdf")]
+    return savefig_with_caption(fig, out, {"grid": pd.concat(cap_grid, ignore_index=True), "optima": cap_opt})
 
 
 def curvature_compare(out_dir: Path) -> list[Path]:
@@ -142,6 +152,7 @@ def curvature_compare(out_dir: Path) -> list[Path]:
     tiles = [t for t in TILE_IDS if t in p["tiles"]]
     fig, axes = plt.subplots(2, 5, figsize=(17, 6.5), sharex=True)
     styles = {"observed": ("k", "o-"), "linear_joint": ("C3", "s-"), "nonlinear_joint": ("C2", "^-"), "ad": ("C0", "d-")}
+    cap: list[dict] = []
     for ax, t in zip(axes.ravel(), tiles, strict=False):
         r = p["tiles"][t]
         for name, (col, st) in styles.items():
@@ -150,11 +161,17 @@ def curvature_compare(out_dir: Path) -> list[Path]:
                 continue
             L = np.array([int(k) for k in s["C_ht_L"]])
             C = np.array(list(s["C_ht_L"].values()), float)
-            lab = name if name == "observed" else f"{name} (obs/model at 11 m: {s['ratio_obs_over_model_L'].get('11', float('nan')):.2f})"
+            shown = f"{name} {CENTRE_FORM_TAG}" if name == "nonlinear_joint" else name
+            lab = name if name == "observed" else f"{shown} (obs/model at 11 m: {s['ratio_obs_over_model_L'].get('11', float('nan')):.2f})"
+            cap += [{"tile": t, "surface": name, "L_nominal_m": int(k), "median_laplacian": float(v_),
+                     "ratio_obs_over_model": (s.get("ratio_obs_over_model_L") or {}).get(k), "surface_run": s.get("run", ""),
+                     "model_form": CENTRE_FORM if name == "nonlinear_joint" else "", "run": run.name}
+                    for k, v_ in s["C_ht_L"].items()]
             ax.plot(L, np.abs(C), st, color=col, ms=3.5, lw=1, label=lab)
         for lab_, val, col in (("D0_A", r.get("D0"), "0.4"), ("D0_B", r.get("D0_B"), "0.7")):
             if val:
                 ax.axhline(r["U"] / val, color=col, ls=":", lw=0.8, label=f"U/{lab_} = {r['U'] / val:.2e}")
+                cap.append({"tile": t, "surface": f"U/{lab_}", "median_laplacian": r["U"] / val, "D0": val, "run": run.name})
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_xticks([7, 11, 21, 51])
@@ -170,7 +187,4 @@ def curvature_compare(out_dir: Path) -> list[Path]:
     fig.suptitle(f"Addendum 6, 4: C_ht(L) on the option (iii) pixel set, observed and fitted surfaces (run {run.name})", fontsize=10)
     fig.tight_layout()
     out = out_dir / "a6_curvature_compare.png"
-    fig.savefig(out, dpi=130)
-    fig.savefig(out.with_suffix(".pdf"))
-    plt.close(fig)
-    return [out, out.with_suffix(".pdf")]
+    return savefig_with_caption(fig, out, cap)

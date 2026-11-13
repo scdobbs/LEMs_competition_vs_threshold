@@ -25,10 +25,19 @@ def build(out_dir: Path, run: Path | None = None) -> list[Path]:
         ("regression", "ks_norm", r"$k_s/(U/K)$ (slope-area regression)"),
         ("local_ks", "ks_med_norm", r"$\mathrm{median}(S\,A^m)/(U/K)$"),
     ]
+    b = params["baseline"]
+    cap_rows: list[dict] = []
     for ax, (variant, col, ylabel) in zip(axes, panels, strict=True):
         sub = df[(df.variant == variant) & (df.valid)].sort_values("dx")
         dx = sub.dx.to_numpy()
         y = sub[col].to_numpy()
+        for k in range(len(dx)):
+            cap_rows.append({"variant": variant, "quantity": col, "dx_m": dx[k], "value": y[k],
+                             "q25": sub.ks_q25_norm.iloc[k] if variant == "local_ks" else np.nan,
+                             "q75": sub.ks_q75_norm.iloc[k] if variant == "local_ks" else np.nan,
+                             "guide_dx_minus1": y[0] * (dx[k] / dx[0]) ** (-1.0),
+                             "Pe_primary": b["Pe_primary"], "D_primary_m2_yr": b["D_primary"], "A_inlet_bal_m2": b["A_inlet_bal"],
+                             "run": run.name})
         _curve(ax, dx, y, variant)
         if variant == "local_ks":
             ax.fill_between(dx, sub.ks_q25_norm.to_numpy(), sub.ks_q75_norm.to_numpy(), color="0.85", zorder=1, lw=0,
@@ -47,9 +56,8 @@ def build(out_dir: Path, run: Path | None = None) -> list[Path]:
         ax.xaxis.set_major_locator(LogLocator(base=10))
         ax.yaxis.set_major_locator(LogLocator(base=10))
         ax.tick_params(which="both", pad=2)
-    b = params["baseline"]
     fig.suptitle(f"Pe = {b['Pe_primary']:.3g}, D = {b['D_primary']:.3e} m$^2$/yr, A_inlet = {b['A_inlet_bal']:.3g} m$^2$",
                  fontsize=7)
     provenance_note(axes[-1], run)
     fig.tight_layout()
-    return save(fig, out_dir, "supp_fig5_synthetic_pe")
+    return save(fig, out_dir, "supp_fig5_synthetic_pe", caption=cap_rows)

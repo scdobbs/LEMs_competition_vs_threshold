@@ -21,3 +21,4 @@ results/
 
 # generated figures are not tracked (addendum 3, section 1); `lemcvt figures` and the report scripts regenerate them
 reports/v2/figures_v2/
+reports/inputs/

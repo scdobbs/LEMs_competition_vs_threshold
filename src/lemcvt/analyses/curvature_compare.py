@@ -49,7 +49,10 @@ def _runs_by_stage(tile: str) -> dict[str, tuple[Path, dict]]:
             out["ad"] = (r, p)
         if "partitioned" in v2 and r.name.endswith("partitioned-refined"):
             out["joint"] = (r, p)
-        if "nonlinear_joint" in v2 and v2["nonlinear_joint"]["setup"].get("k_factor", 1.0) == 1.0 and "split" not in v2["nonlinear_joint"]["setup"]:
+        # the addendum 8 merged runs at the fitted S_c (S_c_override) are newer than the Phase 6 runs at S_c = 1.27; found
+        # in addendum 10 (no result built before it was affected; reported)
+        if ("nonlinear_joint" in v2 and v2["nonlinear_joint"]["setup"].get("k_factor", 1.0) == 1.0 and "split" not in v2["nonlinear_joint"]["setup"]
+                and v2["nonlinear_joint"]["setup"].get("S_c_override") is None):
             out["nonlinear_joint"] = (r, p)
         if "nonlinear" in v2:
             out["nonlinear"] = (r, p)

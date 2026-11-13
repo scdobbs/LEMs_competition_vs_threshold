@@ -5,9 +5,19 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from scipy.stats import linregress
 
-from lemcvt.figures.common import load_params, load_table, plt, provenance_note, require_run, save, set_nature_style
+from lemcvt.figures.common import (
+    load_params,
+    load_table,
+    plt,
+    provenance_note,
+    require_run,
+    save,
+    set_nature_style,
+    write_caption,
+)
 from lemcvt.io.grids import read_geotiff
 
 
@@ -40,9 +50,15 @@ def build(out_dir: Path, run: Path | None = None) -> list[Path]:
         provenance_note(axes[2], run)
         fig.tight_layout()
         paths += save(fig, out_dir, f"d8_vs_dinf_{tile}_elevation")
+        paths += write_caption(out_dir, f"d8_vs_dinf_{tile}_elevation", [{
+            "tile": tile, "label": label, "mse_ad_d8": res["mse_ad_d8"], "mse_ad_dinf": res["mse_ad_dinf"],
+            "mse_pt_d8": res["mse_pt_d8"], "mse_pt_dinf": res["mse_pt_dinf"], "z_d8_min": float(vmin), "z_d8_max": float(vmax),
+            "max_abs_diff_dinf_minus_d8": float(dmax), "median_diff_dinf_minus_d8": float(np.nanmedian(diff)),
+            **{f"param_{k}": v for k, v in res["params"].items() if isinstance(v, (int, float, str))}, "run": run.name}])
 
         fig, ax = plt.subplots(figsize=(4, 3))
         sub = sa[sa.tile == tile]
+        fit_rows = []
         for series, color, ls, lab in (("observed", "0.5", "-", "Observed"), ("AD_d8", "#0072B2", "--", "D8 model"),
                                        ("AD_dinf", "#D55E00", "--", "D-inf model")):
             s = sub[sub.series == series]
@@ -52,22 +68,29 @@ def build(out_dir: Path, run: Path | None = None) -> list[Path]:
                 slope_val, intercept, *_ = linregress(np.log10(Aa), np.log10(Sa))
                 A_fit = np.logspace(np.log10(Aa.min()), np.log10(Aa.max()), 100)
                 ax.plot(A_fit, 10**intercept * A_fit**slope_val, color=color if color != "0.5" else "0.3", ls=ls, lw=1.2)
+                fit_rows.append({"tile": tile, "series": series, "label": lab, "n_points": int(Aa.size), "fit_slope": float(slope_val),
+                                 "fit_intercept_log10": float(intercept), "ks_fit": float(10**intercept), "theta_fit": float(-slope_val),
+                                 "A_min": float(Aa.min()), "A_max": float(Aa.max()), "run": run.name})
+            else:
+                fit_rows.append({"tile": tile, "series": series, "label": lab, "n_points": int(Aa.size), "run": run.name})
         ax.set_xlabel(r"Drainage area $A$ (m$^2$)")
         ax.set_ylabel(r"Slope $S$")
         ax.set_title(label)
         ax.legend(markerscale=5, fontsize=6)
         fig.tight_layout()
-        paths += save(fig, out_dir, f"d8_vs_dinf_{tile}_slope_area")
+        paths += save(fig, out_dir, f"d8_vs_dinf_{tile}_slope_area", caption=fit_rows)
 
         fig, ax = plt.subplots(figsize=(3.5, 3.5))
         a8 = np.full_like(A_dinf, np.nan)
         # D8 area is in the data store; reconstruct from the area scatter if available
         valid = np.isfinite(A_dinf) & (A_dinf > 0)
-        ax.hist(np.log10(A_dinf[valid]), bins=60, color="#D55E00", alpha=0.6, label="D-inf")
+        counts, edges, _ = ax.hist(np.log10(A_dinf[valid]), bins=60, color="#D55E00", alpha=0.6, label="D-inf")
         ax.set_xlabel(r"$\log_{10}(A_{\mathrm{D}\infty})$ (m$^2$)")
         ax.set_ylabel("cells")
         ax.set_title(f"{label}: D-inf area range [{res['A_dinf_range'][0]:.0f}, {res['A_dinf_range'][1]:.0f}]")
         del a8
         fig.tight_layout()
-        paths += save(fig, out_dir, f"d8_vs_dinf_{tile}_area")
+        paths += save(fig, out_dir, f"d8_vs_dinf_{tile}_area", caption=pd.DataFrame({
+            "tile": tile, "log10A_lo": edges[:-1], "log10A_hi": edges[1:], "cells": counts,
+            "A_dinf_range_min": res["A_dinf_range"][0], "A_dinf_range_max": res["A_dinf_range"][1], "run": run.name}))
     return paths

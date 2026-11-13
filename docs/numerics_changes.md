@@ -161,6 +161,11 @@ stable rule. Where no tie exists the results are bit-identical to Phase 1.
   (v1, Phase 6, addendum 8 2.4) is for this equation; addendum 8's fitted S_c were fitted against the Roering curve.
 - **What changed.** Nothing in the default path. Addendum 9 adds the divergence form as an option (N11) at Steve's
   decision of 2026-11-13; the v1 form stays the default of every existing command.
+- **Label (addendum 10, 1.1; decision of 2026-11-13).** Every nonlinear result to date (v1, the Phase 6 nonlinear stage and
+  nonlinear joint, addendum 8 2.4, addendum 9 test 4) is labelled **"centre form, D_eff∇²z = −U (nonstandard)"**: here, in
+  the old-against-new record (`lemcvt phase6 record`, column `note` of the nonlinear rows), in Table 1 and in the
+  morphology score (`CENTRE_FORM_LABEL` in `lemcvt.analyses.nonlinear_fair`). All new nonlinear work uses the flux form
+  with Newton (N12). Picard on the centre form stays available for the record and is the default of no new command.
 
 ## N11. Newton solver and the flux (divergence) form (addendum 9, section 2; opt-in)
 
@@ -177,6 +182,20 @@ stable rule. Where no tie exists the results are bit-identical to Phase 1.
 - **Outcome classes**: `no_steady_solution` if more than 1 % of hillslope cells are clipped (|grad z|/S_c > 0.99) at the last
   iterate, else `converged` if the stopping test held, else `not_converged`.
 - **Where results differ**: only where `solver` or `form` is set (addendum 9 runs).
+
+## N12. Addendum 10: flux form by default for new nonlinear work, and the clip rule of section 2
+
+- **Form and solver.** `lemcvt a10 flux-part` (the bounded GM test, `lemcvt.analyses.gm_flux`) solves the flux form
+  ∇·(D_eff∇z) = U with Newton and continuation in D (N11); it has no Picard or centre-form option.
+- **Outcome classes, section 2 only (addendum 10, 1.4).** An evaluation is `converged` when the Newton stopping test held
+  and fewer than 1 % of the hillslope cells are clipped (|∇z|/S_c > 0.99), counting only hillslope cells that have no
+  4-neighbour in the channel or boundary set (the slope stencil and the 5-point operator couple a cell to its 4-neighbours;
+  on the tiles every non-hillslope cell is a channel or boundary cell); `no_steady_solution` when that fraction is 1 % or
+  more; `not_converged` otherwise. The addendum 9 class, which counts every hillslope cell (N11), is recorded beside it
+  (`outcome_a9`), and both counts are reported.
+- **Stop rule (2.2.4).** Within one tile and S_c, the parts of a submission share their rows; once more than 30 % of the
+  evaluations so far are `not_converged`, each part stops after its current A_crit row.
+- **Where results differ:** only in the addendum 10 runs. The addendum 9 commands keep the addendum 9 rule.
 
 ## Sorts examined and left unchanged
 

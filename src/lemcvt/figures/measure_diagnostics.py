@@ -16,7 +16,13 @@ from pathlib import Path
 import numpy as np
 
 from lemcvt.config import TILE_IDS
+from lemcvt.figures.common import savefig_with_caption
 from lemcvt.results import find_runs, latest_run
+
+
+def _ci(s: dict, key: str, i: int) -> float:
+    v = s.get(key) or [np.nan, np.nan]
+    return float(v[i]) if v[i] is not None else np.nan
 
 
 def _latest_diag() -> tuple[Path, dict]:
@@ -48,8 +54,18 @@ def theta_ladders(out_dir: Path) -> list[Path]:
     run, p = _latest_diag()
     tiles = list(p["tiles"])
     fig, axes = plt.subplots(2, 5, figsize=(17, 6.5), sharex=True, sharey=True)
+    cap: list[dict] = []
     for ax, t in zip(axes.ravel(), tiles, strict=False):
         r = p["tiles"][t]
+        for kind, _color, label in (("fine_ladder", "C0", "free"), ("fixed_ladder", "C3", "basin-fixed (>= 50 px at 1e4)"),
+                                    ("interior_ladder", "C2", "interior basins only")):
+            for st in r[kind]:
+                if st.get("theta_star") is None:
+                    continue
+                cap.append({"tile": t, "ladder": kind, "label": label, "A_c": st["A_c"], "theta_star": st["theta_star"],
+                            "ci68_lo": _ci(st, "theta_ci68", 0), "ci68_hi": _ci(st, "theta_ci68", 1),
+                            "ci95_lo": _ci(st, "theta_ci95", 0), "ci95_hi": _ci(st, "theta_ci95", 1),
+                            "n_basins": st.get("n_basins"), "few_basins": bool(st.get("flag_few_basins")), "run": run.name})
         for kind, color, label in (("fine_ladder", "C0", "free"), ("fixed_ladder", "C3", "basin-fixed (>= 50 px at 1e4)"),
                                    ("interior_ladder", "C2", "interior basins only")):
             steps = [s for s in r[kind] if s.get("theta_star") is not None]
@@ -82,12 +98,24 @@ def theta_ladders(out_dir: Path) -> list[Path]:
                  fontsize=9)
     fig.tight_layout()
     out = out_dir / "02c_theta_ladders.png"
-    fig.savefig(out, dpi=130)
-    plt.close(fig)
+    paths = savefig_with_caption(fig, out, cap, pdf=False)
 
     fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
+    cap2: list[dict] = []
     for ax, (site, pp) in zip(axes, p["pooled"].items(), strict=False):
         steps = [s for s in pp["ladder"] if s.get("theta_star") is not None]
+        for st in steps:
+            cap2.append({"site": site, "series": "site-pooled", "A_c": st["A_c"], "theta_star": st["theta_star"],
+                         "ci68_lo": _ci(st, "theta_ci68", 0), "ci68_hi": _ci(st, "theta_ci68", 1),
+                         "ci95_lo": _ci(st, "theta_ci95", 0), "ci95_hi": _ci(st, "theta_ci95", 1), "n_basins": st["n_basins"], "run": run.name})
+        for t in pp["tiles"]:
+            for st in p["tiles"][t]["fine_ladder"]:
+                if st.get("theta_star") is not None:
+                    cap2.append({"site": site, "series": t, "A_c": st["A_c"], "theta_star": st["theta_star"], "n_basins": st.get("n_basins"), "run": run.name})
+        for key in ("scaling_break_le1e5", "scaling_break"):
+            b = pp.get(key, {}).get("break_A_m2")
+            if b:
+                cap2.append({"site": site, "series": key, "A_c": b, "run": run.name})
         a = np.array([s["A_c"] for s in steps])
         th = np.array([s["theta_star"] for s in steps])
         lo68 = np.array([(s.get("theta_ci68") or [np.nan, np.nan])[0] for s in steps])
@@ -116,9 +144,7 @@ def theta_ladders(out_dir: Path) -> list[Path]:
     axes[0].set_ylabel(r"$\theta^*$")
     fig.tight_layout()
     out2 = out_dir / "02c_theta_ladders_pooled.png"
-    fig.savefig(out2, dpi=130)
-    plt.close(fig)
-    return [out, out2]
+    return paths + savefig_with_caption(fig, out2, cap2, pdf=False)
 
 
 def curvature_scale(out_dir: Path) -> list[Path]:
@@ -129,10 +155,14 @@ def curvature_scale(out_dir: Path) -> list[Path]:
 
     cur = _measure_curvature()
     fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+    cap: list[dict] = []
     for ax, site in zip(axes, ("AP", "GM"), strict=True):
         for t, c in cur.items():
             if not t.startswith(site):
                 continue
+            for k, Lk in enumerate(c["window_lengths_m"]):
+                cap.append({"tile": t, "L_m": Lk, "C_ht_median": c["C_ht_median"][k], "C_ht_q16": c["C_ht_q16"][k],
+                            "C_ht_q84": c["C_ht_q84"][k], "L_star_m": c["L_star_m"], "run": c["run"]})
             L = np.array(c["window_lengths_m"])
             med = np.array(c["C_ht_median"])
             ax.plot(L, med, "o-", ms=3, label=f"{t} (L* = {c['L_star_m']:.0f} m)")
@@ -147,9 +177,7 @@ def curvature_scale(out_dir: Path) -> list[Path]:
     axes[0].set_ylabel(r"$C_{ht} = -\nabla^2 z$ (1/m)")
     fig.tight_layout()
     out = out_dir / "02c_curvature_scale.png"
-    fig.savefig(out, dpi=130)
-    plt.close(fig)
-    return [out]
+    return savefig_with_caption(fig, out, cap, pdf=False)
 
 
 def ridge_bias(out_dir: Path) -> list[Path]:
@@ -162,6 +190,7 @@ def ridge_bias(out_dir: Path) -> list[Path]:
     syn = p["synthetic_ridges"]
     cur = _measure_curvature()
     fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+    cap: list[dict] = []
     for col, site in enumerate(("AP", "GM")):
         s = syn[site]
         L = np.array(s["window_lengths_m"])
@@ -173,6 +202,9 @@ def ridge_bias(out_dir: Path) -> list[Path]:
                 rec = c["recovered"].get(variant)
                 if rec is None:
                     continue
+                for Lk, rk in zip(L, rec, strict=True):
+                    cap.append({"site": site, "variant": variant, "width_m": c["width_m"], "L_m": Lk, "recovered": rk,
+                                "c_true": s["c_true"], "ratio": rk / s["c_true"], "run": run.name})
                 ax.plot(L, np.array(rec) / s["c_true"], "-", color=cmap(k / max(1, len(cases) - 1)), lw=1,
                         label=f"W = {c['width_m']:.0f} m")
             for t, cc in cur.items():
@@ -190,10 +222,10 @@ def ridge_bias(out_dir: Path) -> list[Path]:
                 ax.legend(fontsize=6, ncol=2)
     fig.suptitle(f"Parabolic-ridge test: recovered C_ht against window for crest widths W; run {run.name}", fontsize=9)
     fig.tight_layout()
+    for t, cc in cur.items():
+        cap.append({"site": t[:2], "variant": "tile_L_star", "tile": t, "L_m": cc["L_star_m"], "run": cc["run"]})
     out = out_dir / "02c_ridge_bias.png"
-    fig.savefig(out, dpi=130)
-    plt.close(fig)
-    return [out]
+    return savefig_with_caption(fig, out, cap, pdf=False)
 
 
 def scaling_break(out_dir: Path) -> list[Path]:
@@ -205,9 +237,20 @@ def scaling_break(out_dir: Path) -> list[Path]:
     run, p = _latest_diag()
     tiles = list(p["tiles"])
     fig, axes = plt.subplots(2, 5, figsize=(17, 6.5), sharex=True, sharey=True)
+    cap_bins: list[dict] = []
+    cap_fits: list[dict] = []
     for ax, t in zip(axes.ravel(), tiles, strict=False):
         sb = p["tiles"][t]["scaling_break"]
         x, y, w = np.array(sb["bin_log10A"]), np.array(sb["bin_median_log10S"]), np.array(sb["bin_counts"])
+        cap_bins += [{"tile": t, "log10A": xi, "median_log10S": yi, "count": wi, "run": run.name} for xi, yi, wi in zip(x, y, w, strict=True)]
+        fit = {"tile": t, "A_rollover": sb["A_rollover"], "bic_best": sb.get("bic_best"), "run": run.name}
+        if "one" in sb:
+            fit.update({"one_slope": sb["one"]["slope"], "one_intercept": sb["one"]["intercept"], "one_bic": sb["one"]["bic"]})
+        for key in ("scaling_break", "scaling_break_le1e5"):
+            two = p["tiles"][t].get(key, {}).get("two")
+            if two:
+                fit.update({f"{key}_two_break_A": 10 ** two["break_log10A"], f"{key}_two_bic": two["bic"]})
+        cap_fits.append(fit)
         ax.scatter(x, y, s=8 + 20 * np.log10(np.maximum(w, 1)), color="0.3", zorder=3)
         xx = np.linspace(x.min(), x.max(), 200)
         if "one" in sb:
@@ -229,9 +272,7 @@ def scaling_break(out_dir: Path) -> list[Path]:
     fig.suptitle(f"Slope-area above the rollover with piecewise-linear fits; run {run.name}", fontsize=9)
     fig.tight_layout()
     out = out_dir / "02c_scaling_break.png"
-    fig.savefig(out, dpi=130)
-    plt.close(fig)
-    return [out]
+    return savefig_with_caption(fig, out, {"bins": cap_bins, "fits": cap_fits}, pdf=False)
 
 
 def build_all(out_dir: Path) -> list[Path]:
@@ -255,8 +296,16 @@ def audit_estimators(out_dir: Path) -> list[Path]:
     tiles = list(p["tiles"])
     panels = tiles + [f"{s}_pooled" for s in p["pooled"]]
     fig, axes = plt.subplots(3, 4, figsize=(17, 10), sharex=True)
+    cap: list[dict] = []
     for ax, t in zip(axes.ravel(), panels, strict=False):
         lad = p["tiles"][t]["free_ladder"] if t in p["tiles"] else p["pooled"][t.split("_")[0]]["ladder"]
+        for st in lad:
+            row = {"panel": t, "A_c": st["A_c"], "n_basins": st.get("n_basins"), "run": run.name}
+            for est in ("pooled", "equal", "median"):
+                e = st.get(est) or {}
+                row.update({f"{est}_theta": e.get("theta_star"), f"{est}_ci95_lo": _ci(e, "theta_ci95", 0), f"{est}_ci95_hi": _ci(e, "theta_ci95", 1)})
+            row["pooled_n_eff_centred"] = (st.get("pooled") or {}).get("n_eff_centred")
+            cap.append(row)
         ax2 = ax.twinx()
         for est, color, label in (("pooled", "C0", "pooled (02c)"), ("equal", "C2", "equal-weight"), ("median", "C1", "basin median")):
             steps = [s for s in lad if s.get(est) and s[est].get("theta_star") is not None]
@@ -293,11 +342,11 @@ def audit_estimators(out_dir: Path) -> list[Path]:
                  fontsize=9)
     fig.tight_layout()
     out = out_dir / "02e_theta_estimators.png"
-    fig.savefig(out, dpi=130)
-    plt.close(fig)
+    paths = savefig_with_caption(fig, out, cap, pdf=False)
 
     # hilltop curvature with and without exclusion per network
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.2))
+    cap2: list[dict] = []
     for ax, site in zip(axes, ("AP", "GM"), strict=True):
         st = [t for t in tiles if t.startswith(site)]
         x = np.arange(len(st))
@@ -311,6 +360,8 @@ def audit_estimators(out_dir: Path) -> list[Path]:
                     a = r.get("at_fixed_L", {})
                     vals.append(a.get("C_ht", np.nan))
                     ci = a.get("C_ht_ci68") or [np.nan, np.nan]
+                    cap2.append({"site": site, "tile": t, "network": net, "set": s, "C_ht": a.get("C_ht", np.nan),
+                                 "ci68_lo": ci[0], "ci68_hi": ci[1], "run": run.name})
                     los.append(ci[0])
                     his.append(ci[1])
                 vals_a, los_a, his_a = (np.asarray(v, dtype=float) for v in (vals, los, his))
@@ -319,6 +370,7 @@ def audit_estimators(out_dir: Path) -> list[Path]:
                        label=f"A_c {net}{' m^2' if net != 'rollover' else ''}, {s}")
                 k += 1
         mr = [p["tiles"][t]["hilltops"].get("measure_run_C_ht", {}).get("C_ht") or np.nan for t in st]
+        cap2 += [{"site": site, "tile": t, "network": "rollover", "set": "02b measure run", "C_ht": v, "run": run.name} for t, v in zip(st, mr, strict=True)]
         ax.plot(x, mr, "k_", ms=14, mew=1.5, label="02b measure run (rollover network, no exclusion)")
         ax.set_xticks(x)
         ax.set_xticklabels(st)
@@ -329,6 +381,4 @@ def audit_estimators(out_dir: Path) -> list[Path]:
             ax.legend(fontsize=6, ncol=2)
     fig.tight_layout()
     out2 = out_dir / "02e_hilltop_exclusion.png"
-    fig.savefig(out2, dpi=130)
-    plt.close(fig)
-    return [out, out2]
+    return paths + savefig_with_caption(fig, out2, cap2, pdf=False)

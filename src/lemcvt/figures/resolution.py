@@ -44,6 +44,21 @@ def group_stats(df: pd.DataFrame, site: str, dx_grid: np.ndarray, key: str):
     return np.array(med), np.array(q25), np.array(q75)
 
 
+def caption_tables(df: pd.DataFrame, dx_all: np.ndarray, keys: dict[str, str]) -> dict[str, pd.DataFrame]:
+    """Caption data: the plotted site medians and IQRs per routing and dx, and the per-tile ratios behind them."""
+    rows = []
+    for site in ("GM", "AP"):
+        for routing, key in keys.items():
+            med, q25, q75 = group_stats(df, site, dx_all, key)
+            for k, d in enumerate(dx_all):
+                sub = df[(df.site == site) & np.isclose(df.dx.to_numpy(), d, rtol=0, atol=1e-10)]
+                vals = sub[key].to_numpy(dtype=float)
+                rows.append({"site": site, "routing": routing, "dx_m": d, "median": med[k], "q25": q25[k], "q75": q75[k],
+                             "n_tiles": int(np.sum(np.isfinite(vals) & (vals > 0))), "runs": ";".join(sorted(set(sub.run)))})
+    cols = [c for c in ("tile", "site", "dx", *keys.values(), "run") if c in df.columns]
+    return {"medians": pd.DataFrame(rows), "tiles": df[cols].sort_values(["tile", "dx"]).reset_index(drop=True)}
+
+
 def plot_median_iqr(ax, x, med, q25, q75, color, marker, linestyle, label=None):
     m = np.isfinite(x) & np.isfinite(med) & np.isfinite(q25) & np.isfinite(q75) & (med > 0) & (q25 > 0) & (q75 > 0)
     if np.sum(m) < 2:
@@ -93,7 +108,7 @@ def build_d8(out_dir: Path) -> list[Path]:
     ax.legend(frameon=False, fontsize=6)
     provenance_note(ax, runs[-1])
     fig.tight_layout()
-    return save(fig, out_dir, "supp_fig6_resolution_ratio")
+    return save(fig, out_dir, "supp_fig6_resolution_ratio", caption=caption_tables(df, dx_all, {"d8": "ratio_d8"}))
 
 
 def build_dinf(out_dir: Path) -> list[Path]:
@@ -114,4 +129,4 @@ def build_dinf(out_dir: Path) -> list[Path]:
     ax.legend(frameon=False, fontsize=6)
     provenance_note(ax, runs[-1])
     fig.tight_layout()
-    return save(fig, out_dir, "resolution_study_dinf")
+    return save(fig, out_dir, "resolution_study_dinf", caption=caption_tables(df, dx_all, {"d8": "ratio_d8", "dinf": "ratio_dinf"}))

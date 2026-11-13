@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import numpy as np
-from tests.synthetic_tile import hydro_from_padded, synthetic_dem
 
 from lemcvt.analyses.gm_flux import _row, adjacency_to_fixed, classify_a10, d_grid
 from lemcvt.models.partitioned_nonlinear import partitioned_threshold_model_nonlinear
+from synthetic_tile import hydro_from_padded, synthetic_dem
 
 
 def test_adjacency_to_fixed_four_neighbours() -> None:
