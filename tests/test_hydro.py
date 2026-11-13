@@ -110,7 +110,6 @@ class TestDerived:
                                       np.array([0, 1, 255, 255, 0, 0], dtype=np.uint8))
 
 
-@pytest.mark.skipif(not HAS_TA, reason="TopoAnalysis not importable")
 def _tied_receivers(area, fd):
     """Cells with two or more donors of exactly equal (maximal) drainage area."""
     from lemcvt.hydro.d8 import d8_receiver_arrays
@@ -136,6 +135,7 @@ def _path_touches(up_i, up_j, dn_i, dn_j, i, j, tied, max_steps=200):
     return (i, j) in tied
 
 
+@pytest.mark.skipif(not HAS_TA, reason="TopoAnalysis not importable")
 class TestTopoAnalysisEquivalence:
     """Bit-level agreement with the TopoAnalysis routines on a synthetic grid."""
 

@@ -241,7 +241,7 @@ def _step(J: csr_matrix, M: csr_matrix, F: np.ndarray, rel: float, method: str) 
         count[0] += 1
 
     delta, info = gmres(J, -F, rtol=eta, atol=0.0, restart=GMRES_RESTART, maxiter=GMRES_MAXITER, M=P, callback=_cb, callback_type="pr_norm")
-    res = float(np.linalg.norm(J @ delta + F) / max(np.linalg.norm(F), 1e-300))
+    res = float(np.linalg.norm(J @ delta + F)) / max(float(np.linalg.norm(F)), 1e-300)
     return delta, {"linear": "gmres", "eta": eta, "gmres_info": int(info), "gmres_iterations": count[0], "linear_rel_residual": res}
 
 

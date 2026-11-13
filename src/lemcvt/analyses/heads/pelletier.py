@@ -46,10 +46,10 @@ def radial_power_spectrum(z: np.ndarray, dx: float, n_bins: int):
     edges = np.linspace(0, nyq, n_bins + 1)
     idx = np.clip(np.digitize(nu, edges) - 1, 0, n_bins - 1)
     valid = nu <= nyq
-    S = np.bincount(idx[valid], weights=P[valid], minlength=n_bins)
+    power_sum = np.bincount(idx[valid], weights=P[valid], minlength=n_bins)
     cnt = np.bincount(idx[valid], minlength=n_bins)
     with np.errstate(invalid="ignore", divide="ignore"):
-        S = S / cnt
+        S = power_sum / cnt
     centres = 0.5 * (edges[:-1] + edges[1:])
     return centres, S, nu, nyq
 

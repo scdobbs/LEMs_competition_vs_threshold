@@ -56,7 +56,8 @@ def coastline_outlets(z: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     m2 = binary_dilation(m1, iterations=3).astype(np.uint8)
     m3 = binary_erosion(m1, iterations=3).astype(np.uint8)
     m3 = (m3.astype(float) + m2.astype(float)).astype(np.uint8)
-    return np.where(m3 == 1)
+    ii, jj = np.nonzero(m3 == 1)
+    return ii, jj
 
 
 def _chi_traverse(theta, root, A, Z, ups, dx, a_min):
