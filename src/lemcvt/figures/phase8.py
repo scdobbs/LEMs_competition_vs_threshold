@@ -67,7 +67,8 @@ def er_star(out_dir: Path, network: str = "primary_1e3") -> list[Path]:
         ax.loglog(E_grid, E_grid / 4, color="#eb6834", lw=1.2, label="linear: R* = E*/4")
         ax.loglog(E_grid, E_grid / 2, color="#eb6834", lw=0.8, ls="--", label="E*/2 (addendum 8 text)")
         rn = net["ratio_normalised"]
-        ax.set_title(f"{tile}: S_c = {sc:.2f} {net['S_c_fit'].get('S_c_ci68', '')}; 2Sbar/(C L) median {rn['median']:.2f}", fontsize=8)
+        ci = net["S_c_fit"].get("S_c_ci68") or [float("nan")] * 2
+        ax.set_title(f"{tile}: S_c {sc:.2f} [{ci[0]:.2f}, {ci[1]:.2f}]\n2Sbar/(C L) median {rn['median']:.2f}", fontsize=8)
         ax.set_xlim(1e-2, 1e2)
         ax.set_ylim(1e-3, 2)
     for ax in axes[1]:

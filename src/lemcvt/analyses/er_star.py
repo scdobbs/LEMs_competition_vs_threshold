@@ -244,7 +244,7 @@ def er_star_tile(tile: str, n_boot: int = N_BOOT, A_c_rollover: float | None = N
     L_f = (2 * W_F + 1) * dx
     info: dict[str, Any] = {"tile": tile, "A_c_rollover": float(A_c_rollover), "A_c_source": src, "L_f_m": float(L_f), "n_hilltop": int(rows.size),
                             "n_segments": int(n_seg), "option_iii": diag, "n_C_ht_nonpositive": int(np.sum(~(C > 0))),
-                            "C_ht_median": float(np.median(C)), "C_ht_config": mp.D0 and float(mp.U / mp.D0), "U": mp.U, "D0_A": mp.D0, "D0_B": mp.D0_B,
+                            "C_ht_median": float(np.nanmedian(C)), "n_C_ht_nan": int(np.isnan(C).sum()), "C_ht_config": mp.D0 and float(mp.U / mp.D0), "U": mp.U, "D0_A": mp.D0, "D0_B": mp.D0_B,
                             "networks": {}}
     frames = []
     areas = dict(NETWORK_AREAS) | {"rollover": float(A_c_rollover)}
