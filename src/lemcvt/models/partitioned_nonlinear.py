@@ -12,6 +12,12 @@ was clipped at 0.99, and whether the stopping test or the iteration cap ended th
 change to the iterates, the nonlinear residual of each new iterate,
 ``||M(D_eff(z_new)) z_new - b(D_eff(z_new))||_2 / ||b||_2``, and keeps the final
 hillslope slopes (``last_slopes``) for the slope statistics of the audit.
+
+Addendum 9, section 2: ``solver="newton"`` solves the same discrete equations by Newton's method
+(:mod:`lemcvt.models.nonlinear_newton`), optionally from ``z_init`` (continuation in D), and ``form="flux"`` selects the
+divergence form div(D_eff grad z) = -U instead of v1's D_eff lap(z) = -U (for either solver). Picard on the centre form
+stays the default and is unchanged. Every call records ``last_outcome`` (converged / no_steady_solution /
+not_converged, with the clip fraction at the final iterate) for both solvers.
 """
 
 from __future__ import annotations
@@ -19,12 +25,24 @@ from __future__ import annotations
 from typing import Any, Protocol, cast
 
 import numpy as np
+from scipy.sparse.linalg import spsolve
 
 from lemcvt.models.common import (
     assemble_hillslope_system,
     extract_grid_data,
     precompute_channel_network,
     solve_hillslope_diffusion,
+)
+from lemcvt.models.nonlinear_newton import (
+    FORMS,
+    NEWTON_MAX_ITER,
+    NEWTON_RTOL,
+    NEWTON_UTOL,
+    SOLVERS,
+    HillslopeSystem,
+    assemble_flux_system,
+    classify,
+    newton_solve,
 )
 
 
@@ -36,12 +54,16 @@ class NonlinearModel(Protocol):
     last_slopes: Any
     last_hillslope_indices: Any
     last_z_flat: Any
+    last_newton: Any
+    last_outcome: Any
     grid_data: dict
     compute_slopes: Any
     compute_slopes_v1: Any
 
     def __call__(self, A_crit: float, D_linear: float, S_c: float, max_iter: int = 50, tol: float = 1e-6,
-                 diagnostics: bool = False) -> tuple[np.ndarray, np.ndarray]: ...
+                 diagnostics: bool = False, solver: str = "picard", form: str = "centre", z_init: np.ndarray | None = None,
+                 newton_max_iter: int = NEWTON_MAX_ITER, newton_rtol: float = NEWTON_RTOL,
+                 newton_utol: float = NEWTON_UTOL) -> tuple[np.ndarray, np.ndarray]: ...
 
 
 def partitioned_threshold_model_nonlinear(
@@ -126,21 +148,36 @@ def partitioned_threshold_model_nonlinear(
         return slopes
 
     def _residual(z_new: np.ndarray, hillslope_indices, hillslope_to_reduced, hillslope_mask, D_linear, S_c,
-                  Z_channel_flat, channel_mask_flat) -> dict[str, float]:
+                  Z_channel_flat, channel_mask_flat, form: str = "centre") -> dict[str, float]:
         """Nonlinear residual of an iterate: assemble the system at D_eff(z_new) and apply it to z_new."""
         slopes = _compute_slopes(z_new, hillslope_indices)
         ratio = np.clip(slopes / S_c, -0.99, 0.99)
         D_eff = D_linear / (1 - ratio**2)
-        M, b = assemble_hillslope_system(gd, hillslope_indices, hillslope_to_reduced, hillslope_mask, D_eff,
-                                         Z_channel_flat, channel_mask_flat, bc_boundary_vals, U)
+        asm = assemble_flux_system if form == "flux" else assemble_hillslope_system
+        M, b = asm(gd, hillslope_indices, hillslope_to_reduced, hillslope_mask, D_eff,
+                   Z_channel_flat, channel_mask_flat, bc_boundary_vals, U)
         r = M @ z_new[hillslope_indices] - b
         nb = float(np.linalg.norm(b))
         return {"residual_rel_l2": float(np.linalg.norm(r) / nb) if nb > 0 else float("nan"),
                 "residual_max_abs_over_U": float(np.max(np.abs(r)) / abs(U)) if U else float("nan")}
 
+    def _solve_flux(hillslope_indices, hillslope_to_reduced, hillslope_mask, D_eff, Z_channel_flat, channel_mask_flat):
+        """The flux form's analogue of ``solve_hillslope_diffusion`` (one linear solve at fixed D_eff)."""
+        M, b = assemble_flux_system(gd, hillslope_indices, hillslope_to_reduced, hillslope_mask, D_eff, Z_channel_flat,
+                                    channel_mask_flat, bc_boundary_vals, U)
+        z = np.full(n, np.nan)
+        z[hillslope_indices] = spsolve(M, b)
+        z[bc_boundary_inds] = bc_boundary_vals[bc_boundary_inds]
+        z[channel_mask_flat] = Z_channel_flat[channel_mask_flat]
+        return z
+
     def output_function(
         A_crit: float, D_linear: float, S_c: float, max_iter: int = 50, tol: float = 1e-6, diagnostics: bool = False,
+        solver: str = "picard", form: str = "centre", z_init: np.ndarray | None = None,
+        newton_max_iter: int = NEWTON_MAX_ITER, newton_rtol: float = NEWTON_RTOL, newton_utol: float = NEWTON_UTOL,
     ) -> tuple[np.ndarray, np.ndarray]:
+        if solver not in SOLVERS or form not in FORMS:
+            raise ValueError(f"solver must be one of {SOLVERS} and form one of {FORMS}; got {solver!r}, {form!r}")
         channel_mask_flat = A_flat >= A_crit
         if not channel_mask_flat[k_out]:
             channel_mask_flat[k_out] = True
@@ -156,6 +193,7 @@ def partitioned_threshold_model_nonlinear(
         picard: list[dict] = []
         converged = False
         slopes_final = None
+        newton_info = None
 
         if n_hillslope == 0:
             z_flat = np.full(n, np.nan)
@@ -176,16 +214,31 @@ def partitioned_threshold_model_nonlinear(
 
             z_flat_new = z_flat_prev
             n_iter = 0
-            for _iteration in range(max_iter):
+            if solver == "newton":
+                z0 = z_flat_prev
+                if z_init is not None:
+                    z0 = z_flat_prev.copy()
+                    z0[hillslope_indices] = np.asarray(z_init, dtype=float)[hillslope_indices]
+                system = HillslopeSystem(form, gd, hillslope_indices, hillslope_to_reduced, hillslope_mask, D_linear, S_c,
+                                         Z_channel_flat, channel_mask_flat, bc_boundary_vals, U, _compute_slopes)
+                z_flat_new, newton_info = newton_solve(system, z0, newton_max_iter, newton_rtol, newton_utol)
+                newton_info["initial"] = "z_init" if z_init is not None else "linear"
+                n_iter = newton_info["n_iter"]
+                converged = newton_info["converged"]
+            for _iteration in range(max_iter if solver == "picard" else 0):
                 n_iter += 1
                 slopes = _compute_slopes(z_flat_prev, hillslope_indices)
                 slope_ratio = np.clip(slopes / S_c, -0.99, 0.99)
                 D_eff = D_linear / (1 - slope_ratio**2)
 
-                z_flat_new = solve_hillslope_diffusion(
-                    gd, hillslope_indices, hillslope_to_reduced, hillslope_mask,
-                    D_eff, Z_channel_flat, channel_mask_flat, bc_boundary_inds, bc_boundary_vals, U,
-                )
+                if form == "centre":
+                    z_flat_new = solve_hillslope_diffusion(
+                        gd, hillslope_indices, hillslope_to_reduced, hillslope_mask,
+                        D_eff, Z_channel_flat, channel_mask_flat, bc_boundary_inds, bc_boundary_vals, U,
+                    )
+                else:
+                    z_flat_new = _solve_flux(hillslope_indices, hillslope_to_reduced, hillslope_mask, D_eff, Z_channel_flat,
+                                             channel_mask_flat)
 
                 dz = z_flat_new[hillslope_indices] - z_flat_prev[hillslope_indices]
                 hillslope_change = np.max(np.abs(dz))
@@ -196,7 +249,7 @@ def partitioned_threshold_model_nonlinear(
                        "max_slope_ratio_prev": float(np.max(slopes) / S_c)}
                 if diagnostics:
                     rec.update(_residual(z_flat_new, hillslope_indices, hillslope_to_reduced, hillslope_mask, D_linear,
-                                         S_c, Z_channel_flat, channel_mask_flat))
+                                         S_c, Z_channel_flat, channel_mask_flat, form))
                 picard.append(rec)
                 if hillslope_change < tol:
                     converged = True
@@ -206,12 +259,22 @@ def partitioned_threshold_model_nonlinear(
             z_flat = z_flat_new
             if diagnostics:
                 slopes_final = _compute_slopes(z_flat, hillslope_indices)
+            s_fin = _compute_slopes(z_flat, hillslope_indices)
+            frac_clip = float(np.mean(s_fin / S_c > 0.99)) if s_fin.size else 0.0
 
+        if n_hillslope == 0:
+            frac_clip = 0.0
         output_function.last_n_iter = n_iter  # type: ignore[attr-defined]
-        output_function.last_picard = {  # type: ignore[attr-defined]
+        output_function.last_picard = None if solver == "newton" else {  # type: ignore[attr-defined]
             "n_iter": n_iter, "max_iter": max_iter, "tol": tol, "converged": bool(converged),
             "stop_reason": "tolerance" if converged else "max_iter",
             "n_hillslope": int(n_hillslope), "iterations": picard,
+        }
+        output_function.last_newton = newton_info  # type: ignore[attr-defined]
+        output_function.last_outcome = {  # type: ignore[attr-defined]
+            "solver": solver, "form": form, "outcome": classify(bool(converged), frac_clip), "converged": bool(converged),
+            "frac_clipped": frac_clip, "n_iter": int(n_iter),
+            "stop_reason": (newton_info["stop_reason"] if newton_info else ("tolerance" if converged else "max_iter")),
         }
         output_function.last_slopes = slopes_final  # type: ignore[attr-defined]
         output_function.last_hillslope_indices = hillslope_indices  # type: ignore[attr-defined]
@@ -226,6 +289,8 @@ def partitioned_threshold_model_nonlinear(
 
     output_function.last_n_iter = 0  # type: ignore[attr-defined]
     output_function.last_picard = None  # type: ignore[attr-defined]
+    output_function.last_newton = None  # type: ignore[attr-defined]
+    output_function.last_outcome = None  # type: ignore[attr-defined]
     output_function.grid_data = gd  # type: ignore[attr-defined]
     output_function.compute_slopes = _compute_slopes  # type: ignore[attr-defined]
     output_function.compute_slopes_v1 = _compute_slopes_v1  # type: ignore[attr-defined]

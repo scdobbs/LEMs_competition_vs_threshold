@@ -642,6 +642,96 @@ def phase8_slope_threshold_summary(tiles, run_id) -> None:
     click.echo(f"results: {rec.dir}")
 
 
+@main.group()
+def a9() -> None:
+    """Addendum 9: the Newton solver pilot (2.2, 5), the nonlinear joint profile at fitted S_c (3), the morphology score (4)."""
+
+
+@a9.command("pilot")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--part", default="centre", show_default=True, type=click.Choice(["centre", "flux"]))
+@click.option("--run-id", default=None)
+def a9_pilot(tile_id, part, run_id) -> None:
+    """2.2 tests 1 and 4 (part centre) or the flux-form pilot solves (part flux) on one tile (5.1)."""
+    from lemcvt.analyses.nonlinear_fair import run_pilot
+
+    rec = run_pilot(tile_id, part=part, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a9.command("pilot-summary")
+@click.option("--tiles", default="AP1,GM1", show_default=True)
+@click.option("--run-id", default=None)
+def a9_pilot_summary(tiles, run_id) -> None:
+    """5.2 and the 2.2 stop rule: the section 3 core-hour estimate and the test 4 outcome fractions."""
+    from lemcvt.analyses.nonlinear_fair import summarize_pilot
+
+    rec = summarize_pilot(_parse_tiles(tiles), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a9.command("slope-exceedance")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--run-id", default=None)
+def a9_slope_exceedance(tiles, run_id) -> None:
+    """Section 2 diagnostic: hillslope cells above 0.99 S_c and 0.5 S_c on the observed DEM and the linear joint surface."""
+    from lemcvt.analyses.nonlinear_fair import run_slope_exceedance
+
+    rec = run_slope_exceedance(_parse_tiles(tiles), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a9.command("fair-part")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--sc", "sc_label", required=True, type=click.Choice(["central", "p16", "p84"]))
+@click.option("--split", default=None, help="k/n: the k-th of n interleaved subsets of the A_crit grid")
+@click.option("--form", default="flux", show_default=True, type=click.Choice(["flux", "centre"]))
+@click.option("--crop", default=None)
+@click.option("--run-id", default=None)
+def a9_fair_part(tile_id, sc_label, split, form, crop, run_id) -> None:
+    """3.1: one part of the nonlinear joint profile over (A_crit, D) at one S_c, Newton with continuation in D."""
+    from lemcvt.analyses.nonlinear_fair import run_fair_part
+
+    sp = tuple(int(x) for x in split.split("/")) if split else None
+    rec = run_fair_part(tile_id, sc_label, split=sp, form=form, crop=_parse_crop(crop), run_id=run_id)  # type: ignore[arg-type]
+    click.echo(f"results: {rec.dir}")
+
+
+@a9.command("fair-merge")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--sc", "sc_label", required=True, type=click.Choice(["central", "p16", "p84"]))
+@click.option("--form", default="flux", show_default=True, type=click.Choice(["flux", "centre"]))
+@click.option("--run-id", default=None)
+def a9_fair_merge(tile_id, sc_label, form, run_id) -> None:
+    """3.1: merge the parts of a tile at one S_c: optimum over converged evaluations, outcome counts, contours, grid."""
+    from lemcvt.analyses.nonlinear_fair import merge_fair
+
+    rec = merge_fair(tile_id, sc_label, form=form, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a9.command("fair-summary")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--run-id", default=None)
+def a9_fair_summary(tiles, run_id) -> None:
+    """3.1-3.2: the per-tile table and the pre-registered rule per site and S_c."""
+    from lemcvt.analyses.nonlinear_fair import summarize_fair
+
+    rec = summarize_fair(_parse_tiles(tiles), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a9.command("morphology")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--run-id", default=None)
+def a9_morphology(tiles, run_id) -> None:
+    """4: crest curvature, E*-R* ratio and hillslope gradients of every fitted surface against the observed DEM."""
+    from lemcvt.analyses.nonlinear_fair import run_morphology
+
+    rec = run_morphology(_parse_tiles(tiles), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
 @main.command("slope-area")
 @click.option("--tiles", default="AP1,GM2", show_default=True)
 @click.option("--phase6", is_flag=True, help="Model grids from the Phase 6 runs (AD run and refined partitioned run) instead of the saved v1 grids.")

@@ -43,6 +43,9 @@ FIGURE_BUILDERS: dict[str, str] = {
     "phase6_curvature_compare": "lemcvt.figures.phase6:curvature_compare",
     "a8_er_star": "lemcvt.figures.phase8:er_star",
     "a8_slope_threshold": "lemcvt.figures.phase8:slope_threshold",
+    "a9_pilot": "lemcvt.figures.phase9:pilot",
+    "a9_fair": "lemcvt.figures.phase9:fair",
+    "a9_morphology": "lemcvt.figures.phase9:morphology",
 }
 
 

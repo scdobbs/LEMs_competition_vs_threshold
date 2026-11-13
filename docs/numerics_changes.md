@@ -149,6 +149,35 @@ stable rule. Where no tie exists the results are bit-identical to Phase 1.
 - **Where results could differ later:** only if AP1's grids are regenerated from the mosaic (not on Sherlock) or
   the tile is re-extracted; the Phase 6 report of 2026-11-10 lists the options.
 
+## N10. The v1 nonlinear hillslope equation is not the divergence form (found by addendum 9; reported, not changed)
+
+- **What the code solves** (`lemcvt.models.partitioned_nonlinear`, unchanged since v1): on every hillslope cell
+  ``D_eff,i * sum_n (z_n - z_i)/dx^2 + U = 0`` with ``D_eff,i = D / (1 - (|grad z|_i / S_c)^2)`` from the cell-centre slope,
+  i.e. ``D_eff(|grad z|) lap(z) = -U``. The Roering et al. (1999, 2007) law is ``div(D_eff grad z) = -U``. The two coincide
+  only for constant D (the linear model, unaffected).
+- **Consequence.** In 1-D the v1 equation's steady slope is ``S_c tanh(U x / (D S_c))`` and its E*-R* curve is
+  ``R* = (2/E*) ln cosh(E*/2)``: 6 % above the Roering curve at E* = 1, 22 % at E* = 5, and its slope reaches 0.99 S_c
+  (the clip) at ``x = 2.65 D S_c / U``, against about ``50 D S_c / U`` for the divergence form. Every nonlinear result so far
+  (v1, Phase 6, addendum 8 2.4) is for this equation; addendum 8's fitted S_c were fitted against the Roering curve.
+- **What changed.** Nothing in the default path. Addendum 9 adds the divergence form as an option (N11) at Steve's
+  decision of 2026-11-13; the v1 form stays the default of every existing command.
+
+## N11. Newton solver and the flux (divergence) form (addendum 9, section 2; opt-in)
+
+- `partitioned_threshold_model_nonlinear(...)(..., solver="picard"|"newton", form="centre"|"flux", z_init=None)`; Picard on
+  the centre form is the default and is bit-identical to before (`tests/test_addendum9.py`).
+- **Flux form** (`lemcvt.models.nonlinear_newton.assemble_flux_system`): face diffusivity ``(D_eff,i + D_eff,n)/2`` between
+  hillslope cells, ``D_eff,i`` on faces to channel or boundary cells, no flux to invalid cells (none exist on the tiles).
+  With a constant D it reproduces the centre (linear) matrix bit for bit.
+- **Newton**: analytic Jacobian through the slope stencil (checked against finite differences to 3e-7 entrywise), Armijo
+  backtracking on ||F||_2; converged when ||F||_2/||b||_2 <= 1e-10 and the max update <= 1e-6 m (cap 50). The step is a
+  direct LU (SuperLU) for both forms. A GMRES option (exact Jacobian, preconditioned with the LU of its 5-point part) was
+  tried for the flux form, whose 13-point Jacobian is costly to factor on a full tile; on a 300 x 300 AP1 crop it reached its
+  600-iteration limit at every Newton step, so it is kept only as an option and not used.
+- **Outcome classes**: `no_steady_solution` if more than 1 % of hillslope cells are clipped (|grad z|/S_c > 0.99) at the last
+  iterate, else `converged` if the stopping test held, else `not_converged`.
+- **Where results differ**: only where `solver` or `form` is set (addendum 9 runs).
+
 ## Sorts examined and left unchanged
 
 - `lemcvt.hydro.fill.priority_flood_fill`: the heap holds `(z, counter, row, col)`;

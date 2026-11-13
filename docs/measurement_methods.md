@@ -244,6 +244,22 @@ All quantities come from the observed metre DEM; none from a model (`lemcvt phas
 - **Uncertainty** comes from a segment bootstrap (200 draws): 8-connected segments of the hilltop set are resampled, as
   for C_ht (§8), for both the median ratio and S_c.
 
+## 11. Morphology score of fitted surfaces (addendum 9, §4)
+
+Every fitted model surface is measured with the observed DEM's own estimators, on the same pixels and paths, so that a
+model can be judged on hillslope form as well as on elevation misfit.
+
+- **Pixels and paths**: the option (iii) hilltop pixels and their D8 steepest-descent paths to the 10³ m² network, traced
+  on the observed DEM (§10; the addendum 8 run). L_H is the observed path length; the model's relief along the path is
+  z_model(hilltop) − z_model(path end).
+- **Crest curvature**: median −∇²z of the 11 m quadratic surface (§7) of the model surface on those pixels.
+- **E*–R* ratio**: median of 2 S̄_model/(C_ht,model L_H), with S̄_model = relief_model/L_H (1 on a linear hillslope).
+- **Hillslope gradients**: median and 90th percentile of |∇z| from the models' cell-centre slope stencil, on the model's
+  hillslope cells (A < A_crit of that model, tile edge excluded; the AD surface uses the linear joint's set), for the model
+  surface and for the observed DEM on the same cells.
+- **Rule (pre-registered)**: a surface reproduces the hillslope form on a tile if the crest curvature, the E*–R* ratio, and
+  both gradient statistics each lie within a factor 1.25 of the observed value.
+
 ## References
 
 - Evans, I. S. (1980). An integrated system of terrain analysis and slope mapping. Z. Geomorph. Suppl. 36, 274–295.
