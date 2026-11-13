@@ -138,3 +138,22 @@ def model_params():
         "A_crit": 500.0,
         "S_c": 1.2,
     }
+
+
+# ---------------------------------------------------------------------------
+# GitHub Actions: failed tests as workflow annotations (addendum 10, 5.1). The job logs of the public repository need a
+# token, but its check-run annotations do not, so a failure on CI can be read from Sherlock without credentials.
+# ---------------------------------------------------------------------------
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):  # noqa: ARG001
+    import os
+
+    if not os.environ.get("GITHUB_ACTIONS"):
+        return
+    for kind in ("failed", "error"):
+        for rep in terminalreporter.stats.get(kind, []):
+            path, line, _ = rep.location
+            msg = str(rep.longrepr).strip().splitlines()
+            text = " | ".join(m.strip() for m in msg[-12:] if m.strip())[:3000]
+            text = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+            terminalreporter.write_line(f"::error file=tests/{os.path.basename(path)},line={(line or 0) + 1},title={kind}: {rep.nodeid}::{text}")
