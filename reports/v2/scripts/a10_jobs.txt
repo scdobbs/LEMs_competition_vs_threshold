@@ -1,0 +1,11 @@
+# Addendum 10 Slurm jobs (id, what); read by make_addendum10_tables.py
+52231807 state-check tests (ruff, mypy, fast suite)
+52232140 section 2 pilot (GM1, GM3; S_c 1.25; one A_crit row)
+52232306 section 3 morphology, first run (Phase 6 surfaces)
+52235303 section 2 S_c 1.25 (GM1-5, 2 parts each)
+52235306 section 2 S_c 0.9 (GM1-5, 2 parts each)
+52235312 section 2 S_c central (GM1, GM2, GM4, GM5, 2 parts each)
+52235316 section 2 S_c p84 (GM1, GM2, GM4, GM5, 2 parts each)
+52235318 section 2 S_c central (GM3, 2 parts)
+52235319 section 2 S_c p84 (GM3, 2 parts)
+52235327 section 2 merge, summary; section 3 morphology with the section 2 surfaces
