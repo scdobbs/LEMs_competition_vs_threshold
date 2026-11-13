@@ -1,5 +1,7 @@
 # [2026-11-12 10:03 PST] Phase 6 results (addendum 6): CI, configs with the D0 bracket, the AP1 seam test, and the rerun
 
+> Erratum: the slope–area figure and the B10 AP1 slope–area rows in this report were wrong (feet conversion applied twice); see 20261112T1600PST_d_diagnostic.md §2b.
+
 Directive: `reports/directives/2026-11-10T1715PST_refactor_v2_addendum_6.md` (outline fixed by its section 6).
 Branch `v2`; code commits 7b8c9bf, 6ca929f, 92c4c30, 944e3c6, c7477f1, 4a2632b (first session, 2026-11-10/11) and the
 commit carrying this report (second session, 2026-11-12: the merge task script, three mypy fixes, the appendix

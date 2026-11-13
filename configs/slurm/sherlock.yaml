@@ -103,3 +103,9 @@ steps:
     cpus: 1
     mem: 32G
     core_hours_estimate_per_task: 2
+  phase8_slope_threshold:   # addendum 8, 3.2: one (tile, alpha): thin 2000 + refine, one LU + 3 solves + 3 Gram matrices per C, ~5 s each (d_diagnostic measured 3.1-3.6 h for 2400)
+    time: "06:00:00"
+    cpus: 1
+    mem: 16G
+    core_hours_estimate_per_task: 6
+    throttle: 30            # 30 single-CPU tasks at once (well under the 300-CPU line)

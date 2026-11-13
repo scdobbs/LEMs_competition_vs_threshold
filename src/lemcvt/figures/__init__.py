@@ -41,6 +41,8 @@ FIGURE_BUILDERS: dict[str, str] = {
     "phase6_window_test": "lemcvt.figures.phase6:window_test",
     "phase6_nonlinear_joint": "lemcvt.figures.phase6:nonlinear_joint",
     "phase6_curvature_compare": "lemcvt.figures.phase6:curvature_compare",
+    "a8_er_star": "lemcvt.figures.phase8:er_star",
+    "a8_slope_threshold": "lemcvt.figures.phase8:slope_threshold",
 }
 
 

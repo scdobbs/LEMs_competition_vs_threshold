@@ -563,9 +563,10 @@ def _contours(rows: list[dict[str, Any]], levels=(0.01, 0.05)) -> dict[str, Any]
 def run_nonlinear_joint(tile: str, source_run: str | Path | None = None, k_factor: float = 1.0, n_acrit: int = NLJ_N_ACRIT,
                         n_d: int = NLJ_N_D, d_range=NLJ_D_RANGE, widen: float = NLJ_WIDEN, save_grids: bool = True,
                         crop: tuple[int, int, int, int] | None = None, run_id: str | None = None, results_root=None,
-                        label: str | None = None, split: tuple[int, int] | None = None) -> RunRecorder:
+                        label: str | None = None, split: tuple[int, int] | None = None, S_c: float | None = None) -> RunRecorder:
     """Addendum 5, 3.4: MSE of the nonlinear partitioned model over a grid of (A_crit, D) with K fixed at the linear
-    joint optimum of ``source_run`` (times ``k_factor`` for the K check), S_c from the config, Picard cap from the config.
+    joint optimum of ``source_run`` (times ``k_factor`` for the K check), S_c from the config (or ``S_c``, addendum 8, 2.4:
+    the tile's fitted value), Picard cap from the config.
 
     A_crit: ``n_acrit`` log-spaced unique drainage areas spanning the linear joint 5 % interval widened by ``widen`` on
     each side; D: ``n_d`` log-spaced values over ``d_range``. Per evaluation: MSE, Picard iterations, cap hit, hillslope
@@ -583,12 +584,16 @@ def run_nonlinear_joint(tile: str, source_run: str | Path | None = None, k_facto
     K = K_joint * float(k_factor)
     td = load_tile(tile, crop=crop, sanity=crop is None)
     mp = td.cfg.model
+    if S_c is not None:
+        from dataclasses import replace as _replace
+
+        mp = _replace(mp, S_c=float(S_c))
     Z0, A, FD, dx, U = td.Z, td.A, td.FD, td.dx, mp.U
     if run_id is None:
         from lemcvt.results import new_run_id
 
         run_id = new_run_id("tile_run", f"{tile}_v2_nonlinear_joint" + (f"_{label}" if label else "") + (f"_Kx{k_factor:g}" if k_factor != 1.0 else "")
-                            + (f"_split{split[0]}of{split[1]}" if split else ""))
+                            + (f"_Sc{S_c:g}" if S_c is not None else "") + (f"_split{split[0]}of{split[1]}" if split else ""))
     rec = RunRecorder("tile_run", tile, run_id=run_id, root=results_root)
     rec.add_params("tile", tile)
     rec.add_params("optimizer", "v2")
@@ -606,7 +611,7 @@ def run_nonlinear_joint(tile: str, source_run: str | Path | None = None, k_facto
     setup = {"source_run": src.name, "K_joint": K_joint, "k_factor": float(k_factor), "K": K, "linear_joint_optimum": jo,
              "linear_joint_interval_5pct": [lo_i, hi_i], "A_crit_range": [lo_i / widen, hi_i * widen], "n_unique_in_range": int(ua.size),
              "A_crit_grid": grid_a.tolist(), "A_crit_grid_full": grid_a_full.tolist(), "D_grid": grid_d.tolist(), "S_c": mp.S_c,
-             "picard_cap": mp.nonlinear_max_iter, "tol": mp.nonlinear_tol}
+             "S_c_override": S_c, "picard_cap": mp.nonlinear_max_iter, "tol": mp.nonlinear_tol}
     if split:
         setup["split"] = [int(split[0]), int(split[1])]
     rec.add_params("setup", setup)
@@ -664,7 +669,7 @@ def run_nonlinear_joint(tile: str, source_run: str | Path | None = None, k_facto
                 tile, best["A_crit"], best["D"], best["mse"], v2["nonlinear_joint"]["n_hit_cap"], len(rows), cont["contour_0.01"]["A_crit_min"],
                 cont["contour_0.01"]["A_crit_max"], cont["contour_0.01"]["D_min"], cont["contour_0.01"]["D_max"], v2["nonlinear_joint"]["wall_s"])
     rec.finalize(config_snapshot(td.cfg, {"crop": crop, "source_run": src.name, "k_factor": k_factor, "n_acrit": n_acrit, "n_d": n_d,
-                                          "d_range": list(d_range), "widen": widen}))
+                                          "d_range": list(d_range), "widen": widen, "S_c": S_c}))
     return rec
 
 

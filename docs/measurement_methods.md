@@ -220,6 +220,30 @@ Perron et al. 2012), the pooled k_s at the v1 θ on the new channel set, the rat
 new/v1, and the re-run of the legacy method. These comparisons are for the record;
 Phase 6 uses the new values.
 
+## 10. Hillslope E*–R* (addendum 8, §2)
+
+All quantities come from the observed metre DEM; none from a model (`lemcvt phase8 er-star`, `lemcvt.analyses.er_star`).
+
+- **C_ht** is −∇²z of the quadratic surface at L_f = 11 m at each option (iii) hilltop pixel (§7), the estimator the
+  configs use for D₀.
+- **L_H**, the hillslope length, is the length of the D8 steepest-descent path (stored flow directions; link lengths dx,
+  dy, √(dx²+dy²)) from the hilltop pixel to the first cell of the channel network. The primary network is A ≥ 10³ m²
+  (the K₀ network, §4); A ≥ 10⁴ m² and the rollover network (§2) are reported as sensitivity. Paths that leave the tile
+  before reaching the network are dropped and counted.
+- **R** is the elevation drop along that path, and **S̄ = R/L_H** the mean hillslope gradient.
+- **E\* = 2 C_ht L_H / S_c** and **R\* = S̄ / S_c** (Roering et al. 2007; Hurst et al. 2012).
+- **The steady nonlinear curve** is R\* = (1/E\*)[√(1+E\*²) − ln(½(1+√(1+E\*²))) − 1]. It is checked against a Simpson
+  integration of the 1-D steady profile, whose slope is S_c(√(1+u²) − 1)/u with u = E\* x/L_H; the two agree to better
+  than 10⁻⁶ at E\* = 0.01 to 50 (`verify_curve`).
+- **The linear limit is R\* = E\*/4**, not E\*/2. On the steady linear-diffusion hillslope, z = z₀ − (C_ht/2)x², so
+  S̄ = C_ht L_H/2: the mean slope is half the toe slope. The linear test therefore uses the normalised ratio
+  2 S̄/(C_ht L_H), which is 1 on a linear hillslope and below 1 where hillslopes are planar below a sharp crest; the
+  literal ratio S̄/(C_ht L_H) is reported beside it.
+- **S_c** is fitted by least squares of log₁₀ R\* against the curve over the hilltop pixels (bounded scalar search over
+  0.05–20). E\* and R\* both scale with 1/S_c, so S_c is the only free parameter.
+- **Uncertainty** comes from a segment bootstrap (200 draws): 8-connected segments of the hilltop set are resampled, as
+  for C_ht (§8), for both the median ratio and S_c.
+
 ## References
 
 - Evans, I. S. (1980). An integrated system of terrain analysis and slope mapping. Z. Geomorph. Suppl. 36, 274–295.

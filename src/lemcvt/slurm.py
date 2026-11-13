@@ -94,7 +94,7 @@ def build_spec(step: str, labels: list[str], command_template: str, time: str | 
         job_name=job_name or f"lemcvt_{step}", log_dir=Path(_expand(cfg.get("log_dir", "$SCRATCH/lemcvt_jobs"))),
         micromamba=_expand(cfg["micromamba"]), env_prefix=_expand(cfg["env_prefix"]),
         threads_env=list(cfg.get("threads_env", ["OMP_NUM_THREADS"])),
-        throttle=int(cfg.get("array_throttle", 10)), dependency=dependency,
+        throttle=int(stepcfg.get("throttle", cfg.get("array_throttle", 10))), dependency=dependency,
     )
     max_cpus = int(cfg.get("max_concurrent_cpus", 300))
     if spec.concurrent_cpus > max_cpus:

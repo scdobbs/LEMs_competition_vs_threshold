@@ -193,11 +193,17 @@ class Factored:
 class PartitionedProfiler:
     """Reductions of the linear partitioned model for one tile at any A_crit and m."""
 
-    def __init__(self, Z0: np.ndarray, A: np.ndarray, FD: np.ndarray, dx: float, U: float, m_values=()):
+    def __init__(self, Z0: np.ndarray, A: np.ndarray, FD: np.ndarray, dx: float, U: float, m_values=(), channel_stat: np.ndarray | None = None):
+        """``channel_stat``: optional per-valid-cell statistic that replaces the drainage area in the channel test
+        ``stat >= A_crit`` (addendum 8, 3: the upstream maximum of A S^alpha); the default is the area itself, so every
+        existing profile is unchanged."""
         self.gd = extract_grid_data(Z0, A, FD, dx)
         self.U = U
         self.n = self.gd["n"]
         self.A_flat = self.gd["A_flat"]
+        self.stat = self.A_flat if channel_stat is None else np.asarray(channel_stat, dtype=float)
+        if self.stat.shape != self.A_flat.shape:
+            raise ValueError(f"channel_stat has shape {self.stat.shape}, expected {self.A_flat.shape}")
         self.Z_obs_flat = Z0[self.gd["rev_j"], self.gd["rev_i"]].astype(float)
         self.chi: dict[float, np.ndarray] = {}
         self.z_anchor = self.k_out = self.bc_inds = self.bc_vals = None
@@ -216,7 +222,7 @@ class PartitionedProfiler:
         logger.debug("chi(m=%.3f) in %.1f s", m, time.perf_counter() - t0)
 
     def masks(self, A_crit: float):
-        channel = self.A_flat >= A_crit
+        channel = self.stat >= A_crit
         if not channel[self.k_out]:
             channel[self.k_out] = True
         fixed = channel.copy()

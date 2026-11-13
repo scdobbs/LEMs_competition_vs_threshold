@@ -212,11 +212,12 @@ def tile_v2_refine(tile_id, source_run, max_extra, fill_interval, d0_variant, ru
 @click.option("--d-range", default="1.5e-3,5e-2", show_default=True, help="addendum 6, 1.4")
 @click.option("--widen", default=3.0, show_default=True, help="Widen the linear joint 5 % interval by this factor on each side.")
 @click.option("--split", default=None, help="k/n: evaluate only every n-th A_crit value starting at k (parallel parts; merge with v2-nonlinear-joint-merge).")
+@click.option("--s-c", "s_c", default=None, type=float, help="addendum 8, 2.4: override the config S_c with the tile's fitted value.")
 @click.option("--crop", default=None)
 @click.option("--no-grids", is_flag=True)
 @click.option("--run-id", default=None)
-def tile_v2_nonlinear_joint(tile_id, source_run, k_factor, n_acrit, n_d, d_range, widen, split, crop, no_grids, run_id) -> None:
-    """Addendum 5, 3.4: nonlinear MSE over (A_crit, D) at K fixed to the linear joint optimum (S_c = 1.27, Picard cap from the config)."""
+def tile_v2_nonlinear_joint(tile_id, source_run, k_factor, n_acrit, n_d, d_range, widen, split, s_c, crop, no_grids, run_id) -> None:
+    """Addendum 5, 3.4: nonlinear MSE over (A_crit, D) at K fixed to the linear joint optimum (S_c = 1.27 or --s-c, Picard cap from the config)."""
     from lemcvt.analyses.optimizer_v2 import run_nonlinear_joint
 
     lo, hi = (float(v) for v in d_range.split(","))
@@ -225,7 +226,7 @@ def tile_v2_nonlinear_joint(tile_id, source_run, k_factor, n_acrit, n_d, d_range
         k_part, n_parts = (int(v) for v in split.split("/"))
         sp = (k_part, n_parts)
     rec = run_nonlinear_joint(tile_id, source_run=source_run, k_factor=k_factor, n_acrit=n_acrit, n_d=n_d, d_range=(lo, hi), widen=widen,
-                              save_grids=not no_grids, crop=_parse_crop(crop), run_id=run_id, split=sp)
+                              save_grids=not no_grids, crop=_parse_crop(crop), run_id=run_id, split=sp, S_c=s_c)
     click.echo(f"results: {rec.dir}")
 
 
@@ -547,6 +548,97 @@ def phase7_d_diagnostic(tile_id, thin_n, refine_max, a_roll, a_c, crop, run_id) 
     click.echo(f"results: {rec.dir}")
 
 
+@phase7.command("width")
+@click.option("--sites", default="AP,GM", show_default=True)
+@click.option("--mode", default="full", show_default=True, type=click.Choice(["pilot", "full"]))
+@click.option("--no-qc", is_flag=True, help="Skip the per-point QC figures.")
+@click.option("--run-id", default=None)
+def phase7_width(sites, mode, no_qc, run_id) -> None:
+    """Phase 7 (addendum 8, 1.4): the channel-width analysis of feature/channel-width on the metre grids (Phase 3 sample, fits, figures)."""
+    from lemcvt.analyses.phase7 import run_width
+
+    rec = run_width([s.strip() for s in sites.split(",")], mode=mode, make_qc=not no_qc, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@phase7.command("width-constrained")
+@click.option("--stage", default="full", show_default=True, type=click.Choice(["checkpoint", "full"]))
+@click.option("--run-id", default=None)
+def phase7_width_constrained(stage, run_id) -> None:
+    """Phase 7: the constrained width re-run (A >= 1e5 m^2, five transects, constrained bank pick) on the metre grids."""
+    from lemcvt.analyses.phase7 import run_width_constrained
+
+    rec = run_width_constrained(stage=stage, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@phase7.command("heads")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--lsdtt", is_flag=True, help="Also run Method D / LSDTT Wiener (binary aborted on every tile in Test 2; off by default).")
+@click.option("--run-id", default=None)
+def phase7_heads(tiles, lsdtt, run_id) -> None:
+    """Phase 7: Test 2 head extraction (Method P) up to its review gate, on the metre grids."""
+    from lemcvt.analyses.phase7 import run_heads
+
+    rec = run_heads(_parse_tiles(tiles), use_lsdtt=lsdtt, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@phase7.command("port-check")
+@click.option("--run-id", default=None)
+def phase7_port_check(run_id) -> None:
+    """Phase 7: regression check of the ported analyses against the feature-branch outputs on GM, and the AP change."""
+    from lemcvt.analyses.phase7 import run_port_check
+
+    rec = run_port_check(run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@main.group()
+def phase8() -> None:
+    """Addendum 8: E*-R* (2), the slope-dependent threshold (3)."""
+
+
+@phase8.command("er-star")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--n-boot", default=200, show_default=True)
+@click.option("--a-c", default=None, type=float, help="Override the rollover-network A_c of the option (iii) set (default: the measure run).")
+@click.option("--crop", default=None)
+@click.option("--run-id", default=None)
+def phase8_er_star(tiles, n_boot, a_c, crop, run_id) -> None:
+    """Addendum 8, 2.1-2.3: E*-R* of the option (iii) hilltop pixels on three networks, the linear test, the S_c fit and the rule."""
+    from lemcvt.analyses.er_star import run_er_star
+
+    rec = run_er_star(_parse_tiles(tiles), n_boot=n_boot, run_id=run_id, crop=_parse_crop(crop), A_c_rollover=a_c)
+    click.echo(f"results: {rec.dir}")
+
+
+@phase8.command("slope-threshold")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--alpha", required=True, type=float)
+@click.option("--thin-n", default=2000, show_default=True)
+@click.option("--refine-max", default=400, show_default=True)
+@click.option("--crop", default=None)
+@click.option("--run-id", default=None)
+def phase8_slope_threshold(tile_id, alpha, thin_n, refine_max, crop, run_id) -> None:
+    """Addendum 8, 3.1-3.3: the linear joint profile over C of the threshold A S^alpha >= C, with the basin hold-out from the same reductions."""
+    from lemcvt.analyses.slope_threshold import run_slope_threshold
+
+    rec = run_slope_threshold(tile_id, alpha, thin_n=thin_n, refine_max=refine_max, crop=_parse_crop(crop), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@phase8.command("slope-threshold-summary")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--run-id", default=None)
+def phase8_slope_threshold_summary(tiles, run_id) -> None:
+    """Addendum 8, 3.3: the hold-out rule per tile and site from the latest run of every (tile, alpha)."""
+    from lemcvt.analyses.slope_threshold import summarize
+
+    rec = summarize(_parse_tiles(tiles), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
 @main.command("slope-area")
 @click.option("--tiles", default="AP1,GM2", show_default=True)
 @click.option("--phase6", is_flag=True, help="Model grids from the Phase 6 runs (AD run and refined partitioned run) instead of the saved v1 grids.")
@@ -725,7 +817,7 @@ def slurm() -> None:
 @click.argument("step", type=click.Choice(["tile_run", "tile_forward", "sweep_resolution", "measure", "closeout",
                                            "dinf_diagnostics", "measure_diagnostics", "measure_audit", "profile", "custom",
                                            "phase6_partitioned", "phase6_nonlinear", "phase6_nonlinear_joint", "phase6_dinf_joint",
-                                           "phase6_ad", "phase6_utilities"]))
+                                           "phase6_ad", "phase6_utilities", "phase8_slope_threshold"]))
 @click.option("--tiles", default="all", show_default=True)
 @click.option("--labels", default=None, help="custom step: comma list of array labels (default: one task 'all')")
 @click.option("--command", "command_", default=None, help="custom step: command with $LABEL, e.g. \"lemcvt -v slope-area --tiles AP1,GM2\"")
@@ -776,6 +868,9 @@ def slurm_submit(step, tiles, labels, command_, stages, optimizer, m_range, unit
         cmd = f"lemcvt -v tile v2-nonlinear-joint --tile $LABEL --k-factor {k_factor}"
     elif step == "phase6_dinf_joint":
         cmd = "lemcvt -v tile v2-dinf-joint --tile $LABEL"
+    elif step == "phase8_slope_threshold":
+        # labels are <tile>_a<alpha>, e.g. AP1_a0.5 (one array task per tile and alpha)
+        cmd = "bash reports/v2/scripts/phase8_slope_threshold_task.sh $LABEL"
     elif step == "phase6_utilities":
         cmd = f"bash {command_}"
         labels = ["all"]
