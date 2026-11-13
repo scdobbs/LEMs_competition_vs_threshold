@@ -46,6 +46,7 @@ FIGURE_BUILDERS: dict[str, str] = {
     "a9_pilot": "lemcvt.figures.phase9:pilot",
     "a9_fair": "lemcvt.figures.phase9:fair",
     "a9_morphology": "lemcvt.figures.phase9:morphology",
+    "a10_flux": "lemcvt.figures.phase10:flux",
 }
 
 
