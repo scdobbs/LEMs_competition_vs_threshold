@@ -7,6 +7,7 @@ hash, environment lock hash) in ``run.json``.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import sys
@@ -739,6 +740,66 @@ def a9_morphology(tiles, run_id) -> None:
     from lemcvt.analyses.nonlinear_fair import run_morphology
 
     rec = run_morphology(_parse_tiles(tiles), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@main.group()
+def a10() -> None:
+    """Addendum 10: the bounded GM flux-form test (section 2; Newton on the flux form, the 1.4 clip rule)."""
+
+
+@a10.command("flux-part")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--sc", "sc_label", required=True, type=click.Choice(["1.25", "0.9", "central", "p84"]))
+@click.option("--split", default=None, help="k/n: the k-th of n interleaved subsets of the A_crit grid")
+@click.option("--pilot", is_flag=True, help="2.2.1: only the A_crit row nearest the linear joint A_crit")
+@click.option("--n-acrit", default=12, show_default=True, help="12, or 8 (the 2.2.2 fallback)")
+@click.option("--group", default=None, help="tag shared by the parts of one submission (the 2.2.4 stop rule counts across them)")
+@click.option("--crop", default=None)
+@click.option("--run-id", default=None)
+def a10_flux_part(tile_id, sc_label, split, pilot, n_acrit, group, crop, run_id) -> None:
+    """2.1: one part of the (A_crit, D) profile at one S_c, flux form, Newton with continuation in D."""
+    from lemcvt.analyses.gm_flux import run_flux_part
+
+    sp = tuple(int(x) for x in split.split("/")) if split else None
+    rec = run_flux_part(tile_id, sc_label, split=sp, rows="pilot" if pilot else None, n_acrit=n_acrit, group=group,  # type: ignore[arg-type]
+                        crop=_parse_crop(crop), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a10.command("flux-estimate")
+@click.option("--n-acrit", default=12, show_default=True)
+@click.option("--run-id", default=None)
+def a10_flux_estimate(n_acrit, run_id) -> None:
+    """2.2.2: the core-hour estimate from the pilot rows."""
+    from lemcvt.analyses.gm_flux import estimate
+
+    rec = estimate(n_acrit=n_acrit, run_id=run_id)
+    click.echo(json.dumps(json.loads((rec.dir / "params.json").read_text())["estimate"], indent=1))
+    click.echo(f"results: {rec.dir}")
+
+
+@a10.command("flux-merge")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--sc", "sc_label", required=True, type=click.Choice(["1.25", "0.9", "central", "p84"]))
+@click.option("--group", default=None)
+@click.option("--run-id", default=None)
+def a10_flux_merge(tile_id, sc_label, group, run_id) -> None:
+    """Merge the parts of one tile and S_c: optimum over converged evaluations, both outcome counts, contours, grid."""
+    from lemcvt.analyses.gm_flux import merge_flux
+
+    rec = merge_flux(tile_id, sc_label, group=group, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a10.command("flux-summary")
+@click.option("--tiles", default="GM", show_default=True)
+@click.option("--run-id", default=None)
+def a10_flux_summary(tiles, run_id) -> None:
+    """2.3: the per-tile table at every S_c and the pre-registered rule."""
+    from lemcvt.analyses.gm_flux import summarize_flux
+
+    rec = summarize_flux(_parse_tiles(tiles), run_id=run_id)
     click.echo(f"results: {rec.dir}")
 
 
