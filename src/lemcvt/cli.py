@@ -649,7 +649,7 @@ def a9() -> None:
 
 @a9.command("pilot")
 @click.option("--tile", "tile_id", required=True)
-@click.option("--part", default="centre", show_default=True, type=click.Choice(["centre", "flux"]))
+@click.option("--part", default="centre", show_default=True, type=click.Choice(["centre", "flux", "test1"]))
 @click.option("--run-id", default=None)
 def a9_pilot(tile_id, part, run_id) -> None:
     """2.2 tests 1 and 4 (part centre) or the flux-form pilot solves (part flux) on one tile (5.1)."""

@@ -183,7 +183,7 @@ def run_pilot(tile: str, part: str = "centre", run_id: str | None = None, result
     """One pilot task. ``part="centre"``: 2.2 test 4 (Picard and Newton on the v1 form across the full D grid, one A_crit
     row, the tile's fitted S_c) and test 1 at the Phase 6 setting (full tile and crop). ``part="flux"``: Newton on the flux
     form at three D values of the same row (:func:`flux_pilot_D`), for the outcome classes and the cost per solve."""
-    if part not in ("centre", "flux"):
+    if part not in ("centre", "flux", "test1"):
         raise ValueError(part)
     rec = RunRecorder("a9_pilot", f"{tile}_{part}", run_id=run_id, root=results_root_)
     t0 = time.perf_counter()
@@ -193,7 +193,8 @@ def run_pilot(tile: str, part: str = "centre", run_id: str | None = None, result
     a_row = _pilot_row_A(st)
     f = partitioned_threshold_model_nonlinear(td.Z, td.A, td.FD, td.dx, mp.m, mp.U, K)
     rows: list[dict[str, Any]] = []
-    runs = (("picard", "centre", d_grid()), ("newton", "centre", d_grid())) if part == "centre" else (("newton", "flux", flux_pilot_D(st)),)
+    runs: tuple = ((("picard", "centre", d_grid()), ("newton", "centre", d_grid())) if part == "centre" else
+                   (("newton", "flux", flux_pilot_D(st)),) if part == "flux" else ())
     done: list[dict[str, Any]] = []
 
     def _partial(x: dict[str, Any]) -> None:          # every evaluation survives a timeout
@@ -208,7 +209,7 @@ def run_pilot(tile: str, part: str = "centre", run_id: str | None = None, result
         logger.info("%s pilot row A_crit %.1f S_c %.3f %s/%s: %s; mean wall %.1f s", tile, a_row, sc, solver, form,
                     pd.Series([x["outcome"] for x in r]).value_counts().to_dict(), float(np.mean([x["wall_s"] for x in r])))
         pd.DataFrame(rows).to_parquet(rec.dir / "partial_rows.parquet", index=False)
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(rows, columns=None if rows else ["tile", "solver", "form", "D", "outcome", "converged", "wall_s", "n_iter"])
     rec.write_table(df, "pilot_rows")
     out: dict[str, Any] = {"tile": tile, "part": part, "A_crit": a_row, "S_c": sc, "K": K, "linear_joint": st["linear_joint"], "D0": mp.D0, "D0_B": mp.D0_B,
                            "counts": {f"{s_}/{fm}": df[(df.solver == s_) & (df.form == fm)].outcome.value_counts().to_dict() for s_, fm, _ in runs}}
@@ -219,6 +220,7 @@ def run_pilot(tile: str, part: str = "centre", run_id: str | None = None, result
         nw_out = dict(zip(nwc.index.astype(float), nwc.outcome.astype(str), strict=True))
         out["test4"] = {"picard_converged_D": pic_conv, "newton_outcome_where_picard_converged": {str(d): nw_out[d] for d in pic_conv},
                         "pass": bool(all(nw_out[d] == "converged" for d in pic_conv))}
+    if part in ("centre", "test1"):
         test1 = []
         p6 = _phase6_nonlinear_joint_optimum(tile)
         if p6 is not None:
@@ -244,7 +246,7 @@ def summarize_pilot(tiles: Sequence[str] = PILOT_TILES, run_id: str | None = Non
     rec = RunRecorder("a9_pilot_summary", "_".join(tiles), run_id=run_id, root=results_root_)
     per: dict[str, Any] = {}
     for tile in tiles:
-        for part in ("centre", "flux"):
+        for part in ("centre", "flux", "test1"):
             hit = None
             for r in find_runs("a9_pilot", f"{tile}_{part}"):
                 hit = (r, json.loads((r / "params.json").read_text())["pilot"])
