@@ -563,7 +563,8 @@ def _contours(rows: list[dict[str, Any]], levels=(0.01, 0.05)) -> dict[str, Any]
 def run_nonlinear_joint(tile: str, source_run: str | Path | None = None, k_factor: float = 1.0, n_acrit: int = NLJ_N_ACRIT,
                         n_d: int = NLJ_N_D, d_range=NLJ_D_RANGE, widen: float = NLJ_WIDEN, save_grids: bool = True,
                         crop: tuple[int, int, int, int] | None = None, run_id: str | None = None, results_root=None,
-                        label: str | None = None, split: tuple[int, int] | None = None, S_c: float | None = None) -> RunRecorder:
+                        label: str | None = None, split: tuple[int, int] | None = None, S_c: float | None = None,
+                        cap_stop_frac: float | None = None) -> RunRecorder:
     """Addendum 5, 3.4: MSE of the nonlinear partitioned model over a grid of (A_crit, D) with K fixed at the linear
     joint optimum of ``source_run`` (times ``k_factor`` for the K check), S_c from the config (or ``S_c``, addendum 8, 2.4:
     the tile's fitted value), Picard cap from the config.
@@ -611,13 +612,14 @@ def run_nonlinear_joint(tile: str, source_run: str | Path | None = None, k_facto
     setup = {"source_run": src.name, "K_joint": K_joint, "k_factor": float(k_factor), "K": K, "linear_joint_optimum": jo,
              "linear_joint_interval_5pct": [lo_i, hi_i], "A_crit_range": [lo_i / widen, hi_i * widen], "n_unique_in_range": int(ua.size),
              "A_crit_grid": grid_a.tolist(), "A_crit_grid_full": grid_a_full.tolist(), "D_grid": grid_d.tolist(), "S_c": mp.S_c,
-             "S_c_override": S_c, "picard_cap": mp.nonlinear_max_iter, "tol": mp.nonlinear_tol}
+             "S_c_override": S_c, "cap_stop_frac": cap_stop_frac, "picard_cap": mp.nonlinear_max_iter, "tol": mp.nonlinear_tol}
     if split:
         setup["split"] = [int(split[0]), int(split[1])]
     rec.add_params("setup", setup)
     pmnl = partitioned_threshold_model_nonlinear(Z0, A, FD, dx, mp.m, U, K)
     traj = Trajectory("nonlinear_joint", ("log10_A_crit", "log10_D", "log10_K", "kind"))
     rows: list[dict[str, Any]] = []
+    stopped_by_cap_rule: dict[str, Any] | None = None
     t0 = time.perf_counter()
     n_tot = grid_a.size * grid_d.size
     for a_c in grid_a:
@@ -637,8 +639,15 @@ def run_nonlinear_joint(tile: str, source_run: str | Path | None = None, k_facto
             traj.record({"log10_A_crit": math.log10(a_c), "log10_D": math.log10(D), "log10_K": math.log10(K), "kind": "grid"}, m_, cached=False)
         done = len(rows)
         best = min(rows, key=lambda r: r["mse"])
+        n_cap = sum(1 for r in rows if not r["converged"])
         logger.info("nonlinear joint %d/%d (A_crit %.1f done): best so far A_crit %.1f D %.3e mse %.4f; cap hits %d [%.0f s]", done, n_tot, a_c,
-                    best["A_crit"], best["D"], best["mse"], sum(1 for r in rows if not r["converged"]), time.perf_counter() - t0)
+                    best["A_crit"], best["D"], best["mse"], n_cap, time.perf_counter() - t0)
+        pd.DataFrame(rows).to_parquet(rec.dir / "partial_rows.parquet", index=False)      # survives a timeout
+        # addendum 8, 2.4: more than cap_stop_frac of the evaluations at the Picard cap stops the tile (checked after each A_crit row)
+        if cap_stop_frac is not None and n_cap / done > cap_stop_frac:
+            stopped_by_cap_rule = {"n_evaluated": done, "n_cap": n_cap, "frac": n_cap / done, "after_A_crit": float(a_c)}
+            logger.warning("%s: %d of %d evaluations at the Picard cap (> %.0f %%): stopping (addendum 8, 2.4)", tile, n_cap, done, 100 * cap_stop_frac)
+            break
     rec.add_trajectory(traj)
     rec.write_table(pd.DataFrame(rows), "nonlinear_joint_profile")
     jb = int(np.argmin([r["mse"] for r in rows]))
@@ -649,13 +658,15 @@ def run_nonlinear_joint(tile: str, source_run: str | Path | None = None, k_facto
         files = write_model_outputs(rec, td.filled, Zb, f"{td.cfg.site}_1m_best_tile_Partitioned-model-nonlinear-joint-opt", derived=False)
     cont = _contours(rows)
     # per-A_crit profile minimised over D, and per-D minimised over A_crit (for the figure and the report)
-    prof_a = [{"A_crit": float(a), "mse": float(min(r["mse"] for r in rows if r["A_crit"] == a)), "D": float(min((r for r in rows if r["A_crit"] == a), key=lambda r: r["mse"])["D"])} for a in grid_a]
-    prof_d = [{"D": float(d), "mse": float(min(r["mse"] for r in rows if r["D"] == d)), "A_crit": float(min((r for r in rows if r["D"] == d), key=lambda r: r["mse"])["A_crit"])} for d in grid_d]
+    prof_a = [{"A_crit": float(a), "mse": float(min(r["mse"] for r in rows if r["A_crit"] == a)), "D": float(min((r for r in rows if r["A_crit"] == a), key=lambda r: r["mse"])["D"])}
+              for a in grid_a if any(r["A_crit"] == a for r in rows)]
+    prof_d = [{"D": float(d), "mse": float(min(r["mse"] for r in rows if r["D"] == d)), "A_crit": float(min((r for r in rows if r["D"] == d), key=lambda r: r["mse"])["A_crit"])}
+              for d in grid_d if any(r["D"] == d for r in rows)]
     v2 = {"nonlinear_joint": {"optimum": best, "contours": cont, "profile_A_crit": prof_a, "profile_D": prof_d, "n_evaluations": len(rows),
                               "n_hit_cap": int(sum(1 for r in rows if not r["converged"])),
                               "n_hit_cap_in_5pct_contour": int(sum(1 for r in rows if not r["converged"] and r["mse"] <= cont["mse_min"] * 1.05)),
                               "on_grid_edge": {"A_crit": bool(best["A_crit"] in (grid_a[0], grid_a[-1])), "D": bool(best["D"] in (grid_d[0], grid_d[-1]))},
-                              "wall_s": time.perf_counter() - t0, "setup": setup}}
+                              "wall_s": time.perf_counter() - t0, "setup": setup, "stopped_by_cap_rule": stopped_by_cap_rule}}
     rec.add_params("forward_runs", [{"key": "nonlinear_joint_opt", "model": "partitioned_nonlinear",
                                      "params": {"U": U, "K": K, "D": best["D"], "S_c": mp.S_c, "A_crit": best["A_crit"]}, "mse": mse(Zb, Z0),
                                      "files": files, "n_channel": int(maskb.sum()), "picard": pmnl.last_picard}])
@@ -781,7 +792,8 @@ def run_dinf_joint(tile: str, thin_n: int = THIN_N, refine_max: int = 400, save_
     return rec
 
 
-def merge_nonlinear_joint(tile: str, k_factor: float = 1.0, run_id: str | None = None, results_root=None, save_grids: bool = True) -> RunRecorder:
+def merge_nonlinear_joint(tile: str, k_factor: float = 1.0, run_id: str | None = None, results_root=None, save_grids: bool = True,
+                          S_c: float | None = None) -> RunRecorder:
     """Merge the `split k of n` partial nonlinear-joint runs of a tile (same source run, K and D grid) into one run with the
     layout of an unsplit run: concatenated rows, the optimum re-solved once for its grid, contours and profiles."""
     from lemcvt.results import find_runs
@@ -795,6 +807,9 @@ def merge_nonlinear_joint(tile: str, k_factor: float = 1.0, run_id: str | None =
             continue
         v = p.get("v2", {}).get("nonlinear_joint")
         if not v or (rj.get("config") or {}).get("crop") or "split" not in v["setup"] or v["setup"].get("k_factor", 1.0) != k_factor:
+            continue
+        sco = v["setup"].get("S_c_override")
+        if (S_c is None) != (sco is None) or (S_c is not None and abs(float(sco) - float(S_c)) > 1e-12):
             continue
         parts.append((r, p))
     if not parts:
@@ -821,12 +836,16 @@ def merge_nonlinear_joint(tile: str, k_factor: float = 1.0, run_id: str | None =
     rows = cast(list[dict[str, Any]], df_all.to_dict("records"))
     td = load_tile(tile)
     mp = td.cfg.model
+    if S_c is not None:
+        from dataclasses import replace as _replace
+
+        mp = _replace(mp, S_c=float(S_c))
     Z0, A, FD, dx, U = td.Z, td.A, td.FD, td.dx, mp.U
     K = float(st0["K"])
     if run_id is None:
         from lemcvt.results import new_run_id
 
-        run_id = new_run_id("tile_run", f"{tile}_v2_nonlinear_joint" + (f"_Kx{k_factor:g}" if k_factor != 1.0 else "") + "_merged")
+        run_id = new_run_id("tile_run", f"{tile}_v2_nonlinear_joint" + (f"_Kx{k_factor:g}" if k_factor != 1.0 else "") + (f"_Sc{S_c:g}" if S_c is not None else "") + "_merged")
     rec = RunRecorder("tile_run", tile, run_id=run_id, root=results_root)
     for key_ in ("tile", "optimizer", "stages", "inputs", "model", "v1_reference"):
         rec.add_params(key_, p0[key_])
@@ -852,7 +871,10 @@ def merge_nonlinear_joint(tile: str, k_factor: float = 1.0, run_id: str | None =
                               "n_hit_cap": int(sum(1 for r in rows if not r["converged"])),
                               "n_hit_cap_in_5pct_contour": int(sum(1 for r in rows if not r["converged"] and r["mse"] <= cont["mse_min"] * 1.05)),
                               "on_grid_edge": {"A_crit": bool(best["A_crit"] in (grid_a[0], grid_a[-1])), "D": bool(best["D"] in (grid_d[0], grid_d[-1]))},
-                              "wall_s": wall, "wall_s_parts": {str(k): group[k][1]["v2"]["nonlinear_joint"]["wall_s"] for k in range(n)}, "setup": setup}}
+                              "wall_s": wall, "wall_s_parts": {str(k): group[k][1]["v2"]["nonlinear_joint"]["wall_s"] for k in range(n)}, "setup": setup,
+                              "stopped_by_cap_rule_parts": {str(k): group[k][1]["v2"]["nonlinear_joint"].get("stopped_by_cap_rule") for k in range(n)
+                                                            if group[k][1]["v2"]["nonlinear_joint"].get("stopped_by_cap_rule")},
+                              "frac_hit_cap": float(sum(1 for r in rows if not r["converged"]) / len(rows))}}
     rec.add_params("forward_runs", [{"key": "nonlinear_joint_opt", "model": "partitioned_nonlinear",
                                      "params": {"U": U, "K": K, "D": best["D"], "S_c": mp.S_c, "A_crit": best["A_crit"]}, "mse": mse(Zb, Z0),
                                      "files": files, "n_channel": int(maskb.sum()), "picard": pmnl.last_picard}])

@@ -105,3 +105,25 @@ def test_width_tile_loader_metres(gm_env):
     t = wl("GM", 1)
     td = load_tile("GM1")
     assert np.array_equal(t.z, td.Z) and t.pixel_size == pytest.approx(td.dx)
+
+
+def test_nonlinear_joint_S_c_override_stop_rule_and_merge(gm_env):
+    from lemcvt.analyses.optimizer_v2 import merge_nonlinear_joint, run_nonlinear_joint
+
+    rec = run_tile_v2("GM1", stages=["partitioned"], acrit_grid="thin", thin_n=30, save_grids=False, derived_grids=False)
+    ref = refine_partitioned("GM1", rec.dir, max_extra=3, run_id="a8_nlj_src_refined", derived_grids=False)
+    parts = [run_nonlinear_joint("GM1", source_run=ref.dir, n_acrit=4, n_d=3, d_range=(1e-3, 5e-2), save_grids=False, split=(k, 2), S_c=0.5,
+                                 run_id=f"a8_nlj_part{k}") for k in range(2)]
+    for r in parts:
+        st = json.loads((r.dir / "params.json").read_text())["v2"]["nonlinear_joint"]["setup"]
+        assert st["S_c"] == 0.5 and st["S_c_override"] == 0.5
+    m = merge_nonlinear_joint("GM1", S_c=0.5, save_grids=False, run_id="a8_nlj_merged")
+    v = json.loads((m.dir / "params.json").read_text())["v2"]["nonlinear_joint"]
+    assert v["n_evaluations"] == 12 and 0.0 <= v["frac_hit_cap"] <= 1.0
+    assert json.loads((m.dir / "params.json").read_text())["forward_runs"][0]["params"]["S_c"] == 0.5
+    with pytest.raises(FileNotFoundError):
+        merge_nonlinear_joint("GM1", S_c=0.7, save_grids=False, run_id="a8_nlj_none")
+    stop = run_nonlinear_joint("GM1", source_run=ref.dir, n_acrit=4, n_d=3, d_range=(1e-3, 5e-2), save_grids=False, S_c=0.05, cap_stop_frac=-1.0,
+                               run_id="a8_nlj_stop")
+    vs = json.loads((stop.dir / "params.json").read_text())["v2"]["nonlinear_joint"]
+    assert vs["stopped_by_cap_rule"] is not None and vs["n_evaluations"] == 3

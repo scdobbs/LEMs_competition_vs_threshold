@@ -213,10 +213,11 @@ def tile_v2_refine(tile_id, source_run, max_extra, fill_interval, d0_variant, ru
 @click.option("--widen", default=3.0, show_default=True, help="Widen the linear joint 5 % interval by this factor on each side.")
 @click.option("--split", default=None, help="k/n: evaluate only every n-th A_crit value starting at k (parallel parts; merge with v2-nonlinear-joint-merge).")
 @click.option("--s-c", "s_c", default=None, type=float, help="addendum 8, 2.4: override the config S_c with the tile's fitted value.")
+@click.option("--cap-stop-frac", default=None, type=float, help="addendum 8, 2.4: stop when more than this fraction of evaluations hit the Picard cap.")
 @click.option("--crop", default=None)
 @click.option("--no-grids", is_flag=True)
 @click.option("--run-id", default=None)
-def tile_v2_nonlinear_joint(tile_id, source_run, k_factor, n_acrit, n_d, d_range, widen, split, s_c, crop, no_grids, run_id) -> None:
+def tile_v2_nonlinear_joint(tile_id, source_run, k_factor, n_acrit, n_d, d_range, widen, split, s_c, cap_stop_frac, crop, no_grids, run_id) -> None:
     """Addendum 5, 3.4: nonlinear MSE over (A_crit, D) at K fixed to the linear joint optimum (S_c = 1.27 or --s-c, Picard cap from the config)."""
     from lemcvt.analyses.optimizer_v2 import run_nonlinear_joint
 
@@ -226,20 +227,22 @@ def tile_v2_nonlinear_joint(tile_id, source_run, k_factor, n_acrit, n_d, d_range
         k_part, n_parts = (int(v) for v in split.split("/"))
         sp = (k_part, n_parts)
     rec = run_nonlinear_joint(tile_id, source_run=source_run, k_factor=k_factor, n_acrit=n_acrit, n_d=n_d, d_range=(lo, hi), widen=widen,
-                              save_grids=not no_grids, crop=_parse_crop(crop), run_id=run_id, split=sp, S_c=s_c)
+                              save_grids=not no_grids, crop=_parse_crop(crop), run_id=run_id, split=sp, S_c=s_c,
+                              cap_stop_frac=cap_stop_frac)
     click.echo(f"results: {rec.dir}")
 
 
 @tile.command("v2-nonlinear-joint-merge")
 @click.option("--tile", "tile_id", required=True)
 @click.option("--k-factor", default=1.0, show_default=True)
+@click.option("--s-c", "s_c", default=None, type=float, help="addendum 8, 2.4: merge the parts run at this S_c.")
 @click.option("--no-grids", is_flag=True)
 @click.option("--run-id", default=None)
-def tile_v2_nonlinear_joint_merge(tile_id, k_factor, no_grids, run_id) -> None:
+def tile_v2_nonlinear_joint_merge(tile_id, k_factor, s_c, no_grids, run_id) -> None:
     """Merge the split parts of a nonlinear joint profile into one run (optimum re-solved, contours, profiles)."""
     from lemcvt.analyses.optimizer_v2 import merge_nonlinear_joint
 
-    rec = merge_nonlinear_joint(tile_id, k_factor=k_factor, save_grids=not no_grids, run_id=run_id)
+    rec = merge_nonlinear_joint(tile_id, k_factor=k_factor, save_grids=not no_grids, run_id=run_id, S_c=s_c)
     click.echo(f"results: {rec.dir}")
 
 
