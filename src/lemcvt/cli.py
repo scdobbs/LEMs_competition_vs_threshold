@@ -843,7 +843,7 @@ def slurm_submit(step, tiles, labels, command_, stages, optimizer, m_range, unit
                  k_factor, d0_variant, time_, cpus, mem, dependency, job_name, dry_run, approved):
     from lemcvt.slurm import build_spec, estimate_text, render, submit
 
-    labels = _parse_tiles(tiles) if step != "custom" else ([s.strip() for s in labels.split(",")] if labels else ["all"])
+    labels = _parse_tiles(tiles) if step not in ("custom", "phase8_slope_threshold") else ([s.strip() for s in labels.split(",")] if labels else ["all"])
     if step == "custom":
         if not command_:
             raise click.BadParameter("custom step needs --command")
