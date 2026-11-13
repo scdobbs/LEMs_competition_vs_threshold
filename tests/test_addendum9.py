@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 
 from lemcvt.analyses.er_star import integrate_profile_R
+from lemcvt.analyses.nonlinear_fair import centre_form_R, strip_R_star
 from lemcvt.models import partitioned_nonlinear as pn
 from lemcvt.models.common import precompute_channel_network
 from lemcvt.models.nonlinear_newton import HillslopeSystem, assemble_flux_system, classify
@@ -126,38 +127,6 @@ def test_continuation_from_z_init(tile):
 
 # ----------------------------------------------------------------------------- the 1-D strip (2.2, test 2)
 
-def strip_profile(form: str, xi, L, U_, D, S_c):
-    """Steady 1-D profile with the channel (z = 0) at distance L from the crest, xi = distance from the crest."""
-    if form == "flux":
-        c = D * S_c / (2 * U_)                             # u = xi / c
-
-        def F(u):
-            return np.sqrt(1 + u * u) - np.log(1 + np.sqrt(1 + u * u))
-
-        return S_c * c * (F(L / c) - F(xi / c))
-    a = U_ / (D * S_c)
-    return (S_c / a) * (np.log(np.cosh(a * L)) - np.log(np.cosh(a * xi)))
-
-
-def strip_R_star(form: str, E: float, dx: float, L: float = 10.0, U_: float = 1e-4, S_c: float = 0.5, y_factor: float = 6.0):
-    """R* at the middle row of a ridge strip: channels (boundary, z = 0) on the two long edges at distance L from the
-    crest, the short edges Dirichlet with the analytic profile of the form, y_factor x the ridge width long."""
-    D = 2 * U_ * L / (E * S_c)
-    N = int(round(L / dx))
-    Nx, Ny = 2 * N + 1, int(round(y_factor * 2 * L / dx)) + 1
-    xi = np.abs(np.arange(Nx) * dx - L)
-    Z0 = np.zeros((Ny, Nx))
-    Z0[0, :] = Z0[-1, :] = strip_profile(form, xi, L, U_, D, S_c)
-    Z0[:, 0] = Z0[:, -1] = 0.0
-    A = np.ones((Ny, Nx))
-    A[0, 0] = 10.0                                         # the forced outlet sits on the boundary
-    FD = np.zeros((Ny, Nx), dtype=np.uint8)
-    f = pn.partitioned_threshold_model_nonlinear(Z0, A, FD, dx, 0.5, U_, 1.0)
-    Z, mask = f(1e12, D, S_c, solver="newton", form=form)
-    assert mask.sum() == 1
-    return float(Z[Ny // 2, N] / L / S_c), f.last_outcome
-
-
 @pytest.mark.parametrize("E", [1.0, 5.0, 20.0])
 def test_flux_strip_converges_to_roering_curve(E):
     ref = integrate_profile_R(E)
@@ -172,7 +141,7 @@ def test_flux_strip_converges_to_roering_curve(E):
 
 def test_centre_strip_converges_to_its_own_curve_not_roering():
     E = 5.0
-    ref_c = (2 / E) * np.log(np.cosh(E / 2))
+    ref_c = centre_form_R(E)
     errs = []
     for dx in (1.0, 0.5):
         R, out = strip_R_star("centre", E, dx)

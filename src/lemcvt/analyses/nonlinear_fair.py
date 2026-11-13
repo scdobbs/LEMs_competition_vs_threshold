@@ -49,8 +49,8 @@ WIDEN = 3.0
 D_GRID = (1e-3, 5e-2, 22)
 FORM = "flux"
 SC_LABELS = ("central", "p16", "p84")
-RULE3 = {"mse_ratio_max": 1.05, "D_ratio": (0.67, 1.5), "AP_bracket_widen": 1.5, "min_tiles": 4, "untested_not_converged_frac": 0.30}
-RULE4 = {"factor": 1.25, "min_tiles": 4}
+RULE3: dict[str, Any] = {"mse_ratio_max": 1.05, "D_ratio": (0.67, 1.5), "AP_bracket_widen": 1.5, "min_tiles": 4, "untested_not_converged_frac": 0.30}
+RULE4: dict[str, Any] = {"factor": 1.25, "min_tiles": 4}
 PILOT_TILES = ("AP1", "GM1")
 CROP = (300, 600, 300, 600)
 
@@ -216,8 +216,9 @@ def run_pilot(tile: str, part: str = "centre", run_id: str | None = None, result
         pic = df[df.solver == "picard"].set_index("D")
         nwc = df[df.solver == "newton"].set_index("D")
         pic_conv = [float(d) for d in pic.index[pic.converged.astype(bool)]]
-        out["test4"] = {"picard_converged_D": pic_conv, "newton_outcome_where_picard_converged": {str(d): nwc.loc[d, "outcome"] for d in pic_conv},
-                        "pass": bool(all(nwc.loc[d, "outcome"] == "converged" for d in pic_conv))}
+        nw_out = dict(zip(nwc.index.astype(float), nwc.outcome.astype(str), strict=True))
+        out["test4"] = {"picard_converged_D": pic_conv, "newton_outcome_where_picard_converged": {str(d): nw_out[d] for d in pic_conv},
+                        "pass": bool(all(nw_out[d] == "converged" for d in pic_conv))}
         test1 = []
         p6 = _phase6_nonlinear_joint_optimum(tile)
         if p6 is not None:
@@ -316,6 +317,113 @@ def run_slope_exceedance(tiles: Sequence[str], run_id: str | None = None, result
     return rec
 
 
+# ----------------------------------------------------------------------------- 2.2 tests 2 and 3, recorded
+
+def strip_profile(form: str, xi, L: float, U: float, D: float, S_c: float):
+    """Steady 1-D profile of each form with the channel (z = 0) at distance L from the crest; xi = distance from the crest.
+    flux: slope S_c (sqrt(1+u^2) - 1)/u with u = 2 U xi/(D S_c) (Roering et al. 2007); centre: slope S_c tanh(U xi/(D S_c))."""
+    if form == "flux":
+        c = D * S_c / (2 * U)
+
+        def F(u):
+            return np.sqrt(1 + u * u) - np.log(1 + np.sqrt(1 + u * u))
+
+        return S_c * c * (F(L / c) - F(xi / c))
+    a = U / (D * S_c)
+    return (S_c / a) * (np.log(np.cosh(a * L)) - np.log(np.cosh(a * xi)))
+
+
+def centre_form_R(E: float) -> float:
+    """R*(E*) of the v1 (centre) form in 1-D: (2/E*) ln cosh(E*/2)."""
+    return float((2.0 / E) * np.log(np.cosh(E / 2.0)))
+
+
+def strip_R_star(form: str, E: float, dx: float, L: float = 10.0, U: float = 1e-4, S_c: float = 0.5, y_factor: float = 6.0) -> tuple[float, dict[str, Any]]:
+    """R* at the middle row of a ridge strip solved by the 2-D model with Newton: channels (boundary, z = 0) on the two long
+    edges at distance L from the crest, the short edges Dirichlet with the analytic profile of the form, ``y_factor`` x the
+    ridge width long (so the middle row is 1-D)."""
+    D = 2 * U * L / (E * S_c)
+    N = int(round(L / dx))
+    Nx, Ny = 2 * N + 1, int(round(y_factor * 2 * L / dx)) + 1
+    xi = np.abs(np.arange(Nx) * dx - L)
+    Z0 = np.zeros((Ny, Nx))
+    Z0[0, :] = Z0[-1, :] = strip_profile(form, xi, L, U, D, S_c)
+    Z0[:, 0] = Z0[:, -1] = 0.0
+    A = np.ones((Ny, Nx))
+    A[0, 0] = 10.0                                         # the forced outlet sits on the boundary
+    FD = np.zeros((Ny, Nx), dtype=np.uint8)
+    f = partitioned_threshold_model_nonlinear(Z0, A, FD, dx, 0.5, U, 1.0)
+    Z, mask = f(1e12, D, S_c, solver="newton", form=form)
+    if mask.sum() != 1:
+        raise RuntimeError("strip: channel cells inside the strip")
+    return float(Z[Ny // 2, N] / L / S_c), dict(f.last_outcome) | {"n_cells": int(Nx * Ny), "D": D}
+
+
+def run_section2_tests(run_id: str | None = None, results_root_=None, dxs=(1.0, 0.5, 0.25), Es=(1.0, 5.0, 20.0)) -> RunRecorder:
+    """2.2 tests 2 and 3 with their numbers recorded (the fast test suite asserts the same on coarser grids)."""
+    from lemcvt.analyses.er_star import integrate_profile_R
+    from lemcvt.models.common import precompute_channel_network
+    from lemcvt.models.nonlinear_newton import HillslopeSystem
+
+    rec = RunRecorder("a9_section2_tests", "strip_jacobian", run_id=run_id, root=results_root_)
+    rows = []
+    for form in ("flux", "centre"):
+        for E in Es:
+            ref_r, ref_c = integrate_profile_R(E), centre_form_R(E)
+            for dx in dxs:
+                t = time.perf_counter()
+                R, o = strip_R_star(form, E, dx)
+                rows.append({"form": form, "E_star": E, "dx": dx, "R_star": R, "R_roering": ref_r, "R_centre_form": ref_c,
+                             "rel_err_vs_roering": (R - ref_r) / ref_r, "rel_err_vs_centre_form": (R - ref_c) / ref_c,
+                             "outcome": o["outcome"], "frac_clipped": o["frac_clipped"], "n_iter": o["n_iter"], "n_cells": o["n_cells"], "wall_s": time.perf_counter() - t})
+                logger.info("strip %s E* %g dx %g: R* %.6f (Roering %.6f, centre-form curve %.6f) %s", form, E, dx, R, ref_r, ref_c, o["outcome"])
+    rec.write_table(pd.DataFrame(rows), "strip")
+    # test 3 on a synthetic tile (as tests/test_addendum9.py), several finite-difference steps
+    import sys as _sys
+
+    from lemcvt.config import REPO_ROOT
+    _sys.path.insert(0, str(REPO_ROOT / "tests"))
+    from synthetic_tile import hydro_from_padded, synthetic_dem
+
+    z = synthetic_dem(40, 40, 1.0, seed=3)
+    zf, fd, area = hydro_from_padded(z, 1.0)
+    U_, K_, M_ = 1e-4, 2e-4, 0.4
+    A_crit, D, S_c = 200.0, 5e-3, 3.0
+    f = partitioned_threshold_model_nonlinear(zf, area, fd, 1.0, M_, U_, K_)
+    jac = []
+    for form in ("centre", "flux"):
+        f(A_crit, D, S_c, 200, 1e-12, form=form)
+        gd = f.grid_data
+        Zc, _d, k_out, bci, bcv = precompute_channel_network(gd, M_, U_, K_)
+        cm = gd["A_flat"] >= A_crit
+        cm[k_out] = True
+        hm = ~cm
+        hm[bci] = False
+        hs = np.where(hm)[0]
+        h2r = np.full(gd["n"], -1)
+        h2r[hs] = np.arange(hs.size)
+        sysm = HillslopeSystem(form, gd, hs, h2r, hm, D, S_c, Zc, cm, bcv, U_, f.compute_slopes)
+        zz = f.last_z_flat.copy() + np.where(hm, np.random.RandomState(0).normal(0, 0.05, hm.size), 0.0)
+        st = sysm.state(zz)
+        J = sysm.jacobian(zz, st).toarray()
+        big = np.abs(J) > 1e-3 * np.abs(J).max()
+        for h in (1e-4, 1e-5, 1e-6):
+            Jfd = np.zeros_like(J)
+            for k, c in enumerate(hs):
+                zp, zm = zz.copy(), zz.copy()
+                zp[c] += h
+                zm[c] -= h
+                Jfd[:, k] = (sysm.state(zp)["F"] - sysm.state(zm)["F"]) / (2 * h)
+            e = np.abs(J - Jfd)
+            jac.append({"form": form, "h": h, "n_unknowns": int(hs.size), "max_slope_ratio": float(np.max(st["slopes"]) / S_c),
+                        "max_err_over_max_J": float(e.max() / np.abs(J).max()), "max_entrywise_rel_err_above_1e-3": float(np.max(e[big] / np.abs(J)[big]))})
+    rec.write_table(pd.DataFrame(jac), "jacobian")
+    rec.add_params("strip", rows)
+    rec.add_params("jacobian", jac)
+    rec.finalize({"dxs": list(dxs), "Es": list(Es)})
+    return rec
+
+
 # ----------------------------------------------------------------------------- 3.1 the profile, in parts
 
 def run_fair_part(tile: str, sc_label: str, split: tuple[int, int] | None = None, form: str = FORM, run_id: str | None = None,
@@ -400,7 +508,7 @@ def merge_fair(tile: str, sc_label: str, form: str = FORM, run_id: str | None = 
                            "linear_joint": lin, "parts": {str(k): group[k][0].name for k in range(n)}, "D0": s0["D0"], "D0_B": s0["D0_B"]}
     out["untested"] = bool(out["frac_not_converged"] > RULE3["untested_not_converged_frac"])
     if len(conv):
-        b = conv.loc[conv.mse.idxmin()].to_dict()
+        b = conv.iloc[int(np.argmin(conv.mse.to_numpy()))].to_dict()
         out["optimum"] = b
         out["mse_ratio_to_linear_joint"] = float(b["mse"] / float(lin["mse"]))
         out["D_over_D0_A"] = float(b["D"] / s0["D0"])

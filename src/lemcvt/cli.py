@@ -659,6 +659,16 @@ def a9_pilot(tile_id, part, run_id) -> None:
     click.echo(f"results: {rec.dir}")
 
 
+@a9.command("section2-tests")
+@click.option("--run-id", default=None)
+def a9_section2_tests(run_id) -> None:
+    """2.2 tests 2 and 3 with their numbers recorded: the 1-D strip at E* = 1, 5, 20 and dx = 1, 0.5, 0.25 m, both forms; the Jacobian check."""
+    from lemcvt.analyses.nonlinear_fair import run_section2_tests
+
+    rec = run_section2_tests(run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
 @a9.command("pilot-summary")
 @click.option("--tiles", default="AP1,GM1", show_default=True)
 @click.option("--run-id", default=None)
