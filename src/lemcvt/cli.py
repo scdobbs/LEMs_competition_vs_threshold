@@ -588,6 +588,19 @@ def phase7_heads(tiles, lsdtt, run_id) -> None:
     click.echo(f"results: {rec.dir}")
 
 
+@phase7.command("heads-analyse")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--heads-run", default="20261113T022845Z_heads_10tiles", show_default=True, help="Extract-phase run holding heads_extracted.csv.")
+@click.option("--n-boot", default=None, type=int, help="Bootstrap resamples (default: heads ANALYSIS config, 2000).")
+@click.option("--run-id", default=None)
+def phase7_heads_analyse(tiles, heads_run, n_boot, run_id) -> None:
+    """Addendum 10, 4: Test 2 analyse phase (directive sections 5-8) on the accepted head sets."""
+    from lemcvt.analyses.heads.analyse import run_heads_analyse
+
+    rec = run_heads_analyse(_parse_tiles(tiles), heads_run=heads_run, n_boot=n_boot, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
 @phase7.command("port-check")
 @click.option("--run-id", default=None)
 def phase7_port_check(run_id) -> None:
