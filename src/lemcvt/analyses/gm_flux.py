@@ -136,7 +136,8 @@ def _group_counts(group: str, tile: str, sc_label: str) -> dict[str, int]:
 
 def run_flux_part(tile: str, sc_label: str, split: tuple[int, int] | None = None, rows: Sequence[int] | str | None = None,
                   n_acrit: int = N_ACRIT, group: str | None = None, run_id: str | None = None, results_root_=None,
-                  crop: tuple[int, int, int, int] | None = None, d_values: np.ndarray | None = None) -> RunRecorder:
+                  crop: tuple[int, int, int, int] | None = None, d_values: np.ndarray | None = None,
+                  resume_of: tuple[int, int] | None = None) -> RunRecorder:
     """One part of the (A_crit, D) profile at one S_c: the ``split`` k-th of n interleaved subsets of the A_crit grid, or the
     grid indices ``rows`` (``"pilot"``: the row nearest the linear joint A_crit). Newton on the flux form with continuation in D, largest D first."""
     st = tile_setup(tile, crop=crop)
@@ -152,13 +153,14 @@ def run_flux_part(tile: str, sc_label: str, split: tuple[int, int] | None = None
         idx = idx[split[0]::split[1]]
     grid_a = grid_full[idx]
     Dg = np.sort(d_grid() if d_values is None else np.asarray(d_values, float))[::-1]
-    label = f"{tile}_{sc_label}" + (f"_split{split[0]}of{split[1]}" if split else "") + ("_rows" + "-".join(map(str, idx)) if rows is not None else "")
+    label = (f"{tile}_{sc_label}" + (f"_split{split[0]}of{split[1]}" if split else "") + ("_rows" + "-".join(map(str, idx)) if rows is not None else "")
+             + (f"_resume{resume_of[0]}of{resume_of[1]}" if resume_of else ""))
     rec = RunRecorder("a10_flux", label, run_id=run_id, root=results_root_)
     grp = group or rec.dir.name
     setup = {"tile": tile, "sc_label": sc_label, "S_c": S_c, "form": FORM, "solver": "newton", "K": K, "source_run": st["source_run"],
              "linear_joint_optimum": st["linear_joint"], "linear_joint_interval_5pct": st["interval_5pct"], "widen": WIDEN, "n_acrit": n_acrit,
              "A_crit_grid_full": [float(a) for a in grid_full], "A_crit_rows": idx, "A_crit_grid": [float(a) for a in grid_a],
-             "D_grid": [float(d) for d in Dg], "split": list(split) if split else None, "group": grp, "crop": crop, "m": mp.m, "U": mp.U,
+             "D_grid": [float(d) for d in Dg], "split": list(split) if split else None, "resume_of": list(resume_of) if resume_of else None, "group": grp, "crop": crop, "m": mp.m, "U": mp.U,
              "D0": mp.D0, "D0_B": mp.D0_B, "clip_rule": {"clip": CLIP, "frac": CLIP_FRAC, "exclude": "hillslope cells 4-adjacent to a channel or boundary cell"},
              "stop_rule": {"not_converged_frac": STOP_NOT_CONVERGED_FRAC, "scope": "tile and S_c, all parts of the group"}}
     rec.add_params("setup", setup)
@@ -166,7 +168,7 @@ def run_flux_part(tile: str, sc_label: str, split: tuple[int, int] | None = None
     out_rows: list[dict[str, Any]] = []
     best: dict[str, Any] | None = None
     stopped: dict[str, Any] | None = None
-    gfile = _group_dir(grp) / f"{tile}_{sc_label}_part{split[0] if split else 0}.parquet"
+    gfile = _group_dir(grp) / (f"{tile}_{sc_label}_part{resume_of[0]}_resume.parquet" if resume_of else f"{tile}_{sc_label}_part{split[0] if split else 0}.parquet")
     t0 = time.perf_counter()
     for k, a_c in zip(idx, grid_a, strict=True):
         z_init = None
@@ -206,6 +208,30 @@ def run_flux_part(tile: str, sc_label: str, split: tuple[int, int] | None = None
     rec.add_params("wall_s", time.perf_counter() - t0)
     rec.finalize(config_snapshot(td.cfg, {"crop": crop, "sc_label": sc_label, "form": FORM, "split": split, "rows": idx, "group": grp}))
     return rec
+
+
+def resume_part(tile: str, sc_label: str, split: tuple[int, int], group: str, n_acrit: int = N_ACRIT) -> RunRecorder | None:
+    """Run the A_crit rows of part ``split`` that its (time-limited) run did not complete; nothing if it completed or if the
+    2.2.4 stop rule ended it. A row counts as done when all its D values are in the part's saved rows."""
+    runs = [(r, p) for r, p in _parts(tile, sc_label, group) if p["setup"]["split"] == list(split)]
+    if not runs:                     # the part finished no A_crit row before its time limit (no params.json yet)
+        rows_all = list(range(n_acrit))[split[0]::split[1]]
+        logger.info("%s %s part %s: no completed row in group %s; running all its rows %s", tile, sc_label, split, group, rows_all)
+        return run_flux_part(tile, sc_label, rows=rows_all, n_acrit=n_acrit, group=group, resume_of=split)
+    r, p = runs[-1]
+    if p.get("stopped"):
+        logger.info("%s %s part %s: ended by the stop rule; not resumed", tile, sc_label, split)
+        return None
+    f_ = r / "flux_rows.parquet" if (r / "flux_rows.parquet").exists() else r / "partial_rows.parquet"
+    done = pd.read_parquet(f_) if f_.exists() else pd.DataFrame(columns=["A_crit_index"])
+    n_d = len(p["setup"]["D_grid"])
+    counts = done.groupby("A_crit_index").size() if len(done) else pd.Series(dtype=int)
+    missing = [k for k in p["setup"]["A_crit_rows"] if int(counts.get(k, 0)) < n_d]
+    if not missing:
+        logger.info("%s %s part %s: complete (%s); nothing to resume", tile, sc_label, split, r.name)
+        return None
+    logger.info("%s %s part %s: resuming rows %s of %s", tile, sc_label, split, missing, r.name)
+    return run_flux_part(tile, sc_label, rows=missing, n_acrit=n_acrit, group=group, resume_of=split)
 
 
 # ----------------------------------------------------------------------------- 2.2 pilot and estimate
@@ -265,14 +291,33 @@ def estimate(pilot_runs: Sequence[str] | None = None, n_acrit: int = N_ACRIT, fa
 
 # ----------------------------------------------------------------------------- merge, summary, the rule
 
+def _flux_dirs() -> list[Path]:
+    """Every a10_flux part directory with a params.json, newest last, including parts that hit their time limit (those have
+    no run.json, so :func:`find_runs` does not list them)."""
+    return [d for d in sorted(results_root().glob("*_a10_flux_GM*")) if (d / "params.json").exists()]
+
+
 def _parts(tile: str, sc_label: str, group: str | None = None) -> list[tuple[Path, dict[str, Any]]]:
     out = []
-    for r in find_runs("a10_flux"):
+    for r in _flux_dirs():
         if not (r / "params.json").exists():
             continue
         p = json.loads((r / "params.json").read_text())
         s = p["setup"]
-        if s["tile"] == tile and s["sc_label"] == sc_label and not s.get("crop") and s.get("split") and (group is None or s.get("group") == group):
+        if (s["tile"] == tile and s["sc_label"] == sc_label and not s.get("crop") and s.get("split") and not s.get("resume_of")
+                and (group is None or s.get("group") == group)):
+            out.append((r, p))
+    return out
+
+
+def _resume_parts(tile: str, sc_label: str, group: str | None = None) -> list[tuple[Path, dict[str, Any]]]:
+    out = []
+    for r in _flux_dirs():
+        if not (r / "params.json").exists():
+            continue
+        p = json.loads((r / "params.json").read_text())
+        s = p["setup"]
+        if s["tile"] == tile and s["sc_label"] == sc_label and s.get("resume_of") and (group is None or s.get("group") == group):
             out.append((r, p))
     return out
 
@@ -297,7 +342,18 @@ def merge_flux(tile: str, sc_label: str, group: str | None = None, run_id: str |
         else:                                              # the part stopped (time limit) after its last complete row
             frames.append(pd.read_parquet(d / "partial_rows.parquet"))
             partial.append(d.name)
-    df = pd.concat(frames, ignore_index=True).sort_values(["A_crit", "D"]).reset_index(drop=True)
+    resumed = []
+    for r_, p_ in _resume_parts(tile, sc_label, group):
+        if p_["setup"]["resume_of"][1] != n:
+            continue
+        f_ = r_ / "flux_rows.parquet" if (r_ / "flux_rows.parquet").exists() else r_ / "partial_rows.parquet"
+        if f_.exists():
+            frames.append(pd.read_parquet(f_))
+            resumed.append(r_.name)
+            if not (r_ / "flux_rows.parquet").exists():
+                partial.append(r_.name)
+    df = (pd.concat(frames, ignore_index=True).drop_duplicates(subset=["A_crit", "D"], keep="last")
+          .sort_values(["A_crit", "D"]).reset_index(drop=True))
     s0 = grp[0][1]["setup"]
     rec = RunRecorder("a10_flux_merged", f"{tile}_{sc_label}", run_id=run_id, root=results_root_)
     rec.write_table(df, "flux_rows")
@@ -308,7 +364,7 @@ def merge_flux(tile: str, sc_label: str, group: str | None = None, run_id: str |
                            "counts": {k: int((df.outcome == k).sum()) for k in cls},
                            "counts_a9_rule": {k: int((df.outcome_a9 == k).sum()) for k in cls},
                            "linear_joint": s0["linear_joint_optimum"], "parts": {str(k): grp[k][0].name for k in range(n)},
-                           "stopped": {str(k): grp[k][1].get("stopped") for k in range(n)}, "parts_incomplete": partial, "D0": s0["D0"], "D0_B": s0["D0_B"]}
+                           "stopped": {str(k): grp[k][1].get("stopped") for k in range(n)}, "parts_incomplete": partial, "resume_parts": resumed, "D0": s0["D0"], "D0_B": s0["D0_B"]}
     out["frac_not_converged"] = float(out["counts"]["not_converged"] / n_tot) if n_tot else float("nan")
     out["stop_rule_applied"] = bool(any(v for v in out["stopped"].values()))
     conv = df[df.outcome == "converged"]
@@ -321,7 +377,8 @@ def merge_flux(tile: str, sc_label: str, group: str | None = None, run_id: str |
         ga, gd_ = np.array(s0["A_crit_grid_full"]), np.array(s0["D_grid"])
         out["on_grid_edge"] = {"A_crit": bool(np.isclose(b["A_crit"], ga[[0, -1]]).any()), "D": bool(np.isclose(b["D"], gd_[[0, -1]]).any())}
         if save_grid:
-            src = [grp[k][0] for k in range(n) if grp[k][1].get("best_converged") and np.isclose(grp[k][1]["best_converged"]["mse"], b["mse"])]
+            cands = [grp[k] for k in range(n)] + [(r_, json.loads((r_ / "params.json").read_text())) for r_ in (results_root() / x for x in resumed)]
+            src = [r_ for r_, p_ in cands if p_.get("best_converged") and np.isclose(p_["best_converged"]["mse"], b["mse"])]
             if src and (src[0] / "best_surface.npy").exists():
                 td = load_tile(tile)
                 Zb = np.load(src[0] / "best_surface.npy")

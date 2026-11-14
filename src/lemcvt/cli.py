@@ -780,6 +780,21 @@ def a10_flux_part(tile_id, sc_label, split, pilot, n_acrit, group, crop, run_id)
     click.echo(f"results: {rec.dir}")
 
 
+@a10.command("flux-resume")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--sc", "sc_label", required=True, type=click.Choice(["1.25", "0.9", "central", "p84"]))
+@click.option("--split", required=True, help="k/n: the part whose unfinished A_crit rows are run")
+@click.option("--group", required=True)
+@click.option("--n-acrit", default=12, show_default=True)
+def a10_flux_resume(tile_id, sc_label, split, group, n_acrit) -> None:
+    """The A_crit rows a part did not complete (time limit); nothing if it completed or the stop rule ended it."""
+    from lemcvt.analyses.gm_flux import resume_part
+
+    sp = tuple(int(x) for x in split.split("/"))
+    rec = resume_part(tile_id, sc_label, sp, group, n_acrit=n_acrit)  # type: ignore[arg-type]
+    click.echo(f"results: {rec.dir}" if rec is not None else "nothing to resume")
+
+
 @a10.command("flux-estimate")
 @click.option("--n-acrit", default=12, show_default=True)
 @click.option("--run-id", default=None)
