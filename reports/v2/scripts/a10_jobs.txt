@@ -8,4 +8,11 @@
 52235316 section 2 S_c p84 (GM1, GM2, GM4, GM5, 2 parts each)
 52235318 section 2 S_c central (GM3, 2 parts)
 52235319 section 2 S_c p84 (GM3, 2 parts)
-52235327 section 2 merge, summary; section 3 morphology with the section 2 surfaces
+52235327 post-processing (cancelled before it started; replaced by 52249206 after the resume arrays)
+52249130 resume S_c 1.25
+52249139 resume S_c 0.9
+52249179 resume central GM1245
+52249185 resume p84 GM1245
+52249190 resume central GM3
+52249195 resume p84 GM3
+52249206 section 2 merge, summary; section 3 morphology with the section 2 surfaces
