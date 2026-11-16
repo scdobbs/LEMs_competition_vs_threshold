@@ -125,11 +125,29 @@ def _ad_gradient_direct(ad, U, K, D, Z0, rel_step=1e-6) -> dict[str, float]:
 
 # ----------------------------------------------------------------------------- driver
 
+OVERRIDABLE = ("m", "K0_ad", "K0_partitioned")
+
+
+def apply_model_override(mp, override: dict[str, float] | None):
+    """A copy of ``mp`` with the parameters in ``override`` replaced (addendum 12: the per-tile m and K0(m))."""
+    if not override:
+        return mp
+    import dataclasses
+
+    bad = set(override) - set(OVERRIDABLE)
+    if bad:
+        raise ValueError(f"model_override: only {OVERRIDABLE} can be overridden, got {sorted(bad)}")
+    return dataclasses.replace(mp, **{k: float(v) for k, v in override.items()})
+
+
 def run_tile_v2(tile: str, stages: Sequence[str] = STAGES_V2, acrit_grid: str = "thin", thin_n: int = THIN_N,
                 nl_n: int = NL_GRID_N, nl_refine_max: int = NL_REFINE_MAX, m_values=M_GRID, m_acrit_n: int = M_ACRIT_N,
                 save_grids: bool = True, derived_grids: bool = False, crop: tuple[int, int, int, int] | None = None,
                 run_id: str | None = None, results_root=None, reproduce_v1_units: bool | None = None,
-                d0_variant: str = "A") -> RunRecorder:
+                d0_variant: str = "A", model_override: dict[str, float] | None = None, step: str = "tile_run") -> RunRecorder:
+    """``model_override`` (addendum 12, 1.2): replace model parameters (``m``, ``K0_ad``, ``K0_partitioned``) after the D0
+    variant is applied; the override is recorded under ``model_override``. ``step`` names the run's step, so runs at
+    another m (step ``a12_mt``) are never selected as the Phase 6 ``tile_run`` runs."""
     stages = tuple(s for s in STAGES_V2 if s in set(stages) | ({"partitioned"} if {"acrit", "joint"} & set(stages) else set()))
     if not stages:
         raise ValueError(f"no valid stage in {stages}; choose from {STAGES_V2} (acrit/joint -> partitioned)")
@@ -137,13 +155,16 @@ def run_tile_v2(tile: str, stages: Sequence[str] = STAGES_V2, acrit_grid: str = 
     from lemcvt.config import apply_d0_variant
 
     mp = apply_d0_variant(td.cfg.model, d0_variant)       # addendum 6, 1.1: D0_B runs for the AP bracket
+    mp = apply_model_override(mp, model_override)
     Z0, A, FD, dx, U = td.Z, td.A, td.FD, td.dx, mp.U
     ref = td.cfg.v1_reference.get("stages", {})
     if run_id is None:
         from lemcvt.results import new_run_id
 
-        run_id = new_run_id("tile_run", f"{tile}_v2_{'-'.join(stages)}" + ("_D0B" if mp.d0_variant == "B" else ""))
-    rec = RunRecorder("tile_run", tile, run_id=run_id, root=results_root)
+        run_id = new_run_id(step, f"{tile}_v2_{'-'.join(stages)}" + ("_D0B" if mp.d0_variant == "B" else ""))
+    rec = RunRecorder(step, tile, run_id=run_id, root=results_root)
+    if model_override:
+        rec.add_params("model_override", dict(model_override))
     rec.add_params("tile", tile)
     rec.add_params("optimizer", "v2")
     rec.add_params("stages", list(stages))
@@ -366,7 +387,8 @@ def run_tile_v2(tile: str, stages: Sequence[str] = STAGES_V2, acrit_grid: str = 
 
 
 def refine_partitioned(tile: str, source_run: str | Path, max_extra: int = 400, run_id: str | None = None,
-                       results_root=None, fill_interval: float | None = None, derived_grids: bool = True) -> RunRecorder:
+                       results_root=None, fill_interval: float | None = None, derived_grids: bool = True,
+                       step: str = "tile_run") -> RunRecorder:
     """Staircase refinement of a thinned partitioned profile (addendum 3, 5.1 budget rule follow-up).
 
     The thinned grid samples one unique drainage area in about 20; the staircase can have its minimum at a
@@ -386,14 +408,15 @@ def refine_partitioned(tile: str, source_run: str | Path, max_extra: int = 400, 
     from lemcvt.config import apply_d0_variant
 
     mp = apply_d0_variant(td.cfg.model, p0.get("model", {}).get("d0_variant", "A"))
+    mp = apply_model_override(mp, p0.get("model_override"))     # addendum 12: refine at the source run's m and K0
     Z0, A, FD, dx, U = td.Z, td.A, td.FD, td.dx, mp.U
     ref = td.cfg.v1_reference.get("stages", {})
     if run_id is None:
         from lemcvt.results import new_run_id
 
-        run_id = new_run_id("tile_run", f"{tile}_v2_partitioned-refined" + ("_D0B" if mp.d0_variant == "B" else ""))
-    rec = RunRecorder("tile_run", tile, run_id=run_id, root=results_root)
-    for k in ("tile", "optimizer", "inputs", "model", "v1_reference"):
+        run_id = new_run_id(step, f"{tile}_v2_partitioned-refined" + ("_D0B" if mp.d0_variant == "B" else ""))
+    rec = RunRecorder(step, tile, run_id=run_id, root=results_root)
+    for k in ("tile", "optimizer", "inputs", "model", "v1_reference") + (("model_override",) if p0.get("model_override") else ()):
         rec.add_params(k, p0[k])
     rec.add_params("stages", ["partitioned"])
     rec.add_params("refined_from", src.name)
