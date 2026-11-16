@@ -76,7 +76,7 @@ def flux(out_dir: Path) -> list[Path]:
                             "mse_ratio": m.get("mse_ratio_to_linear_joint"), "D0": d0, "D_over_D0": m.get("D_over_D0_A"), "run": r.name, "model_form": FLUX_FORM})
     fig.suptitle("Addendum 10, section 2: GM flux-form nonlinear profile over (A_crit, D), K at the linear joint optimum "
                  "(white line: MSE = 1.05 x linear joint; orange band: D/D0 0.67-1.5; dotted: linear joint A_crit)", fontsize=10)
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0, 1, 0.975))
     out = out_dir / "a10_flux.png"
     rows = pd.concat(cap_rows, ignore_index=True) if cap_rows else pd.DataFrame()
     return savefig_with_caption(fig, out, {"rows": rows, "optima": cap_opt})

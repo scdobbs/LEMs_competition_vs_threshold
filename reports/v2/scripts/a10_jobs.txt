@@ -16,3 +16,13 @@
 52249190 resume central GM3
 52249195 resume p84 GM3
 52249206 section 2 merge, summary; section 3 morphology with the section 2 surfaces
+52529516 section 5.3 final build (record, figures, tables, copy to results/v2.0.0)
+52232464 section 5.1 CI reproduction environments (solve failed on the matplotlib pin)
+52232850 section 5.1 CI reproduction environments and run of 92c4c30
+52233982 section 5.1 CI reproduction (92c4c30 and the working tree)
+52235204 section 5.1 CI fix verified (ci311, ci312, project env)
+52232865 section 4 Test 2 analyse, smoke test (AP5, GM3)
+52233602 section 4 Test 2 analyse (superseded by 52234538)
+52234538 section 4 Test 2 analyse, final
+52233124 section 5.3 figures all (build preparation)
+52233127 section 5.3 tables all (build preparation)
