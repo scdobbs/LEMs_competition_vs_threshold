@@ -61,6 +61,7 @@ THIN_N = 2000
 HOLDOUT_A_C = 1e3
 FILL_LEVEL = 0.01
 FILL_MAX = 1500
+REFINE_MAX = 1000
 AD_N_GRID = 200
 AUDIT_RUN = "20261110T160633Z_measure_audit_10tiles"      # addendum 4, 6.4 ladder rerun (theta grid 0.00-0.90)
 RULES = {
@@ -234,7 +235,7 @@ def _results_dir(name: str) -> Path:
 # ============================================================================= section 2, partitioned
 
 def run_equal_part(tile: str, thin_n: int = THIN_N, fill_level: float = FILL_LEVEL, fill_max: int = FILL_MAX,
-                   run_id: str | None = None, results_root=None, crop=None) -> RunRecorder:
+                   refine_max: int = REFINE_MAX, run_id: str | None = None, results_root=None, crop=None) -> RunRecorder:
     td = load_tile(tile, crop=crop, sanity=crop is None)
     mp = apply_d0_variant(td.cfg.model, "A")
     Z0, A, FD, dx, dy, U = td.Z, td.A, td.FD, td.dx, td.filled.dy, mp.U
@@ -293,9 +294,13 @@ def run_equal_part(tile: str, thin_n: int = THIN_N, fill_level: float = FILL_LEV
         lo_a, hi_a = gs[max(j - 1, 0)], gs[min(j + 1, gs.size - 1)]
         extra |= set(ua[(ua > lo_a) & (ua < hi_a)].tolist())
     extra -= done
-    for a_c in sorted(extra):
+    extra_a = np.array(sorted(extra))
+    n_extra_targets = int(extra_a.size)
+    if extra_a.size > refine_max:
+        extra_a = thin_log_uniform(extra_a, refine_max)
+    for a_c in extra_a:
         _eval(a_c, "refine")
-    logger.info("%s equal-part staircase refinement: %d values [%.0f s]", tile, len(extra), time.perf_counter() - t0)
+    logger.info("%s equal-part staircase refinement: %d of %d values [%.0f s]", tile, extra_a.size, n_extra_targets, time.perf_counter() - t0)
     # fill every variant's fill_level interval (capped)
     targets: set[float] = set()
     fill_info: dict[str, Any] = {"level": fill_level, "max": fill_max, "intervals": {}}
@@ -322,11 +327,12 @@ def run_equal_part(tile: str, thin_n: int = THIN_N, fill_level: float = FILL_LEV
     recs = cast(list[dict[str, Any]], df.to_dict("records"))
     result = summarize_part_rows(recs, tile, mp, U, K0, D0A, D0B, lo, hi, grid_only=[r for r in recs if r["kind"] == "grid"])
     result["fill"] = fill_info
-    result["n_staircase"] = len(extra)
+    result["staircase"] = {"n_targets": n_extra_targets, "n_evaluated": int(extra_a.size), "max": refine_max,
+                           "capped": bool(n_extra_targets > refine_max)}
     result["n_evaluations"] = len(recs)
     rec.add_params("result", result)
     rec.add_params("wall_s", time.perf_counter() - t0)
-    rec.finalize(config_snapshot(td.cfg, {"crop": crop, "thin_n": thin_n, "fill_level": fill_level, "fill_max": fill_max}))
+    rec.finalize(config_snapshot(td.cfg, {"crop": crop, "thin_n": thin_n, "fill_level": fill_level, "fill_max": fill_max, "refine_max": refine_max}))
     return rec
 
 

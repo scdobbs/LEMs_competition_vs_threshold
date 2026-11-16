@@ -1127,13 +1127,15 @@ def a12() -> None:
 @click.option("--thin-n", default=2000, show_default=True)
 @click.option("--fill-level", default=0.01, show_default=True, help="Fill every unique area inside this relative interval of each variant's minimum.")
 @click.option("--fill-max", default=1500, show_default=True)
+@click.option("--refine-max", default=1000, show_default=True, help="Cap on the staircase values around the variants' minima (log-thinned).")
 @click.option("--crop", default=None)
 @click.option("--run-id", default=None)
-def a12_equal_part(tile_id, thin_n, fill_level, fill_max, crop, run_id) -> None:
+def a12_equal_part(tile_id, thin_n, fill_level, fill_max, refine_max, crop, run_id) -> None:
     """2: partitioned variants P1-P4 in-sample and held-out (P4, P2) on the greedy basin halves, at the site m."""
     from lemcvt.analyses.sensitivity import run_equal_part
 
-    rec = run_equal_part(tile_id, thin_n=thin_n, fill_level=fill_level, fill_max=fill_max, crop=_parse_crop(crop), run_id=run_id)
+    rec = run_equal_part(tile_id, thin_n=thin_n, fill_level=fill_level, fill_max=fill_max, refine_max=refine_max, crop=_parse_crop(crop),
+                         run_id=run_id)
     click.echo(f"results: {rec.dir}")
 
 
