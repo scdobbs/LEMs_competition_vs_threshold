@@ -1,7 +1,7 @@
 #!/bin/bash
 # Addendum 10, 5.3: the final build from results only, and its copy to group storage.
 set -eu
-lemcvt -v phase6 record
+lemcvt -v phase6 record --seam-verdict "negligible by the addendum 6 rule"
 lemcvt -v figures all
 lemcvt -v tables all
 python - <<'PY'

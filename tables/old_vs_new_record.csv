@@ -13,8 +13,8 @@ AP1,joint A_crit,6414.3,6888.5671398460445,1.0739390330739198,m; vertical units;
 AP1,joint K,1.334610191666667e-06,3.995151255538226e-06,2.9934967382116753,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer,1/yr (x c),1/yr,
 AP1,joint D,0.017651211416666666,0.0169897748740282,0.9625274137267472,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer,m^2/yr (x c),m^2/yr,
 AP1,joint MSE,20.998029092832375,22.384355389358007,1.0660217342492802,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer,m^2 (x 1/c^2),m^2,
-AP1,nonlinear A_crit,4950.3,824.2323640969532,0.1665014977065942,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2,m^2,
-AP1,nonlinear MSE,18.84638607986893,217.7741225214694,11.555219212774608,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2 (x 1/c^2),m^2,
+AP1,nonlinear A_crit,4950.3,824.2323640969532,0.1665014977065942,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2,m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
+AP1,nonlinear MSE,18.84638607986893,217.7741225214694,11.555219212774608,m; vertical units; AP1 seam (negligible by the addendum 6 rule); optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2 (x 1/c^2),m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
 AP2,theta / m,0.592,0.47,0.7939189189189189,measurement; m,,,v1 per-tile theta; v2 site constant
 AP2,k_s,190.918,11.583555564793087,0.06067293584048171,measurement; m; vertical units,ft-based,m^(2 m),not comparable across theta; v1 AP in feet
 AP2,C_ht,0.01944,0.01709024456898894,0.8791278070467562,measurement; vertical units; AP D0 bracket,1/ft,1/m,
@@ -29,8 +29,8 @@ AP2,joint A_crit,7645.6,3121.0551918457913,0.4082158616519032,m; vertical units;
 AP2,joint K,1.1506538666666668e-06,4.596784510453289e-06,3.9949324845791643,m; vertical units; optimizer,1/yr (x c),1/yr,
 AP2,joint D,0.023247000750000003,0.016796065988535246,0.7225046434661143,m; vertical units; optimizer,m^2/yr (x c),m^2/yr,
 AP2,joint MSE,21.69294661169967,22.46082883708459,1.0353977833961374,m; vertical units; optimizer,m^2 (x 1/c^2),m^2,
-AP2,nonlinear A_crit,6165.9,681.6316090628816,0.11054859940363639,m; vertical units; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2,m^2,
-AP2,nonlinear MSE,58.558878408079394,197.68384966542553,3.3758134554392525,m; vertical units; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2 (x 1/c^2),m^2,
+AP2,nonlinear A_crit,6165.9,681.6316090628816,0.11054859940363639,m; vertical units; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2,m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
+AP2,nonlinear MSE,58.558878408079394,197.68384966542553,3.3758134554392525,m; vertical units; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2 (x 1/c^2),m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
 AP3,theta / m,0.542,0.47,0.8671586715867158,measurement; m,,,v1 per-tile theta; v2 site constant
 AP3,k_s,111.454,11.530332024337556,0.1034537300082326,measurement; m; vertical units,ft-based,m^(2 m),not comparable across theta; v1 AP in feet
 AP3,C_ht,0.0206,0.025526326262673513,1.239142051586093,measurement; vertical units; AP D0 bracket,1/ft,1/m,
@@ -45,8 +45,8 @@ AP3,joint A_crit,9741.5,4741.950440733118,0.48677826214988634,m; vertical units;
 AP3,joint K,2.0716822083333336e-06,4.8254239522269016e-06,2.3292298079390035,m; vertical units; optimizer,1/yr (x c),1/yr,
 AP3,joint D,0.02265415416666667,0.017907289814454202,0.7904638452934604,m; vertical units; optimizer,m^2/yr (x c),m^2/yr,
 AP3,joint MSE,46.93759064937484,42.122322047281614,0.8974112532093217,m; vertical units; optimizer,m^2 (x 1/c^2),m^2,
-AP3,nonlinear A_crit,10233.0,480.0892086147218,0.046915783114895124,m; vertical units; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2,m^2,
-AP3,nonlinear MSE,60.46618544849992,287.65253789676575,4.757246314831027,m; vertical units; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2 (x 1/c^2),m^2,
+AP3,nonlinear A_crit,10233.0,480.0892086147218,0.046915783114895124,m; vertical units; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2,m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
+AP3,nonlinear MSE,60.46618544849992,287.65253789676575,4.757246314831027,m; vertical units; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2 (x 1/c^2),m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
 AP4,theta / m,0.438,0.47,1.0730593607305936,measurement; m,,,v1 per-tile theta; v2 site constant
 AP4,k_s,27.907,11.931690431136218,0.427551884155811,measurement; m; vertical units,ft-based,m^(2 m),not comparable across theta; v1 AP in feet
 AP4,C_ht,0.02194,0.015154933214988895,0.6907444491790745,measurement; vertical units; AP D0 bracket,1/ft,1/m,
@@ -61,8 +61,8 @@ AP4,joint A_crit,7797.9,7231.759623628061,0.9273983538681005,m; vertical units; 
 AP4,joint K,6.682401333333335e-06,4.521940607454344e-06,0.6766939580383892,m; vertical units; optimizer,1/yr (x c),1/yr,
 AP4,joint D,0.020015051833333335,0.019742656293870973,0.9863904654491721,m; vertical units; optimizer,m^2/yr (x c),m^2/yr,
 AP4,joint MSE,34.37890746749235,35.15626638300728,1.0226115072519386,m; vertical units; optimizer,m^2 (x 1/c^2),m^2,
-AP4,nonlinear A_crit,5263.5,762.4387035821909,0.1448539381746349,m; vertical units; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2,m^2,
-AP4,nonlinear MSE,28.855799647083163,209.72442970045347,7.268016560464755,m; vertical units; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2 (x 1/c^2),m^2,
+AP4,nonlinear A_crit,5263.5,762.4387035821909,0.1448539381746349,m; vertical units; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2,m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
+AP4,nonlinear MSE,28.855799647083163,209.72442970045347,7.268016560464755,m; vertical units; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2 (x 1/c^2),m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
 AP5,theta / m,0.4,0.47,1.1749999999999998,measurement; m,,,v1 per-tile theta; v2 site constant
 AP5,k_s,15.468,10.72639503238104,0.6934571394091699,measurement; m; vertical units,ft-based,m^(2 m),not comparable across theta; v1 AP in feet
 AP5,C_ht,0.02199,0.018830501424824182,0.8563211198191989,measurement; vertical units; AP D0 bracket,1/ft,1/m,
@@ -77,8 +77,8 @@ AP5,joint A_crit,1887.0,1887.0833249509305,1.000044157366683,m; vertical units; 
 AP5,joint K,1.1286722833333335e-05,5.119104307535681e-06,0.45355098934628874,m; vertical units; optimizer,1/yr (x c),1/yr,
 AP5,joint D,0.011906472250000001,0.01258387605468293,1.0568937457258114,m; vertical units; optimizer,m^2/yr (x c),m^2/yr,
 AP5,joint MSE,26.906686071436656,27.869475232334707,1.0357825247725367,m; vertical units; optimizer,m^2 (x 1/c^2),m^2,
-AP5,nonlinear A_crit,3399.1,443.96368400608674,0.1306121279180038,m; vertical units; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2,m^2,
-AP5,nonlinear MSE,24.283093727477773,193.0890639745179,7.9515841820445665,m; vertical units; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2 (x 1/c^2),m^2,
+AP5,nonlinear A_crit,3399.1,443.96368400608674,0.1306121279180038,m; vertical units; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2,m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
+AP5,nonlinear MSE,24.283093727477773,193.0890639745179,7.9515841820445665,m; vertical units; optimizer; measurement; AP D0 bracket; unconverged v1 nonlinear,m^2 (x 1/c^2),m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
 GM1,theta / m,0.379,0.31,0.8179419525065963,measurement; m,,,v1 per-tile theta; v2 site constant
 GM1,k_s,6.539,3.0285152710289025,0.4631465470299591,measurement; m,m^(2 theta),m^(2 m),not comparable across theta; v1 AP in feet
 GM1,C_ht,0.01442,0.016330862075611685,1.13251470704658,measurement,1/m,1/m,
@@ -93,8 +93,8 @@ GM1,joint A_crit,8092.4,1241.0,0.1533537640255054,m; optimizer,m^2,m^2,
 GM1,joint K,2.1649e-05,4.8652561026509796e-05,2.247335259204111,m; optimizer,1/yr,1/yr,
 GM1,joint D,0.028368,0.019477285323490613,0.6865935322719477,m; optimizer,m^2/yr,m^2/yr,
 GM1,joint MSE,33.865,24.690389367768148,0.7290828102101918,m; optimizer,m^2,m^2,
-GM1,nonlinear A_crit,474.21,272.0,0.5735855422703022,m; optimizer; measurement,m^2,m^2,
-GM1,nonlinear MSE,77.073,44.69508896226112,0.5799059198715649,m; optimizer; measurement,m^2,m^2,
+GM1,nonlinear A_crit,474.21,272.0,0.5735855422703022,m; optimizer; measurement,m^2,m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
+GM1,nonlinear MSE,77.073,44.69508896226112,0.5799059198715649,m; optimizer; measurement,m^2,m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
 GM2,theta / m,0.308,0.31,1.0064935064935066,measurement; m,,,v1 per-tile theta; v2 site constant
 GM2,k_s,2.414,2.666155465051253,1.1044554536252082,measurement; m,m^(2 theta),m^(2 m),not comparable across theta; v1 AP in feet
 GM2,C_ht,0.0145,0.015046401204744292,1.037682841706503,measurement,1/m,1/m,
@@ -109,8 +109,8 @@ GM2,joint A_crit,2960.0,3509.0,1.185472972972973,m; optimizer,m^2,m^2,
 GM2,joint K,5.5982e-05,5.5148035639527246e-05,0.9851029909529357,m; optimizer,1/yr,1/yr,
 GM2,joint D,0.026414,0.02742610744008963,1.0383170833682756,m; optimizer,m^2/yr,m^2/yr,
 GM2,joint MSE,27.827,26.07103229540553,0.936896981183941,m; optimizer,m^2,m^2,
-GM2,nonlinear A_crit,244.59,250.0,1.0221186475326056,m; optimizer; measurement,m^2,m^2,
-GM2,nonlinear MSE,47.533,52.41813169526386,1.102773477273975,m; optimizer; measurement,m^2,m^2,
+GM2,nonlinear A_crit,244.59,250.0,1.0221186475326056,m; optimizer; measurement,m^2,m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
+GM2,nonlinear MSE,47.533,52.41813169526386,1.102773477273975,m; optimizer; measurement,m^2,m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
 GM3,theta / m,0.417,0.31,0.7434052757793765,measurement; m,,,v1 per-tile theta; v2 site constant
 GM3,k_s,7.72,2.2923202725053917,0.2969326777856725,measurement; m,m^(2 theta),m^(2 m),not comparable across theta; v1 AP in feet
 GM3,C_ht,0.00711,0.014529086543645427,2.0434720877138437,measurement,1/m,1/m,
@@ -125,8 +125,8 @@ GM3,joint A_crit,6526.3,860.0,0.1317745123576912,m; optimizer,m^2,m^2,
 GM3,joint K,1.9131e-05,6.809927557263814e-05,3.5596296886016487,m; optimizer,1/yr,1/yr,
 GM3,joint D,0.045329,0.019229128897195802,0.42421251069284127,m; optimizer,m^2/yr,m^2/yr,
 GM3,joint MSE,43.018,33.02743256333906,0.7677584398005268,m; optimizer,m^2,m^2,
-GM3,nonlinear A_crit,1297.4,254.0,0.1957761677200555,m; optimizer; measurement,m^2,m^2,
-GM3,nonlinear MSE,58.985,57.82823139184759,0.9803887664973737,m; optimizer; measurement,m^2,m^2,
+GM3,nonlinear A_crit,1297.4,254.0,0.1957761677200555,m; optimizer; measurement,m^2,m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
+GM3,nonlinear MSE,58.985,57.82823139184759,0.9803887664973737,m; optimizer; measurement,m^2,m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
 GM4,theta / m,0.313,0.31,0.9904153354632588,measurement; m,,,v1 per-tile theta; v2 site constant
 GM4,k_s,4.153,4.225164579315662,1.0173764939358685,measurement; m,m^(2 theta),m^(2 m),not comparable across theta; v1 AP in feet
 GM4,C_ht,0.01496,0.014916297312792648,0.9970786973791878,measurement,1/m,1/m,
@@ -141,8 +141,8 @@ GM4,joint A_crit,7396.2,3853.0,0.5209431870419946,m; optimizer,m^2,m^2,
 GM4,joint K,3.5113e-05,3.639741079024514e-05,1.0365793520987994,m; optimizer,1/yr,1/yr,
 GM4,joint D,0.026549,0.0218933999927115,0.824641229150307,m; optimizer,m^2/yr,m^2/yr,
 GM4,joint MSE,47.73,40.742712045523604,0.8536080462083303,m; optimizer,m^2,m^2,
-GM4,nonlinear A_crit,521.38,522.0,1.0011891518662013,m; optimizer; measurement,m^2,m^2,
-GM4,nonlinear MSE,72.773,91.39365124754748,1.2558730744582123,m; optimizer; measurement,m^2,m^2,
+GM4,nonlinear A_crit,521.38,522.0,1.0011891518662013,m; optimizer; measurement,m^2,m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
+GM4,nonlinear MSE,72.773,91.39365124754748,1.2558730744582123,m; optimizer; measurement,m^2,m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
 GM5,theta / m,0.3,0.31,1.0333333333333334,measurement; m,,,v1 per-tile theta; v2 site constant
 GM5,k_s,2.507,2.9288204558071023,1.1682570625477073,measurement; m,m^(2 theta),m^(2 m),not comparable across theta; v1 AP in feet
 GM5,C_ht,0.01635,0.019370507274461164,1.1847405060832517,measurement,1/m,1/m,
@@ -157,8 +157,8 @@ GM5,joint A_crit,2247.1,1885.0,0.8388589737884384,m; optimizer,m^2,m^2,
 GM5,joint K,5.8231e-05,5.233736437104351e-05,0.898788692810419,m; optimizer,1/yr,1/yr,
 GM5,joint D,0.020284,0.019030141623691436,0.9381848562261603,m; optimizer,m^2/yr,m^2/yr,
 GM5,joint MSE,33.054,32.21082843702152,0.9744910884317032,m; optimizer,m^2,m^2,
-GM5,nonlinear A_crit,299.62,261.0,0.8711033976370068,m; optimizer; measurement,m^2,m^2,
-GM5,nonlinear MSE,54.813,78.99107400574526,1.4411010892624971,m; optimizer; measurement,m^2,m^2,
+GM5,nonlinear A_crit,299.62,261.0,0.8711033976370068,m; optimizer; measurement,m^2,m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
+GM5,nonlinear MSE,54.813,78.99107400574526,1.4411010892624971,m; optimizer; measurement,m^2,m^2,"centre form, D_eff lap(z) = -U (nonstandard); v1 and v2 alike (N10)"
 AP1,d8_vs_dinf MSE AD D8,64643.122834632755,478747.37273976736,7.40600626557721,measurement; m; vertical units; AP D0 bracket; AP1 seam,,,
 AP1,d8_vs_dinf MSE AD D-inf,65155.94966673803,486820.6258933226,7.471621983615158,measurement; m; vertical units; AP D0 bracket; AP1 seam,,,
 AP1,d8_vs_dinf MSE PT D8,203.92298849113823,2878.6282118376635,14.116251596434202,measurement; m; vertical units; AP D0 bracket; AP1 seam,,,
