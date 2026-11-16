@@ -1,0 +1,5 @@
+# Where the grids live. LEMCVT_DATA points at a directory with the layout
+#   <site>/tile<n>/<name>.tif and <site>/tile<n>/outputs/<name>.tif
+# `lemcvt data fetch` copies from `source` (group storage on Sherlock) into LEMCVT_DATA
+# and verifies sha256 against data/manifest.csv.
+source: $GROUP_HOME/lemcvt_data/v1

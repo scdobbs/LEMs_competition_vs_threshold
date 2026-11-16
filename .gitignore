@@ -8,3 +8,19 @@ Thumbs.db
 .idea/
 *.swp
 *.log
+
+# Phase 0 reference logs are evidence; keep them
+!reference/logs/*.log
+
+# v2: grids live outside git (LEMCVT_DATA; see data/manifest.csv and configs/data.yaml)
+data/AP/
+data/GM/
+# run outputs
+results/
+*.egg-info/
+
+# generated figures are not tracked (addendum 3, section 1); `lemcvt figures` and the report scripts regenerate them
+reports/v2/figures_v2/
+reports/inputs/
+# manuscript, supplement and reference PDFs: never committed (addendum 2, 5; addendum 11, 2.1)
+papers/

@@ -1,0 +1,35 @@
+name: ci
+
+# Triggers: push to v2/main, pull requests, and manual runs. The push trigger was removed on 2026-11-10 (addendum 6,
+# section 2.4) after run 42940255348 on 92c4c30 failed, and restored in addendum 10, section 5.1, after reproducing
+# that run on Sherlock (reports/v2/scripts/ci_reproduce_a10.sh). Causes: (3.11) pip resolves numpy 2.4 there (numpy
+# 2.5 requires Python >= 3.12), whose stubs type np.where/np.bincount/np.linalg.norm differently, so mypy failed;
+# (3.12) the TopoAnalysis-equivalence tests ran without TopoAnalysis because their skipif sat on a helper function.
+on:
+  push:
+    branches: [v2, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Lint (ruff)
+        run: ruff check src tests
+      - name: Type check (mypy)
+        run: mypy src/lemcvt
+      - name: Fast test suite (excludes full-tile tests)
+        run: pytest -q -m "not fulltile"

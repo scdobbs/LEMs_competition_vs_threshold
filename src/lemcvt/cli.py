@@ -1,0 +1,1118 @@
+"""Command-line interface: ``lemcvt``.
+
+Every step is resumable (each invocation writes a new run directory under
+``$LEMCVT_RESULTS``) and records its inputs (config snapshot, grid hashes, git
+hash, environment lock hash) in ``run.json``.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import sys
+from pathlib import Path
+
+import click
+
+from lemcvt import __version__
+from lemcvt.config import STAGES, TILE_IDS
+
+log = logging.getLogger("lemcvt")
+
+
+def _setup_logging(verbose: int) -> None:
+    level = logging.DEBUG if verbose > 1 else logging.INFO if verbose == 1 else logging.WARNING
+    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+                        stream=sys.stderr)
+    logging.getLogger("lemcvt").setLevel(logging.INFO if verbose == 0 else level)
+    logging.getLogger("rasterio").setLevel(logging.WARNING)
+
+
+def _parse_tiles(tiles: str) -> list[str]:
+    if tiles.lower() == "all":
+        return list(TILE_IDS)
+    out = []
+    for t in tiles.split(","):
+        t = t.strip()
+        if t.upper() in ("AP", "GM"):
+            out += [x for x in TILE_IDS if x.startswith(t.upper())]
+        elif t:
+            if t not in TILE_IDS:
+                raise click.BadParameter(f"unknown tile {t!r}; choose from {TILE_IDS} or AP/GM/all")
+            out.append(t)
+    return out
+
+
+_UNITS = {"stored": None, "feet": True, "metres": False}   # --units -> reproduce_v1_units override of the loader
+
+
+def _parse_crop(crop: str | None) -> tuple[int, int, int, int] | None:
+    if not crop:
+        return None
+    parts = [int(p) for p in crop.split(",")]
+    if len(parts) != 4:
+        raise click.BadParameter("crop must be row0,row1,col0,col1")
+    return tuple(parts)  # type: ignore[return-value]
+
+
+@click.group()
+@click.version_option(__version__, prog_name="lemcvt")
+@click.option("-v", "--verbose", count=True, help="-v info, -vv debug")
+def main(verbose: int) -> None:
+    """lemcvt: steady-state LEM calibration (Dobbs & Hilley), v2."""
+    _setup_logging(verbose)
+
+
+# -------------------------------------------------------------------------------- info
+@main.command()
+def info() -> None:
+    """Show environment, data and results locations and whether the data verify."""
+    from lemcvt.config import REPO_ROOT, config_root, results_root
+    from lemcvt.results import env_lock_sha256, git_hash
+
+    click.echo(f"lemcvt {__version__}  repo={REPO_ROOT}  git={git_hash()}")
+    click.echo(f"configs={config_root()}")
+    click.echo(f"LEMCVT_DATA={os.environ.get('LEMCVT_DATA', '(unset)')}")
+    click.echo(f"LEMCVT_RESULTS={results_root()}")
+    click.echo(f"env lock sha256={env_lock_sha256()}")
+    click.echo(f"python={sys.version.split()[0]} PYTHONNOUSERSITE={os.environ.get('PYTHONNOUSERSITE', '(unset)')}")
+
+
+# -------------------------------------------------------------------------------- data
+@main.group()
+def data() -> None:
+    """Grid data: fetch from group storage, verify against data/manifest.csv, build manifest."""
+
+
+@data.command("verify")
+@click.option("--inputs-only", is_flag=True, help="Only the 30 input grids (filled/area/fd).")
+def data_verify(inputs_only: bool) -> None:
+    from lemcvt.io.manifest import verify
+
+    n_ok, problems = verify(only_inputs=inputs_only)
+    click.echo(f"{n_ok} files verified, {len(problems)} problems")
+    for p in problems:
+        click.echo("  " + p)
+    sys.exit(1 if problems else 0)
+
+
+@data.command("fetch")
+@click.option("--source", type=click.Path(path_type=Path), default=None, help="Override configs/data.yaml source.")
+@click.option("--inputs-only", is_flag=True)
+def data_fetch(source: Path | None, inputs_only: bool) -> None:
+    from lemcvt.io.manifest import fetch
+
+    copied, problems = fetch(source=source, only_inputs=inputs_only)
+    click.echo(f"copied {copied} files; {len(problems)} problems after verification")
+    for p in problems:
+        click.echo("  " + p)
+    sys.exit(1 if problems else 0)
+
+
+@data.command("manifest")
+@click.option("--root", type=click.Path(path_type=Path), default=None, help="Directory to scan (default LEMCVT_DATA).")
+@click.option("--out", type=click.Path(path_type=Path), default=None,
+              help="Where to write the manifest (default data/manifest.csv in the repository).")
+def data_manifest(root: Path | None, out: Path | None) -> None:
+    """Build data/manifest.csv from the grids under LEMCVT_DATA (sha256 of every .tif)."""
+    from lemcvt.config import data_root
+    from lemcvt.io.grids import sha256_file
+    from lemcvt.io.manifest import MANIFEST_PATH, ManifestEntry, write_manifest
+
+    MANIFEST_PATH = out or MANIFEST_PATH  # noqa: N806
+    root = root or data_root()
+    entries = []
+    for p in sorted(root.rglob("*.tif")):
+        rel = p.relative_to(root)
+        parts = rel.parts
+        site, tile = parts[0], parts[1]
+        kind = "output" if "outputs" in parts else "input"
+        role = p.stem.split("_tile_", 1)[-1]
+        entries.append(ManifestEntry(str(rel), sha256_file(p), p.stat().st_size, site, tile, kind, role))
+    write_manifest(entries, MANIFEST_PATH)
+    click.echo(f"wrote {MANIFEST_PATH} with {len(entries)} entries")
+
+
+# -------------------------------------------------------------------------------- tile
+@main.group()
+def tile() -> None:
+    """Per-tile calibration (run) and forward evaluation (forward)."""
+
+
+@tile.command("run")
+@click.option("--tile", "tile_id", required=True, help="e.g. GM1")
+@click.option("--stages", default=",".join(STAGES), show_default=True)
+@click.option("--optimizer", default="v1", show_default=True, type=click.Choice(["v1", "v2"]))
+@click.option("--no-grids", is_flag=True, help="Do not write output grids.")
+@click.option("--no-derived", is_flag=True, help="Write elevation grids only (skip filled/fd/area/logarea/hillshade).")
+@click.option("--exploration", is_flag=True, help="Also run v1's plotted-only exploratory forward runs.")
+@click.option("--crop", default=None, help="row0,row1,col0,col1 pixel crop (smoke tests).")
+@click.option("--acrit-grid", default="thin", show_default=True, type=click.Choice(["thin", "full"]),
+              help="v2 only: every unique drainage area in [1e2, 1e5] m^2 ('full') or the 2000 nearest a uniform log grid ('thin').")
+@click.option("--nl-grid", default=200, show_default=True, help="v2 only: log-thinned A_crit values for the nonlinear stage.")
+@click.option("--m-acrit-grid", default=200, show_default=True, help="v2 only: log-thinned A_crit values for the m profile.")
+@click.option("--m-range", default="0.20,0.70", show_default=True,
+              help="v2 m_profile only: m_min,m_max of the exponent grid (step 0.01); addendum 4 section 6.1 uses 0.05,0.90.")
+@click.option("--units", default="stored", show_default=True, type=click.Choice(["stored", "feet", "metres"]),
+              help="Vertical unit override for AP (Phase 5): the config's setting, feet as v1 ran, or metres.")
+@click.option("--d0-variant", default="A", show_default=True, type=click.Choice(["A", "B"]),
+              help="v2 only (addendum 6, 1.1): run with the primary D0 (A, option iii at L_f) or with D0_B (C_ht at L_w).")
+@click.option("--run-id", default=None)
+def tile_run(tile_id, stages, optimizer, no_grids, no_derived, exploration, crop, acrit_grid, nl_grid, m_acrit_grid, m_range, units, d0_variant, run_id) -> None:
+    """v1: the exact port of the four v1 stages. v2 (Phase 4): stages ad, partitioned (= acrit + joint), nonlinear, m_profile."""
+    st = [s.strip() for s in stages.split(",")]
+    if optimizer == "v2":
+        import numpy as _np
+
+        from lemcvt.analyses.optimizer_v2 import run_tile_v2
+
+        m_lo, m_hi = (float(v) for v in m_range.split(","))
+        m_values = _np.round(_np.arange(m_lo, m_hi + 1e-9, 0.01), 2)
+        rec = run_tile_v2(tile_id, stages=st, acrit_grid=acrit_grid, nl_n=nl_grid, m_acrit_n=m_acrit_grid, m_values=m_values,
+                          save_grids=not no_grids, derived_grids=not no_derived, crop=_parse_crop(crop), run_id=run_id,
+                          reproduce_v1_units=_UNITS[units], d0_variant=d0_variant)
+    else:
+        from lemcvt.analyses.tile_pipeline import run_tile
+
+        rec = run_tile(tile_id, stages=st, optimizer=optimizer, save_grids=not no_grids, derived_grids=not no_derived,
+                       exploration_runs=exploration, crop=_parse_crop(crop), run_id=run_id, reproduce_v1_units=_UNITS[units])
+    click.echo(f"results: {rec.dir}")
+
+
+@tile.command("v2-refine")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--source-run", default=None, help="v2 partitioned run directory or name (default: the latest for the tile).")
+@click.option("--max-extra", default=400, show_default=True)
+@click.option("--fill-interval", default=None, type=float,
+              help="Addendum 5, 3.2: then evaluate every unique area inside this relative MSE interval (0.05) of the refined profile.")
+@click.option("--d0-variant", default="A", show_default=True, type=click.Choice(["A", "B"]), help="which partitioned run to refine when --source-run is not given")
+@click.option("--run-id", default=None)
+def tile_v2_refine(tile_id, source_run, max_extra, fill_interval, d0_variant, run_id) -> None:
+    """Phase 4: evaluate every unique drainage area around the thinned profile's minima (staircase refinement)."""
+    from lemcvt.analyses.optimizer_v2 import refine_partitioned
+
+    if source_run is None:
+        from lemcvt.results import find_runs
+
+        suffix = "_v2_partitioned" + ("_D0B" if d0_variant == "B" else "")
+        cands = [r for r in find_runs("tile_run", tile_id) if r.name.endswith(suffix)]
+        if not cands:
+            raise click.ClickException(f"no v2 partitioned run for {tile_id}")
+        source_run = str(cands[-1])
+    rec = refine_partitioned(tile_id, source_run, max_extra=max_extra, run_id=run_id, fill_interval=fill_interval)
+    click.echo(f"results: {rec.dir}")
+
+
+@tile.command("v2-nonlinear-joint")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--source-run", default=None, help="Refined v2 partitioned run (default: the latest for the tile); K is its joint optimum.")
+@click.option("--k-factor", default=1.0, show_default=True, help="K x factor (the K check of addendum 5, 3.4: 0.95 and 1.05).")
+@click.option("--n-acrit", default=30, show_default=True)
+@click.option("--n-d", default=20, show_default=True)
+@click.option("--d-range", default="1.5e-3,5e-2", show_default=True, help="addendum 6, 1.4")
+@click.option("--widen", default=3.0, show_default=True, help="Widen the linear joint 5 % interval by this factor on each side.")
+@click.option("--split", default=None, help="k/n: evaluate only every n-th A_crit value starting at k (parallel parts; merge with v2-nonlinear-joint-merge).")
+@click.option("--s-c", "s_c", default=None, type=float, help="addendum 8, 2.4: override the config S_c with the tile's fitted value.")
+@click.option("--cap-stop-frac", default=None, type=float, help="addendum 8, 2.4: stop when more than this fraction of evaluations hit the Picard cap.")
+@click.option("--crop", default=None)
+@click.option("--no-grids", is_flag=True)
+@click.option("--run-id", default=None)
+def tile_v2_nonlinear_joint(tile_id, source_run, k_factor, n_acrit, n_d, d_range, widen, split, s_c, cap_stop_frac, crop, no_grids, run_id) -> None:
+    """Addendum 5, 3.4: nonlinear MSE over (A_crit, D) at K fixed to the linear joint optimum (S_c = 1.27 or --s-c, Picard cap from the config)."""
+    from lemcvt.analyses.optimizer_v2 import run_nonlinear_joint
+
+    lo, hi = (float(v) for v in d_range.split(","))
+    sp: tuple[int, int] | None = None
+    if split:
+        k_part, n_parts = (int(v) for v in split.split("/"))
+        sp = (k_part, n_parts)
+    rec = run_nonlinear_joint(tile_id, source_run=source_run, k_factor=k_factor, n_acrit=n_acrit, n_d=n_d, d_range=(lo, hi), widen=widen,
+                              save_grids=not no_grids, crop=_parse_crop(crop), run_id=run_id, split=sp, S_c=s_c,
+                              cap_stop_frac=cap_stop_frac)
+    click.echo(f"results: {rec.dir}")
+
+
+@tile.command("v2-nonlinear-joint-merge")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--k-factor", default=1.0, show_default=True)
+@click.option("--s-c", "s_c", default=None, type=float, help="addendum 8, 2.4: merge the parts run at this S_c.")
+@click.option("--no-grids", is_flag=True)
+@click.option("--run-id", default=None)
+def tile_v2_nonlinear_joint_merge(tile_id, k_factor, s_c, no_grids, run_id) -> None:
+    """Merge the split parts of a nonlinear joint profile into one run (optimum re-solved, contours, profiles)."""
+    from lemcvt.analyses.optimizer_v2 import merge_nonlinear_joint
+
+    rec = merge_nonlinear_joint(tile_id, k_factor=k_factor, save_grids=not no_grids, run_id=run_id, S_c=s_c)
+    click.echo(f"results: {rec.dir}")
+
+
+@tile.command("v2-dinf-joint")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--thin-n", default=2000, show_default=True)
+@click.option("--refine-max", default=400, show_default=True)
+@click.option("--crop", default=None)
+@click.option("--no-grids", is_flag=True)
+@click.option("--run-id", default=None)
+def tile_v2_dinf_joint(tile_id, thin_n, refine_max, crop, no_grids, run_id) -> None:
+    """Addendum 5, 3.5: the v2 joint profile of the rebuilt D-infinity partitioned model at the config's m."""
+    from lemcvt.analyses.optimizer_v2 import run_dinf_joint
+
+    rec = run_dinf_joint(tile_id, thin_n=thin_n, refine_max=refine_max, save_grids=not no_grids, crop=_parse_crop(crop), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@tile.command("v2-estimate")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--thin-n", default=2000, show_default=True)
+def tile_v2_estimate(tiles, thin_n) -> None:
+    """Phase 4 budget rule: unique-area counts and the core-hour estimate for the full and thinned A_crit grids."""
+    import json as _json
+
+    from lemcvt.analyses.optimizer_v2 import estimate
+
+    est = estimate(_parse_tiles(tiles), thin_n=thin_n)
+    click.echo(est.pop("table"))
+    click.echo(_json.dumps({k: v for k, v in est.items() if k not in ("rows", "cost_assumptions_s")}, indent=1))
+    click.echo(f"cost assumptions (s per evaluation): {_json.dumps(est['cost_assumptions_s'])}")
+
+
+@tile.command("forward")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--params", default="v1", show_default=True, help="'v1' or path to a tile_run params.json")
+@click.option("--compare", is_flag=True, help="Compare with the saved v1 grids (Phase 2.1 regression).")
+@click.option("--keys", default=None, help="Comma list of run keys (ad_no_opt,ad_opt,acrit_opt,nonlinear_opt,joint_opt)")
+@click.option("--no-grids", is_flag=True)
+@click.option("--derived", is_flag=True, help="Also write the derived grids.")
+@click.option("--reference-run", default=None,
+              help="Phase 3 gate: compare with this tile_forward run directory ('phase2' = latest Phase 2 run of the tile).")
+@click.option("--crop", default=None)
+@click.option("--run-id", default=None)
+def tile_forward(tile_id, params, compare, keys, no_grids, derived, reference_run, crop, run_id) -> None:
+    from lemcvt.analyses.forward import run_forward
+
+    rec = run_forward(tile_id, params=params, compare=compare, save_grids=not no_grids, derived_grids=derived,
+                      keys=keys.split(",") if keys else None, crop=_parse_crop(crop), run_id=run_id,
+                      reference_run=reference_run)
+    click.echo(f"results: {rec.dir}")
+
+
+# -------------------------------------------------------------------------------- sweeps / analyses
+@main.group()
+def sweep() -> None:
+    """Parameter sweeps."""
+
+
+@sweep.command("resolution")
+@click.option("--sites", default="AP,GM", show_default=True)
+@click.option("--routing", default="d8,dinf", show_default=True)
+@click.option("--tiles", default=None, help="Restrict to tiles (default all tiles of the sites).")
+@click.option("--dx-min", default=5.0, show_default=True)
+@click.option("--dx-max", default=100.0, show_default=True)
+@click.option("--n-dx", default=25, show_default=True)
+@click.option("--params", default="v1", show_default=True, type=click.Choice(["v1", "config"]),
+              help="K, D, theta per tile: the v1 figure-notebook tables, or the tile configs' K0_partitioned, D0, m (Phase 6).")
+@click.option("--d0-variant", default="A", show_default=True, type=click.Choice(["A", "B"]), help="with --params config: D0 (A) or D0_B (B)")
+@click.option("--run-id", default=None)
+def sweep_resolution(sites, routing, tiles, dx_min, dx_max, n_dx, params, d0_variant, run_id) -> None:
+    from lemcvt.analyses.resolution_sweep import run_resolution_sweep
+
+    tile_ids = _parse_tiles(tiles) if tiles else [t for t in TILE_IDS if t[:2] in sites.split(",")]
+    rec = run_resolution_sweep(tile_ids, routings=routing.split(","), dx_min=dx_min, dx_max=dx_max, n_dx=n_dx,
+                               params=params, run_id=run_id, d0_variant=d0_variant)
+    click.echo(f"results: {rec.dir}")
+
+
+@main.group()
+def synthetic() -> None:
+    """Synthetic planform analyses."""
+
+
+@synthetic.command("pe")
+@click.option("--run-id", default=None)
+def synthetic_pe(run_id) -> None:
+    """Peclet-number resolution analysis (supp_fig5)."""
+    from lemcvt.analyses.synthetic_pe import run_synthetic_pe
+
+    rec = run_synthetic_pe(run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@main.command("perron-forward")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--run-id", default=None)
+def perron_forward(tiles, run_id) -> None:
+    """Forward AD and partitioned runs with the regional (Perron et al. 2012) parameters (Fig. 2)."""
+    from lemcvt.analyses.perron_forward import run_perron_forward
+
+    rec = run_perron_forward(_parse_tiles(tiles), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@main.command("d8-vs-dinf")
+@click.option("--tiles", default="AP1,GM1", show_default=True)
+@click.option("--pt-dinf-model", default="both", show_default=True, type=click.Choice(["v2", "v1", "both"]),
+              help="Partitioned D-inf model: the Phase 4b rebuild (v2), the v1 explicit integration, or both.")
+@click.option("--units", default="stored", show_default=True, type=click.Choice(["stored", "feet", "metres"]),
+              help="Vertical unit of the AP grid: the config's setting, or force feet (as v1 and the Phase 4b rerun) / metres.")
+@click.option("--no-synthetic", is_flag=True, help="Skip the synthetic aligned/rotated V cases.")
+@click.option("--params", default="v1", show_default=True, type=click.Choice(["v1", "config"]),
+              help="v1: the notebook's K0, D0 (2 s.f.), A_crit 5000; config: the tile config's K0_partitioned, D0, m, A_crit_0.")
+@click.option("--run-id", default=None)
+def d8_vs_dinf(tiles, pt_dinf_model, units, no_synthetic, params, run_id) -> None:
+    """D8 against D-infinity comparison at measured parameters (d8_vs_dinf_comparison; Phase 4b rerun)."""
+    from lemcvt.analyses.d8_vs_dinf import run_d8_vs_dinf
+
+    rec = run_d8_vs_dinf(_parse_tiles(tiles), params=params, run_id=run_id, pt_dinf_model=pt_dinf_model, units=units, synthetic=not no_synthetic)
+    click.echo(f"results: {rec.dir}")
+
+
+# -------------------------------------------------------------------------------- Phase 5: AP units (addendum 4, section 5)
+@main.group("ap-units")
+def ap_units() -> None:
+    """Phase 5: corrected AP grids (5.1), the D8 check (5.2) and the invariance check (5.5)."""
+
+
+@ap_units.command("convert")
+@click.option("--tiles", default="AP", show_default=True)
+@click.option("--run-id", default=None)
+def ap_units_convert(tiles, run_id) -> None:
+    """Write the corrected filled-elevation GeoTIFFs (z in metres) and add them to data/manifest.csv; originals kept."""
+    from lemcvt.analyses.ap_units import convert_ap_grids
+
+    rec = convert_ap_grids(tuple(_parse_tiles(tiles)), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@ap_units.command("d8-check")
+@click.option("--tiles", default="AP", show_default=True)
+@click.option("--run-id", default=None)
+def ap_units_d8_check(tiles, run_id) -> None:
+    """Recompute D8 directions from the corrected tile and compare with the original fd grid (check only; no grid replaced)."""
+    from lemcvt.analyses.ap_units import run_d8_check
+
+    rec = run_d8_check(tuple(_parse_tiles(tiles)), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@ap_units.command("invariance")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--stages", default="partitioned,ad,m_profile", show_default=True)
+@click.option("--run-id", default=None)
+def ap_units_invariance(tile_id, stages, run_id) -> None:
+    """Rerun the v2 profiles in metres at the feet runs' evaluation points and check the unit invariance (5.5)."""
+    from lemcvt.analyses.ap_units import run_invariance
+
+    rec = run_invariance(tile_id, stages=tuple(s.strip() for s in stages.split(",")), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+# -------------------------------------------------------------------------------- Phase 6 (addendum 5)
+@main.command("seamfix")
+@click.option("--tile", "tile_id", default="AP1", show_default=True)
+@click.option("--no-write", is_flag=True, help="Report only; do not write the *_seamfix.tif grids or touch the manifest.")
+@click.option("--run-id", default=None)
+def seamfix(tile_id, no_write, run_id) -> None:
+    """Addendum 5, 2.1: correct the AP1 flow-direction seam within the tile; write *_fd_seamfix.tif and *_area_seamfix.tif (originals kept)."""
+    from lemcvt.analyses.seamfix import run_seamfix
+
+    rec = run_seamfix(tile_id, write=not no_write, update_manifest=not no_write, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@main.group()
+def phase6() -> None:
+    """Addendum 5: Phase 6.0 measured inputs and configs, the budget, the D-recovery diagnostics and the old-against-new record."""
+
+
+@phase6.command("inputs")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--n-boot", default=200, show_default=True)
+@click.option("--crop", default=None, help="row0,row1,col0,col1 (smoke tests only)")
+@click.option("--site-m", default=None, help="Override the site exponents, e.g. 'AP=0.47,GM=0.31' (smoke tests; the run otherwise reads S(m)).")
+@click.option("--run-id", default=None)
+def phase6_inputs(tiles, n_boot, crop, site_m, run_id) -> None:
+    """2.2 + 1.2: the option (iii) window test, k_s at the site m (A_c = 1e3 and 1e4), C_ht and D0 with provenance."""
+    from lemcvt.measure.phase6_inputs import run_phase6_inputs
+
+    sm = {kv.split("=")[0].strip(): float(kv.split("=")[1]) for kv in site_m.split(",")} if site_m else None
+    rec = run_phase6_inputs(_parse_tiles(tiles), n_boot=n_boot, run_id=run_id, crop=_parse_crop(crop), site_m=sm)
+    click.echo(f"results: {rec.dir}")
+
+
+@phase6.command("write-configs")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--inputs-run", default=None, help="phase6_inputs run (default: latest)")
+@click.option("--seamfix-run", default=None, help="seamfix run (default: latest)")
+@click.option("--dry-run", is_flag=True, help="Print the configs instead of writing them.")
+@click.option("--force", is_flag=True, help="Write even if the option (iii) test failed (not for use without a decision).")
+def phase6_write_configs(tiles, inputs_run, seamfix_run, dry_run, force) -> None:
+    """2.3: write m, K0 = U/k_s, D0 (option iii), the Picard cap and the seam-corrected AP1 grids into the tile configs."""
+    import json as _json
+
+    from lemcvt.analyses.phase6 import write_tile_configs
+
+    out = write_tile_configs(_parse_tiles(tiles), inputs_run=inputs_run, seamfix_run=seamfix_run, write=not dry_run, require_pass=not force)
+    if dry_run:
+        for t, v in out["tiles"].items():
+            click.echo(f"# ---- {t}\n{v['text']}")
+    else:
+        click.echo(_json.dumps(out, indent=1, default=str))
+
+
+@phase6.command("seam-test")
+@click.option("--tile", "tile_id", default="AP1", show_default=True)
+@click.option("--thin-n", default=2000, show_default=True)
+@click.option("--refine-max", default=400, show_default=True)
+@click.option("--n-grid-ad", default=200, show_default=True)
+@click.option("--crop", default=None, help="row0,row1,col0,col1 (smoke tests only)")
+@click.option("--run-id", default=None)
+def phase6_seam_test(tile_id, thin_n, refine_max, n_grid_ad, crop, run_id) -> None:
+    """Addendum 6, 3: the linear joint, stage-2 and AD profiles with and without the seam-affected set S in the misfit."""
+    from lemcvt.analyses.seam_test import run_seam_test
+
+    rec = run_seam_test(tile_id, thin_n=thin_n, refine_max=refine_max, n_grid_ad=n_grid_ad, run_id=run_id, crop=_parse_crop(crop))
+    click.echo(f"results: {rec.dir}")
+
+
+@phase6.command("curvature-compare")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--run-id", default=None)
+def phase6_curvature_compare(tiles, run_id) -> None:
+    """Addendum 6, 4 and 5.7: C_ht(L) of the fitted surfaces on the option (iii) set against the observed, and D recovery."""
+    from lemcvt.analyses.curvature_compare import run_curvature_compare
+
+    rec = run_curvature_compare(_parse_tiles(tiles), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@phase6.command("record")
+@click.option("--out", type=click.Path(path_type=Path), default=None, help="Output directory (default tables/).")
+@click.option("--seam-verdict", default=None, help="Text of the AP1 seam verdict to attach to the 'AP1 seam' cause.")
+def phase6_record(out, seam_verdict) -> None:
+    """Addendum 5, 3.8: the old-against-new record (v1 value, v2 value, ratio, causes), from results with one command."""
+    from lemcvt.analyses.old_vs_new import write_record
+    from lemcvt.config import REPO_ROOT
+
+    for p in write_record(out or REPO_ROOT / "tables", seam_verdict):
+        click.echo(str(p))
+
+
+@phase6.command("estimate")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--from-m-profiles", is_flag=True, help="Count the unique areas inside the 5 % intervals from the m-profile runs at the site m.")
+def phase6_estimate(tiles, from_m_profiles) -> None:
+    """3.0: core-hour estimate of every Phase 6 item and the total (limits = 1.5 x expected, rounded up)."""
+    import json as _json
+
+    from lemcvt.analyses.phase6 import estimate, fill_counts_from_m_profiles
+
+    fc = None
+    if from_m_profiles:
+        from lemcvt.analyses.exponent_site import site_summary
+
+        summ = site_summary()
+        m_site = {s: float(v["all"]["m_opt"]) for s, v in summ["sites"].items()}
+        fc = fill_counts_from_m_profiles(m_site)
+        click.echo(_json.dumps({k: v for k, v in fc.items() if k != "per_tile"}))
+    est = estimate(_parse_tiles(tiles), fill_counts=fc)
+    click.echo(est.pop("table"))
+    click.echo(_json.dumps({k: v for k, v in est.items() if k not in ("items", "cost_assumptions")}, indent=1))
+
+
+@main.group()
+def phase7() -> None:
+    """Addendum 7: the slope-area units check (2b) and the D diagnostic by hillslope class (2)."""
+
+
+@phase7.command("slope-area-check")
+@click.option("--tiles", default="AP", show_default=True)
+@click.option("--run-id", default=None)
+def phase7_slope_area_check(tiles, run_id) -> None:
+    """Addendum 7, 2b.1-2b.3: relief, mean, MSE and channel-bin slopes of the Phase 6 joint grid as the figure read it (old path) and as written."""
+    from lemcvt.analyses.slope_area_fig import run_slope_area_units_check
+
+    rec = run_slope_area_units_check(_parse_tiles(tiles), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@phase7.command("d-diagnostic")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--thin-n", default=2000, show_default=True)
+@click.option("--refine-max", default=400, show_default=True)
+@click.option("--a-roll", default=None, type=float, help="Override the slope-area rollover (default: the latest measure_diagnostics run).")
+@click.option("--a-c", default=None, type=float, help="Override the rollover-network A_c of the option (iii) set (default: the measure run).")
+@click.option("--crop", default=None)
+@click.option("--run-id", default=None)
+def phase7_d_diagnostic(tile_id, thin_n, refine_max, a_roll, a_c, crop, run_id) -> None:
+    """Addendum 7, 2.1-2.3: observed curvature by hillslope class at the Phase 6 joint optimum, the class-restricted joint refits, the rule."""
+    from lemcvt.analyses.d_diagnostic import run_d_diagnostic
+
+    rec = run_d_diagnostic(tile_id, thin_n=thin_n, refine_max=refine_max, A_roll=a_roll, A_c=a_c, crop=_parse_crop(crop), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@phase7.command("width")
+@click.option("--sites", default="AP,GM", show_default=True)
+@click.option("--mode", default="full", show_default=True, type=click.Choice(["pilot", "full"]))
+@click.option("--no-qc", is_flag=True, help="Skip the per-point QC figures.")
+@click.option("--run-id", default=None)
+def phase7_width(sites, mode, no_qc, run_id) -> None:
+    """Phase 7 (addendum 8, 1.4): the channel-width analysis of feature/channel-width on the metre grids (Phase 3 sample, fits, figures)."""
+    from lemcvt.analyses.phase7 import run_width
+
+    rec = run_width([s.strip() for s in sites.split(",")], mode=mode, make_qc=not no_qc, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@phase7.command("width-constrained")
+@click.option("--stage", default="full", show_default=True, type=click.Choice(["checkpoint", "full"]))
+@click.option("--run-id", default=None)
+def phase7_width_constrained(stage, run_id) -> None:
+    """Phase 7: the constrained width re-run (A >= 1e5 m^2, five transects, constrained bank pick) on the metre grids."""
+    from lemcvt.analyses.phase7 import run_width_constrained
+
+    rec = run_width_constrained(stage=stage, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@phase7.command("heads")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--lsdtt", is_flag=True, help="Also run Method D / LSDTT Wiener (binary aborted on every tile in Test 2; off by default).")
+@click.option("--run-id", default=None)
+def phase7_heads(tiles, lsdtt, run_id) -> None:
+    """Phase 7: Test 2 head extraction (Method P) up to its review gate, on the metre grids."""
+    from lemcvt.analyses.phase7 import run_heads
+
+    rec = run_heads(_parse_tiles(tiles), use_lsdtt=lsdtt, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@phase7.command("heads-analyse")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--heads-run", default="20261113T022845Z_heads_10tiles", show_default=True, help="Extract-phase run holding heads_extracted.csv.")
+@click.option("--n-boot", default=None, type=int, help="Bootstrap resamples (default: heads ANALYSIS config, 2000).")
+@click.option("--run-id", default=None)
+def phase7_heads_analyse(tiles, heads_run, n_boot, run_id) -> None:
+    """Addendum 10, 4: Test 2 analyse phase (directive sections 5-8) on the accepted head sets."""
+    from lemcvt.analyses.heads.analyse import run_heads_analyse
+
+    rec = run_heads_analyse(_parse_tiles(tiles), heads_run=heads_run, n_boot=n_boot, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@phase7.command("port-check")
+@click.option("--run-id", default=None)
+def phase7_port_check(run_id) -> None:
+    """Phase 7: regression check of the ported analyses against the feature-branch outputs on GM, and the AP change."""
+    from lemcvt.analyses.phase7 import run_port_check
+
+    rec = run_port_check(run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@main.group()
+def phase8() -> None:
+    """Addendum 8: E*-R* (2), the slope-dependent threshold (3)."""
+
+
+@phase8.command("er-star")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--n-boot", default=200, show_default=True)
+@click.option("--a-c", default=None, type=float, help="Override the rollover-network A_c of the option (iii) set (default: the measure run).")
+@click.option("--crop", default=None)
+@click.option("--run-id", default=None)
+def phase8_er_star(tiles, n_boot, a_c, crop, run_id) -> None:
+    """Addendum 8, 2.1-2.3: E*-R* of the option (iii) hilltop pixels on three networks, the linear test, the S_c fit and the rule."""
+    from lemcvt.analyses.er_star import run_er_star
+
+    rec = run_er_star(_parse_tiles(tiles), n_boot=n_boot, run_id=run_id, crop=_parse_crop(crop), A_c_rollover=a_c)
+    click.echo(f"results: {rec.dir}")
+
+
+@phase8.command("slope-threshold")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--alpha", required=True, type=float)
+@click.option("--thin-n", default=2000, show_default=True)
+@click.option("--refine-max", default=400, show_default=True)
+@click.option("--crop", default=None)
+@click.option("--run-id", default=None)
+def phase8_slope_threshold(tile_id, alpha, thin_n, refine_max, crop, run_id) -> None:
+    """Addendum 8, 3.1-3.3: the linear joint profile over C of the threshold A S^alpha >= C, with the basin hold-out from the same reductions."""
+    from lemcvt.analyses.slope_threshold import run_slope_threshold
+
+    rec = run_slope_threshold(tile_id, alpha, thin_n=thin_n, refine_max=refine_max, crop=_parse_crop(crop), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@phase8.command("slope-threshold-summary")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--run-id", default=None)
+def phase8_slope_threshold_summary(tiles, run_id) -> None:
+    """Addendum 8, 3.3: the hold-out rule per tile and site from the latest run of every (tile, alpha)."""
+    from lemcvt.analyses.slope_threshold import summarize
+
+    rec = summarize(_parse_tiles(tiles), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@main.group()
+def a9() -> None:
+    """Addendum 9: the Newton solver pilot (2.2, 5), the nonlinear joint profile at fitted S_c (3), the morphology score (4)."""
+
+
+@a9.command("pilot")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--part", default="centre", show_default=True, type=click.Choice(["centre", "flux", "test1"]))
+@click.option("--run-id", default=None)
+def a9_pilot(tile_id, part, run_id) -> None:
+    """2.2 tests 1 and 4 (part centre) or the flux-form pilot solves (part flux) on one tile (5.1)."""
+    from lemcvt.analyses.nonlinear_fair import run_pilot
+
+    rec = run_pilot(tile_id, part=part, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a9.command("section2-tests")
+@click.option("--run-id", default=None)
+def a9_section2_tests(run_id) -> None:
+    """2.2 tests 2 and 3 with their numbers recorded: the 1-D strip at E* = 1, 5, 20 and dx = 1, 0.5, 0.25 m, both forms; the Jacobian check."""
+    from lemcvt.analyses.nonlinear_fair import run_section2_tests
+
+    rec = run_section2_tests(run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a9.command("pilot-summary")
+@click.option("--tiles", default="AP1,GM1", show_default=True)
+@click.option("--run-id", default=None)
+def a9_pilot_summary(tiles, run_id) -> None:
+    """5.2 and the 2.2 stop rule: the section 3 core-hour estimate and the test 4 outcome fractions."""
+    from lemcvt.analyses.nonlinear_fair import summarize_pilot
+
+    rec = summarize_pilot(_parse_tiles(tiles), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a9.command("slope-exceedance")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--run-id", default=None)
+def a9_slope_exceedance(tiles, run_id) -> None:
+    """Section 2 diagnostic: hillslope cells above 0.99 S_c and 0.5 S_c on the observed DEM and the linear joint surface."""
+    from lemcvt.analyses.nonlinear_fair import run_slope_exceedance
+
+    rec = run_slope_exceedance(_parse_tiles(tiles), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a9.command("fair-part")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--sc", "sc_label", required=True, type=click.Choice(["central", "p16", "p84"]))
+@click.option("--split", default=None, help="k/n: the k-th of n interleaved subsets of the A_crit grid")
+@click.option("--form", default="flux", show_default=True, type=click.Choice(["flux", "centre"]))
+@click.option("--crop", default=None)
+@click.option("--run-id", default=None)
+def a9_fair_part(tile_id, sc_label, split, form, crop, run_id) -> None:
+    """3.1: one part of the nonlinear joint profile over (A_crit, D) at one S_c, Newton with continuation in D."""
+    from lemcvt.analyses.nonlinear_fair import run_fair_part
+
+    sp = tuple(int(x) for x in split.split("/")) if split else None
+    rec = run_fair_part(tile_id, sc_label, split=sp, form=form, crop=_parse_crop(crop), run_id=run_id)  # type: ignore[arg-type]
+    click.echo(f"results: {rec.dir}")
+
+
+@a9.command("fair-merge")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--sc", "sc_label", required=True, type=click.Choice(["central", "p16", "p84"]))
+@click.option("--form", default="flux", show_default=True, type=click.Choice(["flux", "centre"]))
+@click.option("--run-id", default=None)
+def a9_fair_merge(tile_id, sc_label, form, run_id) -> None:
+    """3.1: merge the parts of a tile at one S_c: optimum over converged evaluations, outcome counts, contours, grid."""
+    from lemcvt.analyses.nonlinear_fair import merge_fair
+
+    rec = merge_fair(tile_id, sc_label, form=form, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a9.command("fair-summary")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--run-id", default=None)
+def a9_fair_summary(tiles, run_id) -> None:
+    """3.1-3.2: the per-tile table and the pre-registered rule per site and S_c."""
+    from lemcvt.analyses.nonlinear_fair import summarize_fair
+
+    rec = summarize_fair(_parse_tiles(tiles), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a9.command("morphology")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--run-id", default=None)
+def a9_morphology(tiles, run_id) -> None:
+    """4: crest curvature, E*-R* ratio and hillslope gradients of every fitted surface against the observed DEM."""
+    from lemcvt.analyses.nonlinear_fair import run_morphology
+
+    rec = run_morphology(_parse_tiles(tiles), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@main.group()
+def a10() -> None:
+    """Addendum 10: the bounded GM flux-form test (section 2; Newton on the flux form, the 1.4 clip rule)."""
+
+
+@a10.command("flux-part")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--sc", "sc_label", required=True, type=click.Choice(["1.25", "0.9", "central", "p84"]))
+@click.option("--split", default=None, help="k/n: the k-th of n interleaved subsets of the A_crit grid")
+@click.option("--pilot", is_flag=True, help="2.2.1: only the A_crit row nearest the linear joint A_crit")
+@click.option("--n-acrit", default=12, show_default=True, help="12, or 8 (the 2.2.2 fallback)")
+@click.option("--group", default=None, help="tag shared by the parts of one submission (the 2.2.4 stop rule counts across them)")
+@click.option("--crop", default=None)
+@click.option("--run-id", default=None)
+def a10_flux_part(tile_id, sc_label, split, pilot, n_acrit, group, crop, run_id) -> None:
+    """2.1: one part of the (A_crit, D) profile at one S_c, flux form, Newton with continuation in D."""
+    from lemcvt.analyses.gm_flux import run_flux_part
+
+    sp = tuple(int(x) for x in split.split("/")) if split else None
+    rec = run_flux_part(tile_id, sc_label, split=sp, rows="pilot" if pilot else None, n_acrit=n_acrit, group=group,  # type: ignore[arg-type]
+                        crop=_parse_crop(crop), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a10.command("flux-resume")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--sc", "sc_label", required=True, type=click.Choice(["1.25", "0.9", "central", "p84"]))
+@click.option("--split", required=True, help="k/n: the part whose unfinished A_crit rows are run")
+@click.option("--group", required=True)
+@click.option("--n-acrit", default=12, show_default=True)
+def a10_flux_resume(tile_id, sc_label, split, group, n_acrit) -> None:
+    """The A_crit rows a part did not complete (time limit); nothing if it completed or the stop rule ended it."""
+    from lemcvt.analyses.gm_flux import resume_part
+
+    sp = tuple(int(x) for x in split.split("/"))
+    rec = resume_part(tile_id, sc_label, sp, group, n_acrit=n_acrit)  # type: ignore[arg-type]
+    click.echo(f"results: {rec.dir}" if rec is not None else "nothing to resume")
+
+
+@a10.command("flux-estimate")
+@click.option("--n-acrit", default=12, show_default=True)
+@click.option("--run-id", default=None)
+def a10_flux_estimate(n_acrit, run_id) -> None:
+    """2.2.2: the core-hour estimate from the pilot rows."""
+    from lemcvt.analyses.gm_flux import estimate
+
+    rec = estimate(n_acrit=n_acrit, run_id=run_id)
+    click.echo(json.dumps(json.loads((rec.dir / "params.json").read_text())["estimate"], indent=1))
+    click.echo(f"results: {rec.dir}")
+
+
+@a10.command("flux-merge")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--sc", "sc_label", required=True, type=click.Choice(["1.25", "0.9", "central", "p84"]))
+@click.option("--group", default=None)
+@click.option("--run-id", default=None)
+def a10_flux_merge(tile_id, sc_label, group, run_id) -> None:
+    """Merge the parts of one tile and S_c: optimum over converged evaluations, both outcome counts, contours, grid."""
+    from lemcvt.analyses.gm_flux import merge_flux
+
+    rec = merge_flux(tile_id, sc_label, group=group, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a10.command("flux-summary")
+@click.option("--tiles", default="GM", show_default=True)
+@click.option("--run-id", default=None)
+def a10_flux_summary(tiles, run_id) -> None:
+    """2.3: the per-tile table at every S_c and the pre-registered rule."""
+    from lemcvt.analyses.gm_flux import summarize_flux
+
+    rec = summarize_flux(_parse_tiles(tiles), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@main.command("slope-area")
+@click.option("--tiles", default="AP1,GM2", show_default=True)
+@click.option("--phase6", is_flag=True, help="Model grids from the Phase 6 runs (AD run and refined partitioned run) instead of the saved v1 grids.")
+@click.option("--run-id", default=None)
+def slope_area(tiles, phase6, run_id) -> None:
+    """Binned slope-area regressions of observed and saved model grids (fig_slope_area)."""
+    from lemcvt.analyses.slope_area_fig import run_slope_area
+
+    rec = run_slope_area(_parse_tiles(tiles), run_id=run_id, phase6=phase6)
+    click.echo(f"results: {rec.dir}")
+
+
+# -------------------------------------------------------------------------------- measure
+@main.command("measure")
+@click.option("--tile", "tiles", required=True, help="Tile id, comma list, AP, GM or all")
+@click.option("--metres/--stored-units", default=True, show_default=True,
+              help="Measure on metre grids (converts AP from feet regardless of reproduce_v1_units).")
+@click.option("--n-boot", default=200, show_default=True)
+@click.option("--no-legacy", is_flag=True, help="Skip the re-run of the v1 method (slow on full tiles).")
+@click.option("--crop", default=None, help="row0,row1,col0,col1 (smoke tests only)")
+@click.option("--run-id", default=None)
+def measure(tiles, metres, n_boot, no_legacy, crop, run_id) -> None:
+    """Measure theta, k_s, hilltop curvature and D0 = U/C_ht from the tile's own grid."""
+    from lemcvt.measure.pipeline import run_measure
+
+    rec = run_measure(_parse_tiles(tiles), force_metres=metres, n_boot=n_boot, run_id=run_id, run_legacy=not no_legacy,
+                      crop=_parse_crop(crop))
+    click.echo(f"results: {rec.dir}")
+
+
+@main.command("profile")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--picard-iters", default=2, show_default=True)
+@click.option("--run-id", default=None)
+def profile(tile_id, picard_iters, run_id) -> None:
+    """Phase 3 step 1: cProfile + line_profiler of every model stage on a full tile."""
+    from lemcvt.analyses.profiling import run_profile
+
+    rec = run_profile(tile_id, picard_iters=picard_iters, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+# -------------------------------------------------------------------------------- closeout (addendum 2, section 2)
+@main.group()
+def closeout() -> None:
+    """Phase 2 close-out diagnostics (addendum 2): rounding recovery, D-infinity diagnostics."""
+
+
+@closeout.command("linearized")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--keys", default="ad_opt,joint_opt", show_default=True)
+@click.option("--rel-step", default=1e-6, show_default=True)
+@click.option("--forward-run", type=click.Path(path_type=Path), default=None,
+              help="tile_forward run directory to take the Phase 2 grids from (default: latest for the tile)")
+@click.option("--run-id", default=None)
+def closeout_linearized(tile_id, keys, rel_step, forward_run, run_id) -> None:
+    """Linearized recovery of the printed-parameter rounding, rounding-interval and difference counts."""
+    from lemcvt.analyses.phase2_closeout import run_closeout
+
+    rec = run_closeout(tile_id, keys=tuple(k.strip() for k in keys.split(",")), rel_step=rel_step, run_id=run_id,
+                       forward_run=forward_run)
+    click.echo(f"results: {rec.dir}")
+
+
+@closeout.command("dinf")
+@click.option("--tiles", default="AP1,GM1", show_default=True)
+@click.option("--no-synthetic", is_flag=True)
+@click.option("--run-id", default=None)
+def closeout_dinf(tiles, no_synthetic, run_id) -> None:
+    """Diagnose the D-infinity partitioned model (addendum 2, 2.6); changes no model code."""
+    from lemcvt.analyses.dinf_diagnostics import run_dinf_diagnostics
+
+    rec = run_dinf_diagnostics(_parse_tiles(tiles) if tiles else (), synthetic=not no_synthetic, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+# -------------------------------------------------------------------------------- audits (addendum 3, sections 3-4)
+@main.group()
+def audit() -> None:
+    """Addendum 3 audits: Picard convergence (section 3), chi estimator and hilltop set (section 4)."""
+
+
+@audit.command("picard")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--metres", is_flag=True, help="Load with reproduce_v1_units: false (in memory only; configs unchanged).")
+@click.option("--scale-k", "scale_K", default=1.0, show_default=True, help="Multiply K0_partitioned by this factor.")
+@click.option("--scale-d", "scale_D", default=1.0, show_default=True, help="Multiply D0 by this factor.")
+@click.option("--label", default=None, help="Variant label for the run id (default feet_as_v1 / metres).")
+@click.option("--reference-run", default=None,
+              help="tile_forward run directory whose nonlinear_opt grid the result is compared with ('step5' = latest Phase 3 gate run).")
+@click.option("--max-iter", default=None, type=int, help="Override the Picard cap (default: the config's 50).")
+@click.option("--no-grids", is_flag=True)
+@click.option("--run-id", default=None)
+def audit_picard(tile_id, metres, scale_K, scale_D, label, reference_run, max_iter, no_grids, run_id) -> None:
+    """Run the nonlinear model once at the v1 nonlinear optimum with the instrumented Picard loop."""
+    from lemcvt.analyses.picard_audit import run_picard_audit
+
+    if reference_run == "step5":
+        from lemcvt.results import find_runs
+
+        cands = [r for r in find_runs("tile_forward", tile_id) if "20261109T2143" <= r.name[:13] <= "20261109T2150"]
+        reference_run = str(cands[-1]) if cands else None
+    rec = run_picard_audit(tile_id, metres=metres, scale_K=scale_K, scale_D=scale_D, label=label, reference_run=reference_run,
+                           save_grids=not no_grids, run_id=run_id, max_iter=max_iter)
+    click.echo(f"results: {rec.dir}")
+
+
+@audit.command("measure")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--n-boot", default=200, show_default=True)
+@click.option("--crop", default=None, help="row0,row1,col0,col1 (smoke tests only)")
+@click.option("--run-id", default=None)
+def audit_measure(tiles, n_boot, crop, run_id) -> None:
+    """chi estimator audit (n_eff, equal-weight and median estimators, truncation) and hilltop exclusion (addendum 3, section 4)."""
+    from lemcvt.measure.audits import run_measure_audit
+
+    rec = run_measure_audit(_parse_tiles(tiles), n_boot=n_boot, run_id=run_id, crop=_parse_crop(crop))
+    click.echo(f"results: {rec.dir}")
+
+
+@main.command("measure-diagnostics")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--n-boot", default=200, show_default=True)
+@click.option("--crop", default=None, help="row0,row1,col0,col1 (smoke tests only)")
+@click.option("--run-id", default=None)
+def measure_diagnostics(tiles, n_boot, crop, run_id) -> None:
+    """Threshold-decision diagnostics (addendum 2, section 6): ladders, scaling break, edge effects, curvature test."""
+    from lemcvt.measure.diagnostics import run_measure_diagnostics
+
+    rec = run_measure_diagnostics(_parse_tiles(tiles), n_boot=n_boot, run_id=run_id, crop=_parse_crop(crop))
+    click.echo(f"results: {rec.dir}")
+
+
+# -------------------------------------------------------------------------------- figures / tables
+@main.command("figures")
+@click.argument("which", default="all")
+@click.option("--out", type=click.Path(path_type=Path), default=None, help="Output directory (default figures/).")
+def figures(which, out) -> None:
+    """Build figures from results only (no model computation)."""
+    from lemcvt.figures import build_figures
+
+    paths = build_figures(which, out_dir=out)
+    for p in paths:
+        click.echo(str(p))
+
+
+@main.command("tables")
+@click.argument("which", default="all")
+@click.option("--out", type=click.Path(path_type=Path), default=None, help="Output directory (default tables/).")
+def tables(which, out) -> None:
+    """Build tables (LaTeX booktabs + CSV) from results only."""
+    from lemcvt.tables import build_tables
+
+    paths = build_tables(which, out_dir=out)
+    for p in paths:
+        click.echo(str(p))
+
+
+@main.command("regression-report")
+@click.option("--out", type=click.Path(path_type=Path), default=None, help="Output markdown path.")
+def regression_report(out) -> None:
+    """Compare results with the frozen v1 reference and write reports/v2/02_regression_tables.md."""
+    from lemcvt.analyses.regression_report import build
+
+    p = build(out_md=out)
+    click.echo(str(p))
+
+
+# -------------------------------------------------------------------------------- slurm
+@main.group()
+def slurm() -> None:
+    """Render and submit Slurm job arrays."""
+
+
+@slurm.command("submit")
+@click.argument("step", type=click.Choice(["tile_run", "tile_forward", "sweep_resolution", "measure", "closeout",
+                                           "dinf_diagnostics", "measure_diagnostics", "measure_audit", "profile", "custom",
+                                           "phase6_partitioned", "phase6_nonlinear", "phase6_nonlinear_joint", "phase6_dinf_joint",
+                                           "phase6_ad", "phase6_utilities", "phase8_slope_threshold"]))
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--labels", default=None, help="custom step: comma list of array labels (default: one task 'all')")
+@click.option("--command", "command_", default=None, help="custom step: command with $LABEL, e.g. \"lemcvt -v slope-area --tiles AP1,GM2\"")
+@click.option("--stages", default=",".join(STAGES), show_default=True, help="tile_run only")
+@click.option("--optimizer", default="v1", show_default=True)
+@click.option("--m-range", default=None, help="tile_run with --optimizer v2 and stage m_profile: m_min,m_max")
+@click.option("--units", default=None, type=click.Choice(["stored", "feet", "metres"]), help="tile_run: vertical unit override (Phase 5)")
+@click.option("--params", default="v1", show_default=True, help="tile_forward only")
+@click.option("--compare", is_flag=True, help="tile_forward only")
+@click.option("--reference-run", default=None, help="tile_forward only: Phase 3 gate against this run ('phase2')")
+@click.option("--routing", default="d8,dinf", show_default=True, help="sweep_resolution only")
+@click.option("--sweep-params", default="v1", show_default=True, type=click.Choice(["v1", "config"]), help="sweep_resolution only")
+@click.option("--k-factor", default=1.0, show_default=True, help="phase6_nonlinear_joint only: K x factor (K check)")
+@click.option("--d0-variant", default="A", show_default=True, type=click.Choice(["A", "B"]), help="phase6_* and sweep_resolution: D0 (A) or D0_B (B)")
+@click.option("--time", "time_", default=None, help="Override wall time (D-HH:MM:SS).")
+@click.option("--cpus", default=None, type=int)
+@click.option("--mem", default=None)
+@click.option("--dependency", default=None, help="Slurm dependency, e.g. afterok:<jobid> (stages that need a predecessor).")
+@click.option("--job-name", default=None, help="Override the job name (default lemcvt_<step>).")
+@click.option("--dry-run", is_flag=True, help="Render and print the script and estimate; do not submit.")
+@click.option("--approved", is_flag=True, help="Steve approved a submission above the core-hour limit (300).")
+def slurm_submit(step, tiles, labels, command_, stages, optimizer, m_range, units, params, compare, reference_run, routing, sweep_params,
+                 k_factor, d0_variant, time_, cpus, mem, dependency, job_name, dry_run, approved):
+    from lemcvt.slurm import build_spec, estimate_text, render, submit
+
+    labels = _parse_tiles(tiles) if step not in ("custom", "phase8_slope_threshold") else ([s.strip() for s in labels.split(",")] if labels else ["all"])
+    if step == "custom":
+        if not command_:
+            raise click.BadParameter("custom step needs --command")
+        cmd = command_
+    elif step == "tile_run":
+        cmd = (f"lemcvt -v tile run --tile $LABEL --stages {stages} --optimizer {optimizer}" + (f" --m-range {m_range}" if m_range else "")
+               + (f" --units {units}" if units else ""))
+    elif step == "tile_forward":
+        cmd = (f"lemcvt -v tile forward --tile $LABEL --params {params}" + (" --compare" if compare else "")
+               + (f" --reference-run {reference_run}" if reference_run else ""))
+    elif step == "sweep_resolution":
+        cmd = f"lemcvt -v sweep resolution --tiles $LABEL --routing {routing} --params {sweep_params} --d0-variant {d0_variant}"
+    elif step == "phase6_ad":
+        cmd = "lemcvt -v tile run --tile $LABEL --stages ad --optimizer v2"
+    elif step == "phase6_partitioned":
+        # thin profile, staircase refinement, then every unique area inside the 5 % intervals (addendum 5, 3.2); the refine step
+        # takes the just-written run (the latest partitioned run of the tile with this D0 variant)
+        cmd = f"bash reports/v2/scripts/phase6_partitioned_task.sh $LABEL {d0_variant}"
+    elif step == "phase6_nonlinear":
+        cmd = f"lemcvt -v tile run --tile $LABEL --stages nonlinear --optimizer v2 --no-derived --d0-variant {d0_variant}"
+    elif step == "phase6_nonlinear_joint":
+        cmd = f"lemcvt -v tile v2-nonlinear-joint --tile $LABEL --k-factor {k_factor}"
+    elif step == "phase6_dinf_joint":
+        cmd = "lemcvt -v tile v2-dinf-joint --tile $LABEL"
+    elif step == "phase8_slope_threshold":
+        # labels are <tile>_a<alpha>, e.g. AP1_a0.5 (one array task per tile and alpha)
+        cmd = "bash reports/v2/scripts/phase8_slope_threshold_task.sh $LABEL"
+    elif step == "phase6_utilities":
+        cmd = f"bash {command_}"
+        labels = ["all"]
+    elif step == "closeout":
+        cmd = "lemcvt -v closeout linearized --tile $LABEL"
+    elif step == "dinf_diagnostics":
+        cmd = f"lemcvt -v closeout dinf --tiles {tiles}"
+        labels = ["all"]
+    elif step == "measure_diagnostics":
+        cmd = f"lemcvt -v measure-diagnostics --tiles {tiles}"
+        labels = ["all"]
+    elif step == "measure_audit":
+        cmd = f"lemcvt -v audit measure --tiles {tiles}"
+        labels = ["all"]
+    elif step == "profile":
+        cmd = "lemcvt -v profile --tile $LABEL"
+    else:
+        cmd = "lemcvt -v measure --tile $LABEL"
+    spec = build_spec(step, labels, cmd, time=time_, cpus=cpus, mem=mem, dependency=dependency, job_name=job_name)
+    click.echo(estimate_text(spec))
+    if dry_run:
+        click.echo(render(spec))
+    try:
+        job, script = submit(spec, dry_run=dry_run, approved=approved)
+    except PermissionError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"{'rendered' if dry_run else 'submitted'} {script} -> {job}")
+
+
+@slurm.command("submit-stages")
+@click.option("--tiles", default="GM1,AP5", show_default=True)
+@click.option("--stages", default=",".join(STAGES), show_default=True)
+@click.option("--optimizer", default="v1", show_default=True)
+@click.option("--dry-run", is_flag=True)
+@click.option("--approved", is_flag=True)
+def slurm_submit_stages(tiles, stages, optimizer, dry_run, approved):
+    """Optimizer regression: one serc job per (tile, stage), time = 1.5 x the v1 stage time (addendum 2, section 3)."""
+    import json as _json
+
+    from lemcvt.slurm import submit_stages
+
+    try:
+        jobs = submit_stages(_parse_tiles(tiles), tuple(s.strip() for s in stages.split(",")), optimizer=optimizer,
+                             dry_run=dry_run, approved=approved)
+    except (PermissionError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    for j in jobs:
+        click.echo(f"{'rendered' if dry_run else 'submitted'} {j['tile']} {j['stage']} time={j['time']} -> {j['job_id']}")
+    click.echo(_json.dumps(jobs, indent=1))
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main()

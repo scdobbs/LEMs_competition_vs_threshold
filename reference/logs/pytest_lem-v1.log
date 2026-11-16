@@ -1,0 +1,103 @@
+........................................................................ [ 68%]
+.................................                                        [100%]
+=============================== warnings summary ===============================
+../../../groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:66
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:66: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    ).setParseAction(self._family)
+
+../../../groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:70
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:70: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    ).setParseAction(self._size)
+
+../../../groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:74
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:74: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    ).setParseAction(self._name)
+
+../../../groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:78
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:78: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    ).setParseAction(self._value)
+
+../../../groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:85
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:85: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    ).setParseAction(self._families)
+
+../../../groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:92
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:92: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    ).setParseAction(self._point_sizes)
+
+../../../groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:102
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:102: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    ).setParseAction(self._property)
+
+../../../groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:127: 5 warnings
+tests/test_plotting.py: 23 warnings
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:127: PyparsingDeprecationWarning: 'parseString' deprecated - use 'parse_string'
+    self._parser.parseString(pattern)
+
+../../../groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:134: 5 warnings
+tests/test_plotting.py: 23 warnings
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:134: PyparsingDeprecationWarning: 'resetCache' deprecated - use 'reset_cache'
+    self._parser.resetCache()
+
+../../../groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_mathtext.py:29
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_mathtext.py:29: PyparsingDeprecationWarning: 'enablePackrat' deprecated - use 'enable_packrat'
+    ParserElement.enablePackrat()
+
+tests/test_plotting.py::TestPlotMapsAreaSlope::test_runs_without_crash
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_mathtext.py:1820: PyparsingDeprecationWarning: 'oneOf' deprecated - use 'one_of'
+    p.space          = oneOf(self._space_widths)("space")
+
+tests/test_plotting.py::TestPlotMapsAreaSlope::test_runs_without_crash
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_mathtext.py:1822: PyparsingDeprecationWarning: 'oneOf' deprecated - use 'one_of'
+    p.style_literal  = oneOf(
+
+tests/test_plotting.py::TestPlotMapsAreaSlope::test_runs_without_crash
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_mathtext.py:1830: PyparsingDeprecationWarning: 'leaveWhitespace' deprecated - use 'leave_whitespace'
+    )("sym").leaveWhitespace()
+
+tests/test_plotting.py::TestPlotMapsAreaSlope::test_runs_without_crash
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_mathtext.py:1835: PyparsingDeprecationWarning: 'oneOf' deprecated - use 'one_of'
+    Optional(r"\math" + oneOf(self._fontnames)("font")) + "{")
+
+tests/test_plotting.py::TestPlotMapsAreaSlope::test_runs_without_crash
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_mathtext.py:1838: PyparsingDeprecationWarning: 'oneOf' deprecated - use 'one_of'
+    p.delim          = oneOf(self._delims)
+
+tests/test_plotting.py: 71 warnings
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_mathtext.py:1797: PyparsingDeprecationWarning: 'setName' deprecated - use 'set_name'
+    val.setName(key)
+
+tests/test_plotting.py: 62 warnings
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_mathtext.py:1800: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    val.setParseAction(getattr(self, key))
+
+tests/test_plotting.py: 12 warnings
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_mathtext.py:1640: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    return Empty().setParseAction(raise_error)
+
+tests/test_plotting.py::TestPlotMapsAreaSlope::test_runs_without_crash
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_mathtext.py:1939: PyparsingDeprecationWarning: 'oneOf' deprecated - use 'one_of'
+    + OneOrMore(oneOf(["_", "^"]) - p.placeable)("subsuper")
+
+tests/test_plotting.py::TestPlotMapsAreaSlope::test_runs_without_crash
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_mathtext.py:1959: PyparsingDeprecationWarning: 'unquoteResults' argument is deprecated, use 'unquote_results'
+    p.math_string   = QuotedString('$', '\\', unquoteResults=False)
+
+tests/test_plotting.py::TestPlotMapsAreaSlope::test_runs_without_crash
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_mathtext.py:1960: PyparsingDeprecationWarning: 'leaveWhitespace' deprecated - use 'leave_whitespace'
+    p.non_math      = Regex(r"(?:(?:\\[$])|[^$])*").leaveWhitespace()
+
+tests/test_plotting.py: 10 warnings
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_mathtext.py:1983: PyparsingDeprecationWarning: 'parseString' deprecated - use 'parse_string'
+    result = self._expression.parseString(s)
+
+tests/test_plotting.py: 10 warnings
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_mathtext.py:2012: PyparsingDeprecationWarning: 'parseString' deprecated - use 'parse_string'
+    return self._math_expression.parseString(toks[0][1:-1])
+
+tests/test_plotting.py: 10 warnings
+  /home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/matplotlib/_mathtext.py:1993: PyparsingDeprecationWarning: 'resetCache' deprecated - use 'reset_cache'
+    self._expression.resetCache()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+105 passed, 247 warnings in 8.03s

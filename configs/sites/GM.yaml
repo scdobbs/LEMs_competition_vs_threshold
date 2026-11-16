@@ -1,0 +1,17 @@
+# Gabilan Mesa (California). Grids: 1 m lidar, WGS84 / UTM 10N (EPSG:32610), z in metres.
+site: GM
+name: Gabilan Mesa (CA)
+U: 1.47e-4             # m/yr
+n: 1.0
+S_c: 1.27
+z_range_m: [50.0, 700.0]    # the tiles span 135-425 m
+max_median_slope: 0.6
+crs_epsg: 32610
+regional:
+  source: legacy notebooks TAYLOR_REF / GabilanExploration.ipynb; verify against Perron et al. (2012)
+  K: 1.002e-4          # 1/yr (100.2 /Myr)
+  D: 1.24e-2           # m^2/yr (124 cm^2/yr)
+  m: 0.35
+  A_crit: 1.0e4        # m^2
+  hilltop_curvature: 1.18e-2  # 1/m
+  U: 1.47e-4

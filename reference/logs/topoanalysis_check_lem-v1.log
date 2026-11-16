@@ -1,0 +1,4 @@
+/home/groups/hilley/scdobbs-envs/lem-v1/lib/python3.10/site-packages/osgeo/gdal.py:606: FutureWarning: Neither gdal.UseExceptions() nor gdal.DontUseExceptions() has been explicitly called. In GDAL 4.0, exceptions will be enabled by default.
+  warnings.warn(
+TopoAnalysis Elevation.load OK: (1000, 1000) float64 dx= 1.0 nx,ny= 1000 1000 geoTransform= (700991.0, 1.0, 0.0, 3981451.0, 0.0, -1.0) projection_set= False nodata= n/a
+AP3 area load OK: (1015, 1014) dx= 0.9751752465483466 nx,ny= 1014 1015 geoTransform= (551854.6481, 0.9751752465483466, 0.0, 4420220.5355, 0.0, -0.9751305418722148) min/max= 0.9506717002271684 11010133.946475264

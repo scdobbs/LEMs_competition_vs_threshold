@@ -1,0 +1,43 @@
+Fetch Shard Index for conda-forge/linux-64                                                      ⧖ Starting
+Fetch Shard Index for conda-forge/linux-64                                                ✔ Done (0.1 sec)
+Fetch Shard Index for conda-forge/noarch                                                        ⧖ Starting
+Fetch Shard Index for conda-forge/noarch                                                  ✔ Done (0.1 sec)
+Fetching and Parsing Packages' Shards                                                           ⧖ Starting
+Fetching and Parsing Packages' Shards                                                    ✔ Done (13.3 sec)
+
+Resolving Environment                                                                           ⧖ Starting
+Resolving Environment                                                                     ✔ Done (1.1 sec)
+Using Cached Shard Index for conda-forge/linux-64                                                   ✔ Done
+Using Cached Shard Index for conda-forge/noarch                                                     ✔ Done
+Fetching and Parsing Packages' Shards                                                           ⧖ Starting
+Fetching and Parsing Packages' Shards                                                     ✔ Done (1.3 sec)
+
+Resolving Environment                                                                           ⧖ Starting
+Resolving Environment                                                                     ✔ Done (1.2 sec)
+error    libmamba Could not solve for environment specs
+    The following packages are incompatible
+    ├─ matplotlib-base =3.6.2 * is requested and can be installed;
+    ├─ scikit-image =0.25.2 * is not installable because it requires
+    │  └─ matplotlib-base >=3.7 *, which conflicts with any installable versions previously reported;
+    └─ scipy =1.15.3 * does not exist (perhaps a typo or a missing channel).
+critical libmamba Could not solve for environment specs
+
+===== relaxed spec =====
+Using Cached Shard Index for conda-forge/linux-64                                                   ✔ Done
+Using Cached Shard Index for conda-forge/noarch                                                     ✔ Done
+Fetching and Parsing Packages' Shards                                                           ⧖ Starting
+Fetching and Parsing Packages' Shards                                                     ✔ Done (1.3 sec)
+
+Resolving Environment                                                                           ⧖ Starting
+Resolving Environment                                                                     ✔ Done (4.7 sec)
+Using Cached Shard Index for conda-forge/linux-64                                                   ✔ Done
+Using Cached Shard Index for conda-forge/noarch                                                     ✔ Done
+Fetching and Parsing Packages' Shards                                                           ⧖ Starting
+Fetching and Parsing Packages' Shards                                                     ✔ Done (1.2 sec)
+
+Resolving Environment                                                                           ⧖ Starting
+Resolving Environment                                                                     ✔ Done (4.7 sec)
+error    libmamba Could not solve for environment specs
+    The following package could not be installed
+    └─ scipy =1.15.3 * does not exist (perhaps a typo or a missing channel).
+critical libmamba Could not solve for environment specs

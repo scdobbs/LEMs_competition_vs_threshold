@@ -1,0 +1,14 @@
+host=sh02-01n13.int job=51675344 start=2026-11-09T08:57:13-0800
+git: 52a3418 v2
+=== [1] grid manifest + saved-grid MSE (lem-widths python) 2026-11-09T08:57:13-0800
+manifest exit=0 ;   MSE GM/tile5 GM_1m_best_tile_Partitioned-model-a_crit-opt_elevation: 6.102212e+01 (n=1000000, nan_model=0) wrote reference/v1_saved_grid_mse.csv (40 rows) 
+=== [2] build lem-v1 2026-11-09T08:57:47-0800
+build exit=0 spec=strict
+python 3.10.12 numpy 1.26.4 scipy 1.15.3
+=== [3] pytest tests/ in lem-v1 2026-11-09T09:05:18-0800
+pytest exit=0 ; 105 passed, 247 warnings in 8.03s
+=== [4] TopoAnalysis import + one grid load in lem-v1 2026-11-09T09:05:28-0800
+topoanalysis exit=1 ; Traceback (most recent call last):
+  File "<stdin>", line 6, in <module>
+AttributeError: 'Elevation' object has no attribute '_nodata_value'
+=== done 2026-11-09T09:05:34-0800

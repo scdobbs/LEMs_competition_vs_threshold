@@ -1,26 +1,21 @@
+# ruff: noqa: F841  (verbatim v1 port)
 """
 Tests for D-infinity flow routing (src/dinf.py).
 
 Uses small synthetic grids — no data dependencies.
 """
 
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 import numpy as np
 import pytest
 
-from dinf import (
-    FACETS,
-    D8_CODE_TO_DINF,
+from lemcvt.hydro.dinf import (
+    compute_dinf,
+    compute_dinf_area,
     compute_dinf_flow_direction,
     get_receivers,
-    compute_dinf_area,
-    compute_dinf_from_dem,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helper: build small synthetic grids
@@ -371,22 +366,14 @@ class TestGetReceivers:
 # ---------------------------------------------------------------------------
 
 class TestComputeDinfFromDem:
-    """Test the convenience wrapper with mock objects."""
+    """Test the convenience wrapper (arrays in v2)."""
 
     def test_basic_output(self):
-        class MockGeoref:
-            dx = 5.0
-
-        class MockDem:
-            _griddata = _tilted_plane(10, 10, 5.0, slope_i=0.5, slope_j=0.3)
-            _georef_info = MockGeoref()
-
-        class MockFD:
-            _griddata = np.full((10, 10), 4.0)
-
-        angles, r_facet, facet_idx, A_dinf = compute_dinf_from_dem(MockDem(), MockFD())
+        Z = _tilted_plane(10, 10, 5.0, slope_i=0.5, slope_j=0.3)
+        FD = np.full((10, 10), 4.0)
+        angles, r_facet, facet_idx, A_dinf = compute_dinf(Z, 5.0, FD)
 
         assert angles.shape == (10, 10)
         assert A_dinf.shape == (10, 10)
-        assert np.all(np.isfinite(angles[np.isfinite(MockDem._griddata)]))
+        assert np.all(np.isfinite(angles[np.isfinite(Z)]))
         assert np.all(A_dinf[np.isfinite(A_dinf)] > 0)

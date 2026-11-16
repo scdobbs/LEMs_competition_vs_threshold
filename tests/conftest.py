@@ -1,5 +1,5 @@
-"""
-Shared test fixtures for the Dobbs & Hilley landscape evolution models.
+"""Shared test fixtures (v1 conftest kept verbatim; the mock grids are adapted to array
+interfaces inside the ported test modules).
 
 Provides small synthetic grids (20×20) that mimic the DEM/area/flow_direction
 objects used by the models. Uses mock objects with _griddata, _georef_info,
@@ -8,7 +8,6 @@ _nodata_value attributes — no real data files or TopoAnalysis needed.
 
 import numpy as np
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Lightweight mock classes that replicate the TopoAnalysis interface
@@ -139,3 +138,22 @@ def model_params():
         "A_crit": 500.0,
         "S_c": 1.2,
     }
+
+
+# ---------------------------------------------------------------------------
+# GitHub Actions: failed tests as workflow annotations (addendum 10, 5.1). The job logs of the public repository need a
+# token, but its check-run annotations do not, so a failure on CI can be read from Sherlock without credentials.
+# ---------------------------------------------------------------------------
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):  # noqa: ARG001
+    import os
+
+    if not os.environ.get("GITHUB_ACTIONS"):
+        return
+    for kind in ("failed", "error"):
+        for rep in terminalreporter.stats.get(kind, []):
+            path, line, _ = rep.location
+            msg = str(rep.longrepr).strip().splitlines()
+            text = " | ".join(m.strip() for m in msg[-12:] if m.strip())[:3000]
+            text = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+            terminalreporter.write_line(f"::error file=tests/{os.path.basename(path)},line={(line or 0) + 1},title={kind}: {rep.nodeid}::{text}")
