@@ -1114,5 +1114,107 @@ def slurm_submit_stages(tiles, stages, optimizer, dry_run, approved):
     click.echo(_json.dumps(jobs, indent=1))
 
 
+
+
+# -------------------------------------------------------------------------------- addendum 12 (v2.1)
+@main.group()
+def a12() -> None:
+    """Addendum 12: equal-parameter comparisons at the site m (2) and the per-tile concavity sensitivity (1)."""
+
+
+@a12.command("equal-part")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--thin-n", default=2000, show_default=True)
+@click.option("--fill-level", default=0.01, show_default=True, help="Fill every unique area inside this relative interval of each variant's minimum.")
+@click.option("--fill-max", default=1500, show_default=True)
+@click.option("--refine-max", default=1000, show_default=True, help="Cap on the staircase values around the variants' minima (log-thinned).")
+@click.option("--crop", default=None)
+@click.option("--run-id", default=None)
+def a12_equal_part(tile_id, thin_n, fill_level, fill_max, refine_max, crop, run_id) -> None:
+    """2: partitioned variants P1-P4 in-sample and held-out (P4, P2) on the greedy basin halves, at the site m."""
+    from lemcvt.analyses.sensitivity import run_equal_part
+
+    rec = run_equal_part(tile_id, thin_n=thin_n, fill_level=fill_level, fill_max=fill_max, refine_max=refine_max, crop=_parse_crop(crop),
+                         run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a12.command("equal-ad")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--n-grid", default=200, show_default=True)
+@click.option("--crop", default=None)
+@click.option("--run-id", default=None)
+def a12_equal_ad(tile_id, n_grid, crop, run_id) -> None:
+    """2: AD variants A1 (K = K0), A2 (D = D0, both ends on AP), AD, and AD held-out on the greedy basin halves, at the site m."""
+    from lemcvt.analyses.sensitivity import run_equal_ad
+
+    rec = run_equal_ad(tile_id, n_grid=n_grid, crop=_parse_crop(crop), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a12.command("inputs")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--n-boot", default=None, type=int)
+@click.option("--run-id", default=None)
+def a12_inputs(tiles, n_boot, run_id) -> None:
+    """1.1 and 1.2.1: per-tile m_t and its intervals, the measured site theta beside it, k_s and K0 at theta = m_t."""
+    from lemcvt.analyses.sensitivity import run_mt_inputs
+
+    rec = run_mt_inputs(_parse_tiles(tiles), n_boot=n_boot, run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
+@a12.command("mt")
+@click.option("--tile", "tile_id", required=True)
+@click.option("--stage", required=True, type=click.Choice(["partitioned", "ad"]))
+@click.option("--inputs-run", default=None)
+def a12_mt(tile_id, stage, inputs_run) -> None:
+    """1.2.2-1.2.3: the v2 optimizer at (m_t, K0(m_t)); partitioned = thin + refine + 5 % fill as in Phase 6."""
+    from lemcvt.analyses.sensitivity import run_mt
+
+    for rec in run_mt(tile_id, stage, inputs_run=inputs_run):
+        click.echo(f"results: {rec.dir}")
+
+
+@a12.command("mt-refine")
+@click.option("--tile", "tile_id", required=True)
+def a12_mt_refine(tile_id) -> None:
+    """Resume the refinement of the latest thinned m_t partitioned run."""
+    from lemcvt.analyses.sensitivity import refine_mt
+
+    click.echo(f"results: {refine_mt(tile_id).dir}")
+
+
+@a12.command("estimate")
+@click.option("--tiles", default="all", show_default=True)
+def a12_estimate(tiles) -> None:
+    """3.1: the core-hour estimate of every submission (printed and written as a run)."""
+    from lemcvt.analyses.sensitivity import run_estimate
+
+    rec = run_estimate(_parse_tiles(tiles))
+    click.echo(f"results: {rec.dir}")
+
+
+@a12.command("surfaces")
+@click.option("--tiles", default="all", show_default=True)
+def a12_surfaces(tiles) -> None:
+    """Figures support: rebuild and write the surface of every section 2 variant at its optimum (one forward solve each)."""
+    from lemcvt.analyses.sensitivity import run_surfaces
+
+    for t in _parse_tiles(tiles):
+        click.echo(f"results: {run_surfaces(t).dir}")
+
+
+@a12.command("summary")
+@click.option("--tiles", default="all", show_default=True)
+@click.option("--run-id", default=None)
+def a12_summary(tiles, run_id) -> None:
+    """2.3 and 1.3-1.4: the tables and the pre-registered rules from the latest a12 runs."""
+    from lemcvt.analyses.sensitivity import run_summary
+
+    rec = run_summary(_parse_tiles(tiles), run_id=run_id)
+    click.echo(f"results: {rec.dir}")
+
+
 if __name__ == "__main__":  # pragma: no cover
     main()
