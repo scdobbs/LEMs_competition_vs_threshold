@@ -216,65 +216,66 @@ def kd(out_dir: Path) -> list[Path]:
         rows.append({"tile": r["tile"], "site": r["site"], "variant": "AD", "m": "m_t", "K_over_K0": r["AD_K_over_K0"], "D_over_D0_A": r["AD_D_over_D0_A"],
                      "D_over_D0_B": r["AD_D_over_D0_B"], "mse": r["mse_AD"], "D_at_bound": r["AD_where"] != "interior", "m_value": r["m"]})
     df = pd.DataFrame(rows)
-    panels = [("AP", "A"), ("AP", "B"), ("GM", "A")]
-    marker = {"P1": "s", "P2": "D", "P3": "^", "P4": "o", "A1": "v", "A2": "D", "AD": "o"}
-    fig, axs = plt.subplots(1, 3, figsize=(12.5, 4.6))
-    x_floor = 1e-3
-    for ax, (site, end) in zip(axs, panels, strict=True):
-        _style(ax)
+    marker = {"P2": "D", "P3": "^", "P4": "o", "A1": "v", "A2": "D", "AD": "o"}
+    x_lo, x_hi = 1e-3, 50.0
+    row_spec = [("AP", "A"), ("AP", "B"), ("GM", "A")]
+    fig, axs = plt.subplots(3, 5, figsize=(13.0, 8.4), sharex=True, sharey=True)
+    for i, (site, end) in enumerate(row_spec):
         dcol = f"D_over_D0_{end}"
-        d = df[(df.site == site)]
-        keep = [v for v in ("P1_" + end, "P2_" + end, "P3", "P4", "A1", "A2_" + end, "AD")]
-        d = d[d.variant.isin(keep)]
-        ax.axhline(1, color=MUTED, lw=0.6, ls=(0, (3, 2)), zorder=1)
-        ax.axvline(1, color=MUTED, lw=0.6, ls=(0, (3, 2)), zorder=1)
-        ax.plot(1, 1, marker="+", ms=10, mew=1.2, color=INK, zorder=6)
-        ax.annotate("measured K₀, D₀", (1, 1), xytext=(4, -10), textcoords="offset points", fontsize=6.5, color=INK2)
-        for _, q in d.iterrows():
-            fam = C_PART if q.variant.startswith("P") else C_AD
-            base = q.variant.split("_")[0]
-            x = max(q[dcol], x_floor)
-            clipped = q[dcol] < x_floor
-            mk = "<" if clipped else marker[base]
-            hollow = q.m == "m_t"
-            ax.plot(x, q.K_over_K0, marker=mk, ms=6.5 if base in ("P4", "AD") else 5.5, ls="none", mfc="white" if hollow else fam, mec=fam,
-                    mew=1.1, zorder=5 if base in ("P4", "AD") else 4)
-        # arrows site m -> m_t, and tile labels at the site-m P4 and AD points
-        for tile in sorted(d.tile.unique()):
+        tiles = [t for t in TILES if t.startswith(site)]
+        for j, tile in enumerate(tiles):
+            ax = axs[i, j]
+            _style(ax)
+            d = df[(df.tile == tile) & df.variant.isin(["P2_" + end, "P3", "P4", "A1", "A2_" + end, "AD"])]
+            ax.axhline(1, color=MUTED, lw=0.6, ls=(0, (3, 2)), zorder=1)
+            ax.axvline(1, color=MUTED, lw=0.6, ls=(0, (3, 2)), zorder=1)
+            ax.plot(1, 1, marker="+", ms=11, mew=1.3, color=INK, zorder=7)
             for v, col in (("P4", C_PART), ("AD", C_AD)):
-                a = d[(d.tile == tile) & (d.variant == v) & (d.m == "site")]
-                b = d[(d.tile == tile) & (d.variant == v) & (d.m == "m_t")]
+                a = d[(d.variant == v) & (d.m == "site")]
+                b = d[(d.variant == v) & (d.m == "m_t")]
                 if len(a) and len(b):
-                    xa, ya = max(a[dcol].iloc[0], x_floor), a.K_over_K0.iloc[0]
-                    xb, yb = max(b[dcol].iloc[0], x_floor), b.K_over_K0.iloc[0]
-                    ax.annotate("", xy=(xb, yb), xytext=(xa, ya), arrowprops={"arrowstyle": "-|>", "color": col, "lw": 0.7, "alpha": 0.7,
-                                                                             "shrinkA": 4, "shrinkB": 4, "mutation_scale": 7}, zorder=3)
-                if len(a):
-                    ax.annotate(tile, (max(a[dcol].iloc[0], x_floor), a.K_over_K0.iloc[0]), xytext=(5, 3), textcoords="offset points",
-                                fontsize=5.8, color=INK2)
-        ax.set_xscale("log")
-        ax.set_yscale("log")
-        ax.set_xlim(x_floor * 0.7, 20)
-        ax.set_ylim(0.3, 40)
-        ax.set_xlabel(f"D / D₀,{end}", color=INK)
-        ax.set_ylabel("K / K₀", color=INK)
-        ax.set_title(f"{site}, D₀ = D₀,{end}" + (" (GM: D₀,B within 5 % of D₀,A)" if site == "GM" else ""), loc="left", color=INK, fontsize=8)
+                    pa = (float(np.clip(a[dcol].iloc[0], x_lo, x_hi)), a.K_over_K0.iloc[0])
+                    pb = (float(np.clip(b[dcol].iloc[0], x_lo, x_hi)), b.K_over_K0.iloc[0])
+                    ax.annotate("", xy=pb, xytext=pa, arrowprops={"arrowstyle": "-|>", "color": col, "lw": 0.8, "shrinkA": 4, "shrinkB": 5,
+                                                                   "mutation_scale": 8}, zorder=3)
+            for _, q in d.iterrows():
+                fam = C_PART if q.variant.startswith("P") else C_AD
+                base = q.variant.split("_")[0]
+                x = q[dcol]
+                mk = "<" if x < x_lo else (">" if x > x_hi else marker[base])
+                ax.plot(float(np.clip(x, x_lo, x_hi)), q.K_over_K0, marker=mk, ms=7 if base in ("P4", "AD") else 6, ls="none",
+                        mfc="white" if q.m == "m_t" else fam, mec=fam, mew=1.1, zorder=5 if base in ("P4", "AD") else 4)
+            mt = d[(d.m == "m_t")]
+            m_txt = f"m_t {mt.m_value.iloc[0]:.2f}" if len(mt) and "m_value" in mt and pd.notna(mt.m_value.iloc[0]) else ""
+            ax.set_title(f"{tile}  ·  vs D₀,{end}" + (f"  ·  {m_txt}" if m_txt else ""), loc="left", fontsize=7.5, color=INK)
+            ax.set_xscale("log")
+            ax.set_yscale("log")
+            ax.set_xlim(x_lo * 0.6, x_hi * 1.6)
+            ax.set_ylim(0.5, 25)
+            if i == 2:
+                ax.set_xlabel(f"D / D₀,{end}", color=INK)
+            if j == 0:
+                ax.set_ylabel("K / K₀", color=INK)
+        for j in range(len(tiles), 5):
+            axs[i, j].axis("off")
+    for i, (site, end) in enumerate(row_spec):
+        axs[i, 0].annotate(f"{site}, D₀,{end}", xy=(-0.33, 0.5), xycoords="axes fraction", rotation=90, va="center", ha="right", fontsize=8.5, color=INK)
     from matplotlib.lines import Line2D
 
-    h = [Line2D([], [], marker="o", ls="none", mfc=C_PART, mec=C_PART, label="P4 joint"),
-         Line2D([], [], marker="^", ls="none", mfc=C_PART, mec=C_PART, label="P3 K = K₀"),
-         Line2D([], [], marker="D", ls="none", mfc=C_PART, mec=C_PART, label="P2 D = D₀"),
-         Line2D([], [], marker="s", ls="none", mfc=C_PART, mec=C_PART, label="P1 K₀, D₀"),
-         Line2D([], [], marker="o", ls="none", mfc=C_AD, mec=C_AD, label="AD"),
-         Line2D([], [], marker="v", ls="none", mfc=C_AD, mec=C_AD, label="A1 K = K₀"),
-         Line2D([], [], marker="D", ls="none", mfc=C_AD, mec=C_AD, label="A2 D = D₀"),
-         Line2D([], [], marker="<", ls="none", mfc=C_AD, mec=C_AD, label=f"D/D₀ < {x_floor:g} (drawn at the edge)"),
-         Line2D([], [], marker="o", ls="none", mfc="white", mec=INK2, label="hollow: at m_t (arrow from site m)")]
-    fig.legend(handles=h, loc="lower center", ncol=5, frameon=False, fontsize=6.8, bbox_to_anchor=(0.5, -0.02))
-    fig.suptitle("Fitted K/K₀ against D/D₀ for every variant: filled = site m, hollow = per-tile m_t (K₀ at that m)", fontsize=8.5,
+    h = [Line2D([], [], marker="o", ls="none", mfc=C_PART, mec=C_PART, label="P4 joint [K, D, A_crit]"),
+         Line2D([], [], marker="^", ls="none", mfc=C_PART, mec=C_PART, label="P3 K = K₀ [D, A_crit]"),
+         Line2D([], [], marker="D", ls="none", mfc=C_PART, mec=C_PART, label="P2 D = D₀ [K, A_crit]"),
+         Line2D([], [], marker="o", ls="none", mfc=C_AD, mec=C_AD, label="AD [K, D]"),
+         Line2D([], [], marker="v", ls="none", mfc=C_AD, mec=C_AD, label="A1 K = K₀ [D]"),
+         Line2D([], [], marker="D", ls="none", mfc=C_AD, mec=C_AD, label="A2 D = D₀ [K]"),
+         Line2D([], [], marker="o", ls="none", mfc="white", mec=INK2, label="hollow = at m_t, arrow from the site-m point"),
+         Line2D([], [], marker="<", ls="none", mfc=INK2, mec=INK2, label=f"off scale (D/D₀ < {x_lo:g} or > {x_hi:g}), drawn at the edge"),
+         Line2D([], [], marker="+", ls="none", mec=INK, ms=9, label="measured (K₀, D₀); P1 sits here by construction")]
+    fig.legend(handles=h, loc="lower center", ncol=5, frameon=False, fontsize=6.8, bbox_to_anchor=(0.5, -0.005))
+    fig.suptitle("Fitted K/K₀ against D/D₀ per tile: filled = site m, hollow = per-tile m_t (K₀ re-measured at that m)", fontsize=9,
                  color=INK, x=0.01, ha="left")
-    fig.text(0.99, 0.005, f"results: {run.name}", fontsize=5.5, color=MUTED, ha="right")
-    fig.subplots_adjust(left=0.05, right=0.99, top=0.88, bottom=0.24, wspace=0.22)
+    fig.text(0.99, 0.003, f"results: {run.name}", fontsize=5.5, color=MUTED, ha="right")
+    fig.subplots_adjust(left=0.08, right=0.99, top=0.93, bottom=0.14, wspace=0.08, hspace=0.25)
     return save(fig, out_dir, "a12_kd", caption=df)
 
 
@@ -292,22 +293,22 @@ def mse(out_dir: Path) -> list[Path]:
                                                                   ("P2_B", C_PART, "D", False), ("AD", C_AD, "o", True)])]
     tiles = list(ins.tile)
     xpos = {t: i + (0.8 if t.startswith("GM") else 0.0) for i, t in enumerate(tiles)}
-    fig, axs = plt.subplots(1, 4, figsize=(13.5, 4.4), sharey=True)
+    fig, axs = plt.subplots(1, 4, figsize=(13.5, 5.6), sharey=True)
     cap = []
     for k, (ax, (title, vars_)) in enumerate(zip(axs, groups, strict=True)):
         _style(ax)
-        n = len(vars_)
-        for j, (v, col, mk, filled) in enumerate(vars_):
-            off = (j - (n - 1) / 2) * 0.16
+        for v, col, mk, filled in vars_:
             for t in tiles:
+                present = [w for w, *_ in vars_ if not (t.startswith("GM") and w.endswith("_B"))]
+                if v not in present:
+                    continue
+                off = (present.index(v) - (len(present) - 1) / 2) * 0.16
                 if k == 3:
                     src = held[held.tile == t]
                     val = src[f"{v}_heldout"].iloc[0] if f"{v}_heldout" in src else np.nan
                 else:
                     src = ins[ins.tile == t]
                     val = src[f"{v}_mse"].iloc[0] if f"{v}_mse" in src else np.nan
-                if t.startswith("GM") and v.endswith("_B"):
-                    continue
                 if not np.isfinite(val):
                     continue
                 ax.plot(xpos[t] + off, val, marker=mk, ms=5.5, ls="none", mfc=col if filled else "white", mec=col, mew=1.0, zorder=4)
@@ -322,12 +323,12 @@ def mse(out_dir: Path) -> list[Path]:
 
         for v, col, mk, filled in vars_:
             handles.append(Line2D([], [], marker=mk, ls="none", mfc=col if filled else "white", mec=col, label=LABEL[v]))
-        ax.legend(handles=handles, fontsize=5.6, frameon=False, loc="upper left")
+        ax.legend(handles=handles, fontsize=6, frameon=False, loc="upper left", bbox_to_anchor=(0.0, -0.13), ncol=1)
     axs[0].set_ylabel("MSE (m²), log scale", color=INK)
     fig.suptitle("MSE of every variant at the site m, by number of free parameters, and held-out (GM: D₀,B variants omitted, within 5 % of D₀,A)",
                  fontsize=8.5, color=INK, x=0.01, ha="left")
     fig.text(0.99, 0.005, f"results: {run.name}", fontsize=5.5, color=MUTED, ha="right")
-    fig.subplots_adjust(left=0.05, right=0.995, top=0.88, bottom=0.16, wspace=0.06)
+    fig.subplots_adjust(left=0.05, right=0.995, top=0.9, bottom=0.3, wspace=0.06)
     return save(fig, out_dir, "a12_mse", caption=cap)
 
 
