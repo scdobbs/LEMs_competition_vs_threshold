@@ -24,3 +24,15 @@ reports/v2/figures_v2/
 reports/inputs/
 # manuscript, supplement and reference PDFs: never committed (addendum 2, 5; addendum 11, 2.1)
 papers/
+
+# addendum 13: new source data live outside git ($GROUP_HOME/lemcvt_data/source); never commit point clouds, rasters or archives
+data/AP-3DEP/
+data/TTV/
+data/source/
+*.las
+*.laz
+*.tif
+*.tiff
+*.zip
+*.npy
+*.npz
