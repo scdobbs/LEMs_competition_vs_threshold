@@ -70,7 +70,8 @@ def stage1(las_dir, out, cache):
         code, so, se = run(["pdal", "pipeline", pj, "--metadata", mj])
         rec["pdal_stats_class2_exit"] = code
         if code == 0 and os.path.exists(mj):
-            st = json.load(open(mj)).get("metadata", {}).get("filters.stats", {})
+            mj_d = json.load(open(mj))
+            st = mj_d.get("stages", mj_d.get("metadata", {})).get("filters.stats", {})
             stats = st.get("statistic", st) if isinstance(st, dict) else st
             rec["pdal_stats_class2"] = {s["name"]: {k: s.get(k) for k in ("count", "minimum", "maximum", "average")} for s in stats} if isinstance(stats, list) else stats
         else:

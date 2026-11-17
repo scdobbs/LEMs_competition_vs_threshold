@@ -50,8 +50,8 @@ def main():
         rows.append([t, r["parent"].split("/")[-1], "yes" if r["tile_inside_parent"] else "no", f"{o['col_frac']:.3f}, {o['row_frac']:.3f}", f"{r['res_ratio_tile_over_parent'][0]:.6f}",
                      r.get("parent_units_inferred", "").split(" (")[0], n["n_compared"], n["n_exact_equal"], n["n_abs_dz_gt"]["0.01"], n["n_abs_dz_gt"]["0.1"], n["n_abs_dz_gt"]["1.0"], fmt(n["max_abs_dz_m"]),
                      f"{w.get('sign', {}).get('tile_higher', 0)} / {w.get('sign', {}).get('parent_higher', 0)}", fmt(b["median_dz_m"], 4), f"{b['p05_dz_m']:.3f} / {b['p95_dz_m']:.3f}", fmt(b["max_abs_dz_m"])])
-    print(table(["tile", "parent", "inside", "origin offset (frac. parent px: col, row)", "res ratio tile/parent", "parent z units (inferred)", "n cells", "exact equal (nearest)", "n |dz|>0.01 m", "n |dz|>0.1 m", "n |dz|>1 m",
-                 "max |dz| nearest (m)", "|dz|>0.1: tile higher / parent higher", "median dz bilinear", "p05 / p95 bilinear", "max |dz| bilinear"], rows))
+    print(table(["tile", "parent", "inside", "origin offset (frac. parent px: col, row)", "res ratio tile/parent", "parent z units (inferred)", "n cells", "exact equal (nearest)", "n abs(dz)>0.01 m", "n abs(dz)>0.1 m", "n abs(dz)>1 m",
+                 "max abs(dz) nearest (m)", "abs(dz)>0.1: tile higher / parent higher", "median dz bilinear", "p05 / p95 bilinear", "max abs(dz) bilinear"], rows))
     rows = [[t, fmt(r["margin_m"]["west"], 0), fmt(r["margin_m"]["east"], 0), fmt(r["margin_m"]["south"], 0), fmt(r["margin_m"]["north"], 0), r.get("parent_nodata_within_tile_window"),
              f"{r.get('parent_nodata_within_1km_buffer')} / {r.get('parent_cells_within_1km_buffer')}"] for t, r in gm.items()]
     print(table(["tile", "margin W (m)", "margin E", "margin S", "margin N", "parent nodata in tile window", "parent nodata / cells within 1 km"], rows))
@@ -120,6 +120,18 @@ def main():
                          " to ".join(x[:10] for x in l.get("utc_range", ["-", "-"]))])
         print(table(["file", "LAS", "pf", "points", "CRS name (header)", "horiz. units", "vertical CRS / units", "pdal units h / v", "header x, y bounds (ftUS)", "z (ftUS)", "W, S, E, N excess over quadrant (ft)", "5.1", "5.2",
                      "classes", "class 2", "class-2 density (pts/m²)", "UTC dates"], rows))
+    if a.las_run:
+        rows = []
+        for f in sorted(glob.glob(os.path.join(a.las_run, "*_pdal_stats_class2.json"))):
+            d = json.load(open(f)); st = d.get("stages", d.get("metadata", {})).get("filters.stats", {}).get("statistic", [])
+            m = {x["name"]: x for x in st}
+            if m:
+                rows.append([os.path.basename(f).replace("_pdal_stats_class2.json", ""), f"{m['Z']['count']:,}", f"{m['X']['minimum']:.1f}-{m['X']['maximum']:.1f}", f"{m['Y']['minimum']:.1f}-{m['Y']['maximum']:.1f}",
+                             f"{m['Z']['minimum']:.1f}-{m['Z']['maximum']:.1f}", fmt(m['Z']['average'], 1), f"{m['Intensity']['minimum']:.0f}-{m['Intensity']['maximum']:.0f}", f"{m['ReturnNumber']['minimum']:.0f}-{m['ReturnNumber']['maximum']:.0f}",
+                             f"{m['GpsTime']['minimum']:.1f}-{m['GpsTime']['maximum']:.1f}"])
+        if rows:
+            print("\n## C5b. PDAL class-2 statistics per file (`pdal pipeline`: readers.las, filters.range Classification[2:2], filters.stats; header units, ftUS)\n")
+            print(table(["file", "class-2 count", "X", "Y", "Z (ftUS)", "mean Z", "intensity", "return number", "GpsTime (adjusted standard GPS s)"], rows))
     if a.las_run and os.path.exists(os.path.join(a.las_run, "stage2_tiles.json")):
         s2 = json.load(open(os.path.join(a.las_run, "stage2_tiles.json")))
         print("\n## C6. Per-tile agreement and coverage (rules 5.3-5.5)\n")
@@ -130,7 +142,7 @@ def main():
             rows.append([t, f"{x['n_points']:,}", fmt(x["median_dz_m"]), f"{x['p05_dz_m']:.3f} / {x['p95_dz_m']:.3f}", fmt(x["rms_dz_m"]), fmt(x["theil_sen_slope_median_of_7x4000"], 4),
                          f"{min(x['theil_sen_slopes']):.4f}-{max(x['theil_sen_slopes']):.4f}", fmt(x["ols_slope"], 4), fmt(x["frac_abs_dz_gt_2m"], 4), fmt(x["frac_abs_dz_gt_1m"], 4), fmt(x["frac_cells_with_abs_dz_gt_2m"], 4),
                          "pass" if x["pass"] else "FAIL"])
-        print(table(["tile", "class-2 points in tile", "median dz (m)", "p05 / p95 dz", "rms dz", "Theil-Sen slope (median of 7 x 4000)", "slope range", "OLS slope", "frac |dz|>2 m", "frac |dz|>1 m", "frac tile cells with |dz|>2 m", "5.3"], rows))
+        print(table(["tile", "class-2 points in tile", "median dz (m)", "p05 / p95 dz", "rms dz", "Theil-Sen slope (median of 7 x 4000)", "slope range", "OLS slope", "frac abs(dz)>2 m", "frac abs(dz)>1 m", "frac tile cells with abs(dz)>2 m", "5.3"], rows))
         rows = []
         for t, r in s2["tiles"].items():
             bc = r["rule_5_3"].get("by_class", {})
