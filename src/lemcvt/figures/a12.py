@@ -124,7 +124,8 @@ def landscapes(out_dir: Path, tiles=TILES) -> list[Path]:
             grids[name] = read_geotiff(pan["elevation"]).data.astype(float)
             chans[name] = read_geotiff(pan["channels"]).data.astype(bool) if pan["channels"] else None
         res = {k: v - Z0 for k, v in grids.items() if k != "obs"}
-        lim = float(np.nanpercentile(np.abs(np.concatenate([r[np.isfinite(r)].ravel() for r in res.values()])), 98))
+        # A1 (K = K0) misfits by tens of metres; it would set the scale for every panel, so it is excluded and saturates
+        lim = float(np.nanpercentile(np.abs(np.concatenate([r[np.isfinite(r)].ravel() for k, r in res.items() if k != "A1"])), 98))
         rows_cap: list[dict[str, Any]] = []
         for kind in ("landscape", "residual"):
             fig, axs = plt.subplots(3, 5, figsize=(12.5, 8.6))
@@ -163,7 +164,7 @@ def landscapes(out_dir: Path, tiles=TILES) -> list[Path]:
             for i, t in enumerate(ROW_TITLES):
                 axs[i, 0].annotate(t, xy=(-0.06, 0.5), xycoords="axes fraction", rotation=90, va="center", ha="right", fontsize=8, color=INK)
             what = ("hillshade; partitioned channel cells (A ≥ A_crit, dilated by one cell for visibility) in blue" if kind == "landscape"
-                    else f"model − observed elevation (m), shared symmetric scale ±{lim:.1f} m (98th percentile of |residual|); observed as hillshade")
+                    else f"model − observed elevation (m), shared symmetric scale ±{lim:.1f} m (98th percentile of |residual| without A1, which saturates); observed as hillshade")
             fig.suptitle(f"{tile}: {what}", fontsize=8.5, color=INK, x=0.01, ha="left")
             fig.text(0.01, 0.005, f"site m = {p['model']['m']:.2f}; K₀ = {p['model']['K0']:.3e} 1/yr; D₀,A = {p['model']['D0_A']:.3e}"
                      + (f", D₀,B = {p['model']['D0_B']:.3e}" if p['model'].get('D0_B') else "") + f" m²/yr · results: {run.name}",
