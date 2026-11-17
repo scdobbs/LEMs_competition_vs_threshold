@@ -15,6 +15,7 @@ optimizer_v2      (Phase 4) MSE(A_crit) profiles, AD r-profiles, MSE(A_crit, m) 
 exponent_site     (addendum 4, 6.1) site profile S(m) with leave-one-out against the measured site-pooled theta(A_c)
 phase6_window_test   (addendum 5, 2.2) C_ht(L) on the option (iii) set with bootstrap bands and the pass rule, per tile
 phase6_nonlinear_joint (addendum 5, 3.4) nonlinear MSE over (A_crit, D) with the 1 % and 5 % contours, per tile
+a12_kd / a12_mse / a12_landscapes (addendum 12) K/K0 against D/D0 per variant; MSE by variant and count; surfaces and residuals per tile
 """
 
 from __future__ import annotations
@@ -47,6 +48,9 @@ FIGURE_BUILDERS: dict[str, str] = {
     "a9_fair": "lemcvt.figures.phase9:fair",
     "a9_morphology": "lemcvt.figures.phase9:morphology",
     "a10_flux": "lemcvt.figures.phase10:flux",
+    "a12_kd": "lemcvt.figures.a12:kd",
+    "a12_mse": "lemcvt.figures.a12:mse",
+    "a12_landscapes": "lemcvt.figures.a12:landscapes",
 }
 
 

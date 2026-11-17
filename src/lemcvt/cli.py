@@ -1195,6 +1195,16 @@ def a12_estimate(tiles) -> None:
     click.echo(f"results: {rec.dir}")
 
 
+@a12.command("surfaces")
+@click.option("--tiles", default="all", show_default=True)
+def a12_surfaces(tiles) -> None:
+    """Figures support: rebuild and write the surface of every section 2 variant at its optimum (one forward solve each)."""
+    from lemcvt.analyses.sensitivity import run_surfaces
+
+    for t in _parse_tiles(tiles):
+        click.echo(f"results: {run_surfaces(t).dir}")
+
+
 @a12.command("summary")
 @click.option("--tiles", default="all", show_default=True)
 @click.option("--run-id", default=None)

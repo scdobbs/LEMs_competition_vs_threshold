@@ -902,3 +902,71 @@ def run_summary(tiles, run_id: str | None = None, results_root=None) -> RunRecor
             rec.write_table(df.astype({c: str for c in df.columns if df[c].dtype == object}), name)
     rec.finalize({"tiles": list(tiles)})
     return rec
+
+
+# ============================================================================= figures support: the variant surfaces
+
+SURFACE_STEP = "a12_surfaces"
+
+
+def run_surfaces(tile: str, run_id: str | None = None, results_root=None) -> RunRecorder:
+    """Rebuild the surface of every section 2 variant at its optimum (one forward solve each) and write it as a GeoTIFF,
+    with the channel mask of each partitioned surface; the m_t optima (written by the a12_mt runs) are referenced, not
+    copied. The MSE of every rebuilt surface is checked against the recorded optimum."""
+    from lemcvt.analyses.tile_pipeline import mse
+    from lemcvt.io.grids import Grid, write_geotiff
+    from lemcvt.models.ad import advection_diffusion_model
+    from lemcvt.models.partitioned import partitioned_threshold_model
+
+    td = load_tile(tile)
+    mp = apply_d0_variant(td.cfg.model, "A")
+    Z0, A, FD, dx, U = td.Z, td.A, td.FD, td.dx, mp.U
+    part = _latest("a12_equal_part", tile)
+    adr = _latest("a12_equal_ad", tile)
+    if part is None or adr is None:
+        raise FileNotFoundError(f"{tile}: a12_equal_part / a12_equal_ad runs missing")
+    rec = RunRecorder(SURFACE_STEP, tile, run_id=run_id, root=results_root)
+    rec.add_params("tile", tile)
+    rec.add_params("sources", {"equal_part": part[0].name, "equal_ad": adr[0].name})
+    union = part[1]["result"]["insample_union_phase6"] or part[1]["result"]["insample"]
+    tr, crs = td.filled.transform, td.filled.crs
+    surfaces: dict[str, Any] = {}
+
+    def _write(name: str, Z: np.ndarray, mask: np.ndarray | None, params: dict[str, Any], mse_rec: float) -> None:
+        z_path = write_geotiff(Grid(Z.astype(np.float32), tr, crs), rec.dir / f"{tile}_{name}_elevation.tif")
+        m_path = write_geotiff(Grid(mask.astype(np.uint8), tr, crs), rec.dir / f"{tile}_{name}_channels.tif", dtype="uint8") if mask is not None else None
+        m_dir = mse(Z, Z0)
+        surfaces[name] = {"params": params, "mse_recorded": mse_rec, "mse_rebuilt": m_dir, "rel_diff": m_dir / mse_rec - 1,
+                          "elevation": z_path.name, "channels": m_path.name if m_path else None}
+        logger.info("%s %s: MSE rebuilt %.6g, recorded %.6g", tile, name, m_dir, mse_rec)
+
+    for name, o in union.items():
+        if not isinstance(o, dict) or name.startswith("_"):
+            continue
+        Z, mask = partitioned_threshold_model(Z0, A, FD, dx, mp.m, U, o["K"])(o["A_crit"], o["D"])
+        _write(name, Z, mask, {"A_crit": o["A_crit"], "K": o["K"], "D": o["D"]}, o["mse"])
+    ad = advection_diffusion_model(Z0, A, FD, dx, mp.m)
+    for name, o in adr[1]["result"]["insample"].items():
+        if not isinstance(o, dict):
+            continue
+        _write(name, ad(U, o["K"], o["D"]), None, {"K": o["K"], "D": o["D"]}, o["mse"])
+    # the m_t optima: reference the grids written by the a12_mt runs, and write the joint optimum's channel mask
+    mt: dict[str, Any] = {}
+    mp_ = _latest(MT_STEP, tile, "_v2_partitioned-refined")
+    ma_ = _latest(MT_STEP, tile, "_v2_ad")
+    if mp_ is not None:
+        jo = mp_[1]["v2"]["partitioned"]["joint_optimum"]
+        ch = np.isfinite(A) & (A >= jo["A_crit"])
+        write_geotiff(Grid(ch.astype(np.uint8), tr, crs), rec.dir / f"{tile}_P4_mt_channels.tif", dtype="uint8")
+        mt["P4_mt"] = {"run": mp_[0].name, "elevation": str(mp_[0] / f"{td.cfg.site}_1m_best_tile_Partitioned-model-a_crit-k-d-opt_elevation.tif"),
+                       "channels": f"{tile}_P4_mt_channels.tif", "m": mp_[1]["model"]["m"], "params": {k: jo[k] for k in ("A_crit", "K", "D")},
+                       "mse": jo["mse"]}
+    if ma_ is not None:
+        ao = ma_[1]["v2"]["ad"]["optimum"]
+        mt["AD_mt"] = {"run": ma_[0].name, "elevation": str(ma_[0] / f"{td.cfg.site}_1m_best_tile_AD-opt_elevation.tif"), "channels": None,
+                       "m": ma_[1]["model"]["m"], "params": {"K": ao["K"], "D": ao["D"]}, "mse": ao["mse"]}
+    rec.add_params("surfaces", surfaces)
+    rec.add_params("m_t_surfaces", mt)
+    rec.add_params("model", {"m": mp.m, "U": U, "K0": mp.K0_partitioned, "D0_A": mp.D0, "D0_B": mp.D0_B})
+    rec.finalize(config_snapshot(td.cfg, {}))
+    return rec
