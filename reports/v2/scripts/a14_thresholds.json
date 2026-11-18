@@ -1,0 +1,13 @@
+{
+  "_comment": "Addendum 14 stage A: PROPOSED screening thresholds (section 3.2). Not applied as final; Steve approves. Window statistics are defined in a14_pools.py.",
+  "trunk_A_max_inside_m2_max": 5000000.0,
+  "trunk_A_inflow_max_single_m2_max": 1000000.0,
+  "transient_chi_r2_area_weighted_min": 0.95,
+  "transient_sa_dbic_area_weighted_max": 10.0,
+  "disturbance_nlcd_disturbed_frac_max": 0.05,
+  "disturbance_mining_frac_max": 0.0,
+  "upstream_fully_valid_required": {"GM": true, "TTV": true, "AP": false},
+  "tolerance_ks_rel": 0.25,
+  "tolerance_C_ht_rel": 0.25,
+  "tolerance_theta_abs": 0.05
+}
