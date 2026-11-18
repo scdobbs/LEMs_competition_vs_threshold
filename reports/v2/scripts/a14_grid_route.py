@@ -25,7 +25,7 @@ from rasterio.transform import Affine
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from a14_common import FT_US, SOURCE, dump, dz_stats, slurm_record, theil_sen_sub, write_tif  # noqa: E402
 
-EPSG = {"AP": 6346, "TTV": 6339, "GMF": 6339}   # GMF: the GM extension survey of addendum 16 (section 3.3.2), checked by a16_gmf_check.py
+EPSG = {"AP": 6346, "TTV": 6339, "GMF": 6339, "GMC": 6339}   # GMF: the GM extension survey of addendum 16 (section 3.3.2), checked by a16_gmf_check.py; GMC: the addendum 17 control grid (same survey)
 A13_AP_MEDIANS = {"AP1": -0.079, "AP2": -0.077, "AP3": -0.066, "AP4": -0.026, "AP5": -1.206}
 NODATA = -9999.0
 
@@ -393,7 +393,7 @@ def stage_check(a, tr, shape, epsg_out):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--site", required=True, choices=["AP", "TTV", "GMF"])
+    p.add_argument("--site", required=True, choices=["AP", "TTV", "GMF", "GMC"])
     p.add_argument("--files", help="text file: one LAS/LAZ path per line")
     p.add_argument("--out", required=True)
     p.add_argument("--footprint", required=True, help="GeoJSON polygon (any CRS) that bounds the lattice and masks the fill")
@@ -413,7 +413,7 @@ def main():
         del inside
     if a.stage in ("route", "all"):
         stage_route(a, tr, shape, epsg_out)
-    if a.stage in ("check", "all") and a.site != "GMF":
+    if a.stage in ("check", "all") and a.site not in ("GMF", "GMC"):
         stage_check(a, tr, shape, epsg_out)
 
 

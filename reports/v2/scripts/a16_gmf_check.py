@@ -28,18 +28,19 @@ def main():
     p.add_argument("--grid", required=True)
     p.add_argument("--footprints", required=True)
     p.add_argument("--out", required=True)
+    p.add_argument("--site", default="GMF", help="grid prefix: GMF (addendum 16) or GMC (the addendum 17 control grid)")
     a = p.parse_args()
     os.makedirs(a.out, exist_ok=True)
     slurm_record(a.out)
     t0 = time.time()
     rec = {}
-    mean_path = os.path.join(a.grid, "GMF_1m_mean.tif")
-    mask_path = os.path.join(a.grid, "GMF_1m_filled_mask.tif")
+    mean_path = os.path.join(a.grid, f"{a.site}_1m_mean.tif")
+    mask_path = os.path.join(a.grid, f"{a.site}_1m_filled_mask.tif")
     with rasterio.open(mean_path) as ds:
         gtr, gcrs, gnod = ds.transform, ds.crs, ds.nodata
         gshape = (ds.height, ds.width)
     # ground-only copy of the grid (NN-filled cells removed) written to the run dir for the two comparisons
-    ground_path = os.path.join(a.out, "_GMF_1m_ground.tif")
+    ground_path = os.path.join(a.out, f"_{a.site}_1m_ground.tif")
     with rasterio.open(mean_path) as dm, rasterio.open(mask_path) as dk:
         prof = dm.profile
         prof.update(compress="deflate", tiled=True, blockxsize=256, blockysize=256)
@@ -109,7 +110,7 @@ def main():
     rec["grid"] = {"path": mean_path, "shape": list(gshape), "transform": list(gtr)[:6], "epsg": gcrs.to_epsg()}
     rec["seconds"] = time.time() - t0
     os.remove(ground_path)
-    dump(rec, os.path.join(a.out, "gmf_check.json"))
+    dump(rec, os.path.join(a.out, f"{a.site.lower()}_check.json"))
     print(json.dumps({k: v for k, v in rec.items() if k != "grid"}, indent=1), flush=True)
     if rec["stop"]:
         print("STOP: units/datum check failed", flush=True)

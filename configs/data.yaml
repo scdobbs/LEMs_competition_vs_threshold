@@ -27,14 +27,21 @@ versions:
     - fd (uint8 lemcvt codes)
     - area (m^2, float64)
     - gapfill_mask
-    - area_model (m^2, float64; GM1-GM5 only, addendum 16 section 4)
+    - 'area_model (m^2, float64; GM1-GM5 only: the old tile area grids, addendum 17 decision 2)'
+    - 'area_model_rule (m^2, float64; GM1-GM5 only: the addendum 16 section 4 rule grids, unused)'
     draw: addendum 15 section 5 (seed 20261118); originals re-cut (GM) or cut from 3DEP (AP<n>_3dep)
     area_model:
-      GM1: new area + coarse inflow added at the entry cells and propagated downstream (check failed)
-      GM2: new area + coarse inflow added at the entry cells and propagated downstream (check failed)
-      GM3: old tile area grid (check passed)
-      GM4: new area + coarse inflow added at the entry cells and propagated downstream (check failed)
-      GM5: new area + coarse inflow added at the entry cells and propagated downstream (check failed)
+      GM1: old tile area grid GM/tile<n>/GM_1m_best_tile_area.tif (addendum 17 decision 2)
+      GM2: old tile area grid GM/tile<n>/GM_1m_best_tile_area.tif (addendum 17 decision 2)
+      GM3: old tile area grid GM/tile<n>/GM_1m_best_tile_area.tif (addendum 17 decision 2)
+      GM4: old tile area grid GM/tile<n>/GM_1m_best_tile_area.tif (addendum 17 decision 2)
+      GM5: old tile area grid GM/tile<n>/GM_1m_best_tile_area.tif (addendum 17 decision 2)
+    area_model_rule:
+      GM1: new area + strip inflow at the entry cells (addendum 16 check failed); unused
+      GM2: new area + strip inflow at the entry cells (addendum 16 check failed); unused
+      GM3: old tile area grid (addendum 16 check passed)
+      GM4: new area + strip inflow at the entry cells (addendum 16 check failed); unused
+      GM5: new area + strip inflow at the entry cells (addendum 16 check failed); unused
   AP-3DEP-x:
     dir: AP-3DEP-x
     site: AP
@@ -81,3 +88,123 @@ versions:
     - class2_count
     - nnfill_mask
     draw: addendum 15 section 5 (seed 20261118); originals re-cut (GM) or cut from 3DEP (AP<n>_3dep)
+  TTV-x:
+    dir: TTV-x
+    site: TTV
+    crs_epsg: 6339
+    cell_m: 1.0
+    tiles:
+    - TTV1
+    - TTV2
+    - TTV3
+    - TTV4
+    - TTV5
+    - TTV6
+    - TTV7
+    - TTV8
+    - TTV9
+    - TTV10
+    - TTV11
+    - TTV12
+    - TTV13
+    - TTV14
+    - TTV15
+    n_tiles: 15
+    source: USGS 3DEP Entwine copy of CA_NoCal_Wildfires_B5b_QL1_2018 (Marin 2019), class-2 mean grid, re-routed with the
+      gap rule
+    run: 20261118T185206Z_a16_tile_finish
+    products:
+    - filled (m, float32)
+    - fd (uint8 lemcvt codes)
+    - area (m^2, float64)
+    - gapfill_mask
+    - class2_count
+    - nnfill_mask
+    site_label: TTV
+    draw: 'addendum 16 section 2.3: TTV re-draw (seed 20261118) on the clipped M&D polygon with the pooled k_s reference,
+      M&D windows pre-placed; cut from the stage B grid; registered in addendum 17 section 2.1 (run 20261118T225314Z_a17_register_figures)'
+    unit_check_window_m:
+    - 0.0
+    - 800.0
+    unit_check_note: 'addendum 17 decision 1: a units test, 0-800 m (Mount Tamalpais 784 m); the addendum 15 window was 0-320
+      m'
+  GM-FEMA2018-x:
+    dir: GM-FEMA2018-x
+    site: GMF
+    crs_epsg: 6339
+    cell_m: 1.0
+    tiles:
+    - GM8
+    - GM9
+    - GM10
+    - GM11
+    - GM12
+    - GM13
+    - GM14
+    - GM15
+    - GM16
+    - GM17
+    - GM18
+    - GM19
+    - GM20
+    - GM21
+    - GM22
+    - GM23
+    - GM24
+    - GM25
+    - GM26
+    - GM27
+    - GM28
+    - GM29
+    - GM30
+    n_tiles: 23
+    source: USGS 3DEP Entwine copy of CA_FEMA_Z4_B2_2018 (2018 FEMA Region 9, InPort 64466), class-2 mean grid at 1 m on EPSG:6339,
+      re-routed with the gap rule (addendum 16 section 3.3)
+    run: 20261118T185206Z_a16_tile_finish
+    products:
+    - filled (m, float32)
+    - fd (uint8 lemcvt codes)
+    - area (m^2, float64)
+    - gapfill_mask
+    - class2_count
+    - nnfill_mask
+    site_label: GM
+    draw: 'addendum 16 section 3.3: GM extension on the 2018 FEMA Region 9 survey, seed 20261119, GM1-GM7 pre-placed; registered
+      in addendum 17 section 2.1 (run 20261118T225314Z_a17_register_figures)'
+    unit_check_window_m:
+    - 0.0
+    - 750.0
+    unit_check_note: 'addendum 17 decision 1: a units test, 0-750 m (the mesa top near the range front about 700 m); the addendum
+      16 window was 68-468 m'
+  GM-FEMA2018-ctrl:
+    dir: GM-FEMA2018-ctrl
+    site: GMC
+    crs_epsg: 6339
+    cell_m: 1.0
+    tiles:
+    - GM1_fema
+    - GM2_fema
+    - GM3_fema
+    - GM4_fema
+    - GM5_fema
+    - GM6_fema
+    - GM7_fema
+    n_tiles: 7
+    source: USGS 3DEP Entwine copy of CA_FEMA_Z4_B2_2018 (2018 FEMA Region 9, InPort 64466), class-2 mean grid at 1 m on EPSG:6339
+      over GM1-GM7 and their catchments, re-routed with the gap rule (addendum 17 section 2.2); survey-control copies of GM1-GM7
+      at the NCALM footprints
+    run: 20261118T225314Z_a17_register_figures
+    products:
+    - filled (m, float32)
+    - fd (uint8 lemcvt codes)
+    - area (m^2, float64)
+    - gapfill_mask
+    - class2_count
+    - nnfill_mask
+    site_label: GM
+    draw: 'addendum 17 section 2.2 (decision 4): survey-control copies of GM1-GM7 on the 2018 FEMA Region 9 survey at the
+      NCALM footprints (EPSG:32610 corners reprojected to EPSG:6339, floored to the lattice); no draw'
+    unit_check_window_m:
+    - 0.0
+    - 750.0
+    unit_check_note: 'addendum 17 decision 1: a units test, 0-750 m, the GM-FEMA window'

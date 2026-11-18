@@ -73,7 +73,7 @@ def fill_enclosed(Z, valid, lab, enclosed_ids):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--site", required=True, choices=["GM", "AP", "TTV", "GMF"])
+    p.add_argument("--site", required=True, choices=["GM", "AP", "TTV", "GMF", "GMC"])
     p.add_argument("--out", required=True)
     p.add_argument("--src", default=None, help="source 1 m grid (default: the stage A/B grid of the site); GMF = the addendum 16 extension grid")
     a = p.parse_args()

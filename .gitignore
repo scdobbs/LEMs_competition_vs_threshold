@@ -36,3 +36,6 @@ data/source/
 *.zip
 *.npy
 *.npz
+
+# addendum 17: figure PDFs stay out of git (addendum 2, 5); the PNGs under reports/v2/figures/a17/ are committed
+reports/v2/figures/a17/*.pdf

@@ -25,8 +25,12 @@ MIN_ELIGIBLE = {"GM": 25, "AP": 25, "TTV": 30}
 TARGET_NEW = {"GM": 25, "AP": 25, "TTV": 30}
 A_NET_1M = 1000.0          # channel network on the 1 m grid for the decision-8 gap exclusion (m^2 = cells at 1 m)
 TTV_E = {"E_m_per_Myr": 77.0, "sd": 15.0, "range": [64.0, 102.0], "source": "mean of Heimsath et al. (1997) Creek1a 64, Creek1b 66, Creek2 102"}
-TILE_EPSG = {"GM": 32610, "AP": 6346, "TTV": 6339, "GMF": 6339}   # GMF: addendum 16 GM extension (NAD83(2011) UTM 10N, decision 9 of addendum 14)
-Z_RANGE = {"GM": (100.0, 500.0), "AP": (230.0, 490.0), "TTV": (0.0, 320.0), "GMF": (68.0, 468.0)}   # section 6.4 unit check (metres); GMF = the GM window less the 32 m ellipsoid-geoid offset of stage A rule 5.3 (NAVD88 grid), written before the cut (addendum 16)
+TILE_EPSG = {"GM": 32610, "AP": 6346, "TTV": 6339, "GMF": 6339, "GMC": 6339}   # GMF: addendum 16 GM extension (NAD83(2011) UTM 10N, decision 9 of addendum 14); GMC: addendum 17 GM survey-control grid (same survey, same lattice)
+Z_RANGE = {"GM": (100.0, 500.0), "AP": (230.0, 490.0), "TTV": (0.0, 800.0), "GMF": (0.0, 750.0), "GMC": (0.0, 750.0)}
+# section 6.4 unit check (metres). Addendum 17 decision 1 (2026-11-18, before the re-run of the check): the windows are a units test, not a
+# selection rule; TTV 0-800 m (Mount Tamalpais 784 m) and GM-FEMA 0-750 m (the mesa top near the range front about 700 m), the same for the
+# FEMA control grid GMC. Addendum 15/16 values, for the record: TTV (0, 320), GMF (68, 468) = the GM window less the 32 m ellipsoid-geoid
+# offset of stage A rule 5.3.
 NODATA = -9999.0
 FIG3 = {"paper": "Montgomery & Dietrich (1989), WRR 25(8), 1907-1918", "pdf_page": 3, "page_pixels": [2455, 3379], "dpi": 300}
 
