@@ -124,12 +124,14 @@ def main():
     p.add_argument("--ttv-polygon", required=True)
     p.add_argument("--data", default=os.environ.get("LEMCVT_DATA"))
     p.add_argument("--sites", default="GM,AP,TTV")
+    p.add_argument("--ttv-target-total", type=int, default=None,
+                   help="addendum 16 decision 3: TTV target counted over all tiles (M&D windows included); default: addendum 15 behaviour (target = drawn tiles)")
     a = p.parse_args()
     os.makedirs(a.out, exist_ok=True)
     slurm_record(a.out)
     T = json.load(open(THRESHOLDS))
     config = {"seed": SEED, "thresholds": THRESHOLDS, "thresholds_values": T, "tolerance": TOL_REL, "tolerance_wide": TOL_REL_WIDE, "min_eligible": MIN_ELIGIBLE,
-              "target_new": TARGET_NEW, "gap_rule_A_m2": A_NET_1M, "references": {}, "written": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "note": "written before the draw"}
+              "target_new": TARGET_NEW, "ttv_target_total": a.ttv_target_total, "gap_rule_A_m2": A_NET_1M, "references": {}, "written": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "note": "written before the draw"}
     ttv_ref = json.load(open(a.ttv_reference))
     for s in ("GM", "AP"):
         config["references"][s] = {"theta": LEGACY_REF[s]["theta"], "ks": LEGACY_REF[s]["ks"], "C_ht": LEGACY_REF[s]["C_ht"], "source": "legacy TAYLOR_REF"}
@@ -383,6 +385,8 @@ def main():
         pre_keys = [("pre", k) for k in range(len(pre))]
         ordered = []
         target = TARGET_NEW[site]
+        if site == "TTV" and a.ttv_target_total is not None:
+            target = max(0, a.ttv_target_total - len(pre))   # decision 3 of addendum 16: 30 in all, M&D windows included
         for rank, j in enumerate(perm):
             r = E.loc[j]
             key = ("win", int(r["offset"]), int(r["window"]))

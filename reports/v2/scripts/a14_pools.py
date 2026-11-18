@@ -169,7 +169,7 @@ def route_full_grid(z, dx):
     """Fill, D8, area, edge-touched flag, terminal outlet label, receiver target index; NaN = nodata."""
     t0 = time.time()
     zf = priority_flood_fill(z, dx)
-    fd = d8_flow_direction(zf)
+    fd = d8_flow_direction(zf, border="outlets")   # addendum 16 guard: every data-edge cell is an outlet (same as the adj rule below)
     ny, nx = z.shape
     valid = np.isfinite(z)
     # data-edge cells (bordering nodata or the grid edge) are the outlets of the priority flood: flow leaves the data there.

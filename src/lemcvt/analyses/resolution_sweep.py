@@ -64,7 +64,8 @@ def run_at_target_dx(filled_1m, dx_target: float, U: float, K: float, D: float, 
     dx_val = dem_dx.dx
 
     zf = priority_flood_fill(Zr, dx_val)
-    fd = d8_flow_direction(zf)
+    # border='legacy': the resampled tile has valid cells on its border; v2 treatment kept (addendum 16, section 5)
+    fd = d8_flow_direction(zf, border="legacy", name=f"resampled tile dx={dx_val}")
     area = d8_area(fd, zf, dx_val)
 
     Ks_obs, r2_obs, n_obs, Amax_obs = ks_obs_from_observed(zf, area, fd, dx_val, theta,

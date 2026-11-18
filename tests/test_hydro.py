@@ -23,7 +23,7 @@ def _south_plane(ny=12, nx=10, dx=2.0):
 class TestD8:
 
     def test_south_plane_codes(self):
-        fd = d8_flow_direction(_south_plane())
+        fd = d8_flow_direction(_south_plane(), border="legacy")
         # interior rows (not the last two, see TopoAnalysis slicing) flow south
         assert np.all(fd[0:-2, 1:-2] == 4)
         assert fd.dtype == np.uint8
@@ -31,11 +31,11 @@ class TestD8:
     def test_nan_cells_zero(self):
         z = _south_plane()
         z[3, 3] = np.nan
-        fd = d8_flow_direction(z)
+        fd = d8_flow_direction(z, border="legacy")
         assert fd[3, 3] == 0
 
     def test_receivers_consistent(self):
-        fd = d8_flow_direction(_south_plane())
+        fd = d8_flow_direction(_south_plane(), border="legacy")
         r_to, c_to, good = d8_receiver_arrays(fd)
         assert good[0, 1] and r_to[0, 1] == 1 and c_to[0, 1] == 1
 
@@ -45,7 +45,7 @@ class TestD8:
         positive drop, so a simple donor/receiver monotonicity property does not hold)."""
         z = synthetic_dem(40, 40, 1.0)
         zf = priority_flood_fill(z, 1.0)
-        fd = d8_flow_direction(zf)
+        fd = d8_flow_direction(zf, border="legacy")
         area = d8_area(fd, zf, 1.0)
         assert area.min() == 1.0
         assert area.max() <= 40 * 40
@@ -55,7 +55,7 @@ class TestD8:
         assert downhill.mean() > 0.95
 
     def test_divides_shape(self):
-        fd = d8_flow_direction(_south_plane())
+        fd = d8_flow_direction(_south_plane(), border="legacy")
         d = d8_divides(fd)
         assert d.shape == fd.shape
 
@@ -86,7 +86,7 @@ class TestChannelSlope:
     def test_slope_on_plane(self):
         z = synthetic_dem(60, 60, 1.0)
         zf = priority_flood_fill(z, 1.0)
-        fd = d8_flow_direction(zf)
+        fd = d8_flow_direction(zf, border="legacy")
         area = d8_area(fd, zf, 1.0)
         S = channel_slope_with_smoothing(zf, area, fd, 1.0, vertical_interval=2.0, min_area=30.0)
         assert S.shape == zf.shape
@@ -161,8 +161,8 @@ class TestTopoAnalysisEquivalence:
         area = d.Area(flow_direction=fd)
         zf = priority_flood_fill(z, 1.0)
         np.testing.assert_array_equal(zf, filled._griddata)
-        np.testing.assert_array_equal(d8_flow_direction(zf), fd._griddata)
-        np.testing.assert_array_equal(d8_area(d8_flow_direction(zf), zf, 1.0), area._griddata)
+        np.testing.assert_array_equal(d8_flow_direction(zf, border="legacy"), fd._griddata)
+        np.testing.assert_array_equal(d8_area(d8_flow_direction(zf, border="legacy"), zf, 1.0), area._griddata)
 
     def test_channel_slope(self):
         z = synthetic_dem(50, 50, 1.0, seed=4)
@@ -209,3 +209,63 @@ class TestTopoAnalysisEquivalence:
         d, e = self._ta_objects(z, 1.0)
         hs = d.Hillshade(elevation=e, azimuth=315.0, inclination=20.0)
         np.testing.assert_allclose(hillshade(z, 1.0), hs._griddata, rtol=0, atol=1e-10)
+
+
+class TestBorderGuard:
+    """Addendum 16, section 5: D8 refuses a grid whose valid cells touch the border unless a treatment is designated."""
+
+    def test_raises_on_unpadded_border_valid_grid(self):
+        from lemcvt.hydro.d8 import D8BorderError
+
+        z = priority_flood_fill(synthetic_dem(30, 30, 1.0, seed=5), 1.0)
+        with pytest.raises(D8BorderError, match="valid cells on its grid border") as e:
+            d8_flow_direction(z, name="unpadded synthetic")
+        msg = str(e.value)
+        assert "unpadded synthetic" in msg and "pad" in msg and "border='outlets'" in msg and "border='legacy'" in msg
+
+    def test_outlets_mask_must_cover_the_border(self):
+        from lemcvt.hydro.d8 import D8BorderError
+
+        z = priority_flood_fill(synthetic_dem(20, 20, 1.0, seed=6), 1.0)
+        partial = np.zeros(z.shape, bool)
+        partial[0, :] = True
+        with pytest.raises(D8BorderError, match="uncovered"):
+            d8_flow_direction(z, outlets=partial)
+        full = np.zeros(z.shape, bool)
+        full[0, :] = full[-1, :] = full[:, 0] = full[:, -1] = True
+        fd = d8_flow_direction(z, outlets=full)
+        assert np.all(fd[full] == 0)
+
+    def test_padded_grid_routes_with_closed_budget(self):
+        from lemcvt.hydro.d8 import d8_area_budget, data_edge_cells
+
+        z = synthetic_dem(40, 40, 1.0, seed=7)
+        zp = np.pad(z, 1, constant_values=np.nan)       # no valid cell touches the border: no designation needed
+        zf = priority_flood_fill(zp, 1.0)
+        fd = d8_flow_direction(zf, border="outlets")  # data-edge cells (the ring next to the pad) are outlets
+        assert np.all(fd[data_edge_cells(zf)] == 0)
+        area = d8_area(fd, zf, 1.0)
+        b = d8_area_budget(fd, area, zf, 1.0)
+        assert b["closed"], b
+        assert b["two_cell_cycles"] == 0
+        assert b["n_valid"] == 40 * 40
+        # and the undesignated padded grid passes the guard with the plain legacy codes elsewhere
+        fd0 = d8_flow_direction(zf)
+        inner = ~data_edge_cells(zf)
+        np.testing.assert_array_equal(fd0[inner], fd[inner])
+
+    def test_legacy_unchanged_and_outlets_only_zeroes_edges(self):
+        z = priority_flood_fill(synthetic_dem(25, 25, 1.0, seed=8), 1.0)
+        fd_leg = d8_flow_direction(z, border="legacy")
+        fd_out = d8_flow_direction(z, border="outlets")
+        from lemcvt.hydro.d8 import data_edge_cells
+
+        edge = data_edge_cells(z)
+        np.testing.assert_array_equal(fd_leg[~edge], fd_out[~edge])
+        assert np.all(fd_out[edge] == 0)
+        assert np.any(fd_leg[edge] != 0)      # the legacy treatment gives border cells least-uphill codes
+
+    def test_nan_cells_still_zero(self):
+        z = _south_plane()
+        z[3, 3] = np.nan
+        assert d8_flow_direction(z, border="outlets")[3, 3] == 0

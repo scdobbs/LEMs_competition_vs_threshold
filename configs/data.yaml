@@ -4,8 +4,6 @@
 # and verifies sha256 against data/manifest.csv.
 # `versions` (addendum 15, tile expansion stage B): tile sets cut from the re-routed 1 m full grids; files live under
 # $LEMCVT_DATA/<dir>/<tile>/ and are listed in data/manifest.csv (site column = the version name). Data stay outside git.
-# `versions` (addendum 15, tile expansion stage B): tile sets cut from the re-routed 1 m full grids; files live under
-# $LEMCVT_DATA/<dir>/<tile>/ and are listed in data/manifest.csv (site column = the version name). Data stay outside git.
 source: $GROUP_HOME/lemcvt_data/v1
 versions:
   GM-x:
@@ -29,7 +27,14 @@ versions:
     - fd (uint8 lemcvt codes)
     - area (m^2, float64)
     - gapfill_mask
+    - area_model (m^2, float64; GM1-GM5 only, addendum 16 section 4)
     draw: addendum 15 section 5 (seed 20261118); originals re-cut (GM) or cut from 3DEP (AP<n>_3dep)
+    area_model:
+      GM1: new area + coarse inflow added at the entry cells and propagated downstream (check failed)
+      GM2: new area + coarse inflow added at the entry cells and propagated downstream (check failed)
+      GM3: old tile area grid (check passed)
+      GM4: new area + coarse inflow added at the entry cells and propagated downstream (check failed)
+      GM5: new area + coarse inflow added at the entry cells and propagated downstream (check failed)
   AP-3DEP-x:
     dir: AP-3DEP-x
     site: AP

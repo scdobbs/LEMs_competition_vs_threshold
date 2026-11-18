@@ -476,3 +476,8 @@ AP-3DEP-x/AP29/AP29_1m_area.tif,77a052d647e42debdff3ff393bfa6d1479cb35590d5efaf5
 AP-3DEP-x/AP29/AP29_1m_gapfill_mask.tif,5a69f65899cfef8b98b36f056c8afd5aa25fd93626915d787ddb599f08cd972b,1866,AP-3DEP-x,AP29,input,gapfill_mask
 AP-3DEP-x/AP29/AP29_1m_class2_count.tif,473dcadda0b7e8ee9b267d327f06ae4e6c4f4739d72697c5d840da92641637de,444799,AP-3DEP-x,AP29,input,class2_count
 AP-3DEP-x/AP29/AP29_1m_nnfill_mask.tif,a5214c2d3c3caa71d80e6a23874fc5d91af711838b38178cd623fdcc901bdc53,25829,AP-3DEP-x,AP29,input,nnfill_mask
+GM-x/GM1/GM1_1m_area_model.tif,5e4b0918a0e5b54e51167a4e7d67172fa5f4727e1b86420a99d8228bf9412225,1030164,GM-x,GM1,input,area_model
+GM-x/GM2/GM2_1m_area_model.tif,820883c70c60d0d80b9a597a76aeb1c3574f20ae98cda72b8daf3ece35bc6951,1184724,GM-x,GM2,input,area_model
+GM-x/GM3/GM3_1m_area_model.tif,8196b4e43eab2bca3663ac79a6d5434a43f22f23eb57ec3e1835116cdfb7ef45,1169423,GM-x,GM3,input,area_model
+GM-x/GM4/GM4_1m_area_model.tif,c85ddc2679a7dbd4c48a4619984b3a728cc4c9bfd680f869bfe792808395a230,1192917,GM-x,GM4,input,area_model
+GM-x/GM5/GM5_1m_area_model.tif,15f75c0cf9719069e4cbbaa4142bc7e8a3afc2409e9c84502702904b390326f4,1243444,GM-x,GM5,input,area_model

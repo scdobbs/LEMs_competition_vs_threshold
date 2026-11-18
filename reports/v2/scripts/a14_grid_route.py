@@ -25,7 +25,7 @@ from rasterio.transform import Affine
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from a14_common import FT_US, SOURCE, dump, dz_stats, slurm_record, theil_sen_sub, write_tif  # noqa: E402
 
-EPSG = {"AP": 6346, "TTV": 6339}
+EPSG = {"AP": 6346, "TTV": 6339, "GMF": 6339}   # GMF: the GM extension survey of addendum 16 (section 3.3.2), checked by a16_gmf_check.py
 A13_AP_MEDIANS = {"AP1": -0.079, "AP2": -0.077, "AP3": -0.066, "AP4": -0.026, "AP5": -1.206}
 NODATA = -9999.0
 
@@ -113,7 +113,6 @@ def stage_grid(a, tr, shape, inside, epsg_out):
     files = [line.strip() for line in open(a.files) if line.strip()]
     recs = []
     t_all = time.time()
-    import shutil
     import zipfile
     tmpdir = os.path.join(a.work or os.environ.get("L_SCRATCH_JOB", "/tmp"), "unzip")
     os.makedirs(tmpdir, exist_ok=True)
@@ -177,7 +176,7 @@ def stage_grid(a, tr, shape, inside, epsg_out):
                 flag = bool(int(h.global_encoding.value) & 1) if hasattr(h.global_encoding, "value") else True
                 adjusted = flag or gmax > 7e5          # GPS week seconds never exceed 604,800; larger values are adjusted standard GPS time
                 off = 1e9 if adjusted else 0.0
-                epoch = dt.datetime(1980, 1, 6, tzinfo=dt.timezone.utc)
+                epoch = dt.datetime(1980, 1, 6, tzinfo=dt.UTC)
                 d0 = epoch + dt.timedelta(seconds=gmin + off - 18)
                 d1 = epoch + dt.timedelta(seconds=gmax + off - 18)
                 rec["gps_time_range"] = [gmin, gmax]
@@ -353,6 +352,7 @@ def stage_check(a, tr, shape, epsg_out):
         pools_csv = os.path.join(a.out, "..", "pools", "TTV_windows.csv")
         if os.path.exists(pools_csv):
             import pandas as pd
+
             from lemcvt.measure.hilltop_curvature import total_curvature
             with rasterio.open(os.path.join(a.out, f"{a.site}_1m_class2_count.tif")) as ds:
                 cnt = ds.read(1)
@@ -393,7 +393,7 @@ def stage_check(a, tr, shape, epsg_out):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--site", required=True, choices=["AP", "TTV"])
+    p.add_argument("--site", required=True, choices=["AP", "TTV", "GMF"])
     p.add_argument("--files", help="text file: one LAS/LAZ path per line")
     p.add_argument("--out", required=True)
     p.add_argument("--footprint", required=True, help="GeoJSON polygon (any CRS) that bounds the lattice and masks the fill")
@@ -413,7 +413,7 @@ def main():
         del inside
     if a.stage in ("route", "all"):
         stage_route(a, tr, shape, epsg_out)
-    if a.stage in ("check", "all"):
+    if a.stage in ("check", "all") and a.site != "GMF":
         stage_check(a, tr, shape, epsg_out)
 
 

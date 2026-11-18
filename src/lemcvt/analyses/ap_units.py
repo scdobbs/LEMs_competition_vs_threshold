@@ -119,8 +119,8 @@ def d8_check(tile: str, rec: RunRecorder, rel_tol: float = 1e-9, abs_tol: float 
     td_ft = load_tile(tile, reproduce_v1_units=True)
     Z_m, Z_ft, fd0 = td.Z, td_ft.Z, td.FD.astype(np.int64)
     ny, nx = Z_m.shape
-    fd_m = d8_flow_direction(Z_m).astype(np.int64)
-    fd_ft = d8_flow_direction(Z_ft).astype(np.int64)
+    fd_m = d8_flow_direction(Z_m, border="legacy", name=f"{tile} (m)").astype(np.int64)     # interior cells only are compared
+    fd_ft = d8_flow_direction(Z_ft, border="legacy", name=f"{tile} (ft)").astype(np.int64)
     rows, cols = np.indices((ny, nx))
     margin = np.minimum(np.minimum(rows, ny - 1 - rows), np.minimum(cols, nx - 1 - cols))
     drops = _drops(Z_m)

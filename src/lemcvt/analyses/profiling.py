@@ -111,7 +111,7 @@ def run_profile(tile: str, picard_iters: int = 2, run_id: str | None = None, res
 
     # hydrology (Phase 3 step 5 target)
     zf = P.run("hydro_fill", lambda: fillmod.priority_flood_fill(Z0, dx), [fillmod.priority_flood_fill])
-    fd = P.run("hydro_d8_fd", lambda: d8mod.d8_flow_direction(zf), [d8mod.d8_flow_direction])
+    fd = P.run("hydro_d8_fd", lambda: d8mod.d8_flow_direction(zf, border="legacy", name=tile), [d8mod.d8_flow_direction])  # tile valid to its border; v2 treatment
     area = P.run("hydro_d8_area", lambda: d8mod.d8_area(fd, zf, dx), [d8mod.d8_area, d8mod.d8_receiver_arrays])
     P.run("hydro_main_stem", lambda: cs.flow_graph_main_stem(area, fd), [cs.flow_graph_main_stem])
     rec.add_params("hydro_check", {"fd_equal_to_stored": bool(np.array_equal(fd, FD)),

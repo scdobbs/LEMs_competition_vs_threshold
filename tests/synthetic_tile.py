@@ -54,7 +54,7 @@ def hydro_from_padded(z: np.ndarray, dx: float, pad: int = 12) -> tuple[np.ndarr
                               np.maximum(pad - xx, 0), np.maximum(xx - (nx + pad - 1), 0)])
     zp = zp - 2.0 * dist * dx
     zf = priority_flood_fill(zp, dx)
-    fd = d8_flow_direction(zf)
+    fd = d8_flow_direction(zf, border="legacy")   # the reflect-padded margins drain outward by construction
     area = d8_area(fd, zf, dx)
     sl = (slice(pad, pad + ny), slice(pad, pad + nx))
     return zf[sl].copy(), fd[sl].copy(), area[sl].copy()

@@ -157,7 +157,7 @@ def legacy_curvature(z: np.ndarray, dx: float, site: str, U: float) -> dict:
     k = V1_SUBSAMPLE[site]
     zs = block_mean(z, k)
     dxs = dx * k
-    zf = d8_flow_direction(zs)
+    zf = d8_flow_direction(zs, border="legacy", name="block-mean tile")   # v1 cell 12 routed the whole block-mean tile; treatment kept
     area_s = d8_area(zf, zs, dxs)
     channel = area_s >= V1_A_MIN[site]
     lab = basin_labels(area_s, zf, channel)

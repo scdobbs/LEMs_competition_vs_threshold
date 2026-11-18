@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from a15_common import NODATA, STAGE_A, TILE_EPSG, Z_RANGE, dump, sha256_file, slurm_record  # noqa: E402
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
-VERSION = {"GM": "GM-x", "AP": "AP-3DEP-x", "TTV": "TTV-x"}
+VERSION = {"GM": "GM-x", "AP": "AP-3DEP-x", "TTV": "TTV-x", "GMF": "GM-FEMA2018-x"}   # GMF: addendum 16 section 3.3.6
 N = 1000
 
 
@@ -62,6 +62,8 @@ def main():
     p.add_argument("--data", default=os.environ.get("LEMCVT_DATA"))
     p.add_argument("--no-register", action="store_true")
     p.add_argument("--sites", default="GM,AP,TTV")
+    p.add_argument("--run-label", default=None, help="run id recorded in configs/data.yaml (default: basename of --grids)")
+    p.add_argument("--draw-note", default=None, help="draw provenance recorded in configs/data.yaml (default: the addendum 15 note)")
     a = p.parse_args()
     os.makedirs(a.out, exist_ok=True)
     slurm_record(a.out)
@@ -73,7 +75,7 @@ def main():
         tiles = pd.read_csv(os.path.join(a.draw, f"{site}_tiles.csv"))
         epsg = TILE_EPSG[site]
         gb = os.path.join(a.grids, f"grid_{site}")
-        ga = os.path.join(STAGE_A, f"grid_{site}")
+        ga = gb if site == "GMF" else os.path.join(STAGE_A, f"grid_{site}")   # GMF: its class-2 count and fill mask sit beside its routing
         vdir = os.path.join(a.data, VERSION[site])
         for _, t in tiles.iterrows():
             tid = str(t["tile"])
@@ -105,7 +107,7 @@ def main():
             files["area"] = f"{tid}_1m_area.tif"
             write(os.path.join(tdir, f"{tid}_1m_gapfill_mask.tif"), gap.astype(np.uint8), x0, y0 + N, epsg)
             files["gapfill_mask"] = f"{tid}_1m_gapfill_mask.tif"
-            if site in ("AP", "TTV"):
+            if site in ("AP", "TTV", "GMF"):
                 c2, _ = read_square(os.path.join(ga, f"{site}_1m_class2_count.tif"), x0, y0)
                 nn, _ = read_square(os.path.join(ga, f"{site}_1m_filled_mask.tif"), x0, y0)
                 write(os.path.join(tdir, f"{tid}_1m_class2_count.tif"), c2.astype(np.uint32), x0, y0 + N, epsg)
@@ -174,21 +176,25 @@ def main():
     txt = open(ypath).read()
     cfg = yaml.safe_load(txt) or {}
     versions = cfg.get("versions", {})
-    run_id = os.path.basename(a.grids.rstrip("/"))
+    run_id = a.run_label or os.path.basename(a.grids.rstrip("/"))
     for site in a.sites.replace("+", ",").split(","):
         v = VERSION[site]
         tl = [r["tile"] for r in records if r["site"] == site]
         versions[v] = {"dir": v, "site": site, "crs_epsg": TILE_EPSG[site], "cell_m": 1.0, "tiles": tl, "n_tiles": len(tl),
                        "source": {"GM": "Gabilan_mesa.tif routed as one full grid (addendum 15 section 3)", "AP": "USGS 3DEP Entwine copy of PA_WesternPA_1_2019, class-2 mean grid, re-routed with the gap rule",
-                                  "TTV": "USGS 3DEP Entwine copy of CA_NoCal_Wildfires_B5b_QL1_2018 (Marin 2019), class-2 mean grid, re-routed with the gap rule"}[site],
+                                  "TTV": "USGS 3DEP Entwine copy of CA_NoCal_Wildfires_B5b_QL1_2018 (Marin 2019), class-2 mean grid, re-routed with the gap rule",
+                                  "GMF": "USGS 3DEP Entwine copy of CA_FEMA_Z4_B2_2018 (2018 FEMA Region 9, InPort 64466), class-2 mean grid at 1 m on EPSG:6339, re-routed with the gap rule (addendum 16 section 3.3)"}[site],
                        "run": run_id, "products": ["filled (m, float32)", "fd (uint8 lemcvt codes)", "area (m^2, float64)", "gapfill_mask"] + (["class2_count", "nnfill_mask"] if site != "GM" else []),
-                       "draw": "addendum 15 section 5 (seed 20261118); originals re-cut (GM) or cut from 3DEP (AP<n>_3dep)"}
+                       "site_label": "GM" if site == "GMF" else site,
+                       "draw": a.draw_note or "addendum 15 section 5 (seed 20261118); originals re-cut (GM) or cut from 3DEP (AP<n>_3dep)"}
     cfg["versions"] = versions
-    header = "".join(line + "\n" for line in txt.splitlines() if line.startswith("#"))
+    versions_note = ("# `versions` (addendum 15, tile expansion stage B): tile sets cut from the re-routed 1 m full grids; files live under\n"
+                     "# $LEMCVT_DATA/<dir>/<tile>/ and are listed in data/manifest.csv (site column = the version name). Data stay outside git.\n")
+    header_lines = [line for line in txt.splitlines() if line.startswith("#")]
+    header = "".join(line + "\n" for line in header_lines if line + "\n" not in versions_note)   # the note is appended once (a15 wrote it twice)
     with open(ypath, "w") as fh:
         fh.write(header)
-        fh.write("# `versions` (addendum 15, tile expansion stage B): tile sets cut from the re-routed 1 m full grids; files live under\n"
-                 "# $LEMCVT_DATA/<dir>/<tile>/ and are listed in data/manifest.csv (site column = the version name). Data stay outside git.\n")
+        fh.write(versions_note)
         fh.write(yaml.safe_dump({k: v for k, v in cfg.items()}, sort_keys=False, width=120))
     print("registered:", added, "manifest rows;", {v: versions[v]["n_tiles"] for v in versions}, flush=True)
 

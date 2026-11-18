@@ -334,8 +334,8 @@ def classify_seam(Z_m: np.ndarray, Z_ft: np.ndarray | None, fd0: np.ndarray, rel
 
     ny, nx = Z_m.shape
     fd0 = fd0.astype(np.int64)
-    fd_m = d8_flow_direction(Z_m).astype(np.int64)
-    fd_ft = d8_flow_direction(Z_ft).astype(np.int64) if Z_ft is not None else fd_m
+    fd_m = d8_flow_direction(Z_m, border="legacy", name="tile (m)").astype(np.int64)        # interior cells only are classified
+    fd_ft = d8_flow_direction(Z_ft, border="legacy", name="tile (ft)").astype(np.int64) if Z_ft is not None else fd_m
     rows, cols = np.indices((ny, nx))
     margin = np.minimum(np.minimum(rows, ny - 1 - rows), np.minimum(cols, nx - 1 - cols))
     drops = _drops(Z_m)

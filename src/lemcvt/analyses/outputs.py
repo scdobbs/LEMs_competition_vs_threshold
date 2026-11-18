@@ -51,7 +51,9 @@ def derive_model_outputs(template: Grid, Z_model: np.ndarray, derived: bool = Tr
         return ModelOutputs(elev, empty, empty, empty, empty, empty)
     dx = template.dx
     zf = priority_flood_fill(z, dx)
-    fd = d8_flow_direction(zf)
+    # border='legacy': the tile's valid cells reach the grid border (Dirichlet rows of the models); the v1/v2
+    # TopoAnalysis treatment of the border is kept so that no v2 result changes (addendum 16, section 5)
+    fd = d8_flow_direction(zf, border="legacy", name="model surface")
     area = d8_area(fd, zf, dx)
     return ModelOutputs(
         elevation=elev,

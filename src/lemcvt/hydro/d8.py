@@ -22,6 +22,20 @@ Quirks of the TopoAnalysis implementation that are reproduced deliberately
 * a cell whose steepest drop is zero or negative still receives a code (the
   least-uphill neighbour), which is what the priority-flood aggradation slope
   normally prevents.
+
+Border guard (addendum 16, section 5). Because of the second quirk, a grid whose
+valid cells reach the grid border is not routed correctly at that border: the last
+two rows and columns never see an east/south comparison, so valid cells there
+receive a least-uphill code and can form two-cell cycles (found on the GM 1 m full
+grid, addendum 15 section 3: 134 cycles and an unclosed area budget). The models
+in v1/v2 ran their 1 km tiles with valid cells on every border under exactly this
+treatment (their stored flow directions were clipped from larger grids; the derived
+grids of model surfaces were not). :func:`d8_flow_direction` therefore refuses a
+grid with valid border cells unless the caller designates how the border is
+treated (``border="legacy"`` keeps the TopoAnalysis behaviour, ``border="outlets"``
+makes every data-edge cell an outlet, or an explicit ``outlets`` mask covering the
+border); a grid padded with NaN so that no valid cell touches the border needs no
+designation. The D8 algorithm itself is unchanged.
 """
 
 from __future__ import annotations
@@ -47,19 +61,89 @@ _DROW = np.array([0, 1, 1, 1, 0, -1, -1, -1], dtype=np.int64)
 _DCOL = np.array([1, 1, 0, -1, -1, -1, 0, 1], dtype=np.int64)
 
 
-def d8_flow_direction(z_filled: np.ndarray) -> np.ndarray:
-    """Exact port of ``FlowDirectionD8._create_from_flooded_dem``.
+BORDER_TREATMENTS = ("legacy", "outlets")
+
+
+class D8BorderError(ValueError):
+    """A grid with valid cells on its border was given to D8 without a border treatment."""
+
+
+def valid_border_cells(z: np.ndarray) -> np.ndarray:
+    """Boolean mask of finite cells in the first/last row and column of ``z``."""
+    Z = np.asarray(z)
+    ring = np.zeros(Z.shape, dtype=bool)
+    ring[0, :] = True
+    ring[-1, :] = True
+    ring[:, 0] = True
+    ring[:, -1] = True
+    return ring & np.isfinite(Z)
+
+
+def data_edge_cells(z: np.ndarray) -> np.ndarray:
+    """Finite cells with a NaN neighbour (8-connected) or on the grid border: the priority flood's edge set."""
+    Z = np.asarray(z, dtype=np.float64)
+    valid = np.isfinite(Z)
+    ny, nx = valid.shape
+    pad = np.pad(valid, 1, constant_values=False)
+    adj = np.zeros_like(valid)
+    for dr in (-1, 0, 1):
+        for dc in (-1, 0, 1):
+            adj |= ~pad[1 + dr:ny + 1 + dr, 1 + dc:nx + 1 + dc]
+    return adj & valid
+
+
+def check_border(z_filled: np.ndarray, border: str | None, outlets: np.ndarray | None, name: str = "grid") -> int:
+    """The guard: return the number of valid border cells; raise :class:`D8BorderError` if there are any and
+    neither a ``border`` treatment nor an ``outlets`` mask covering them was designated."""
+    if border is not None and border not in BORDER_TREATMENTS:
+        raise ValueError(f"border must be one of {BORDER_TREATMENTS} or None, got {border!r}")
+    vb = valid_border_cells(z_filled)
+    n = int(vb.sum())
+    if n == 0 or border is not None:
+        return n
+    if outlets is not None:
+        uncovered = int((vb & ~np.asarray(outlets, dtype=bool)).sum())
+        if uncovered == 0:
+            return n
+        detail = f"the outlets mask leaves {uncovered} of them uncovered"
+    else:
+        detail = "no border treatment was designated"
+    ny, nx = np.asarray(z_filled).shape
+    raise D8BorderError(
+        f"D8 flow direction: {name!r} ({ny} x {nx}) has {n} valid cells on its grid border and {detail}. "
+        "The TopoAnalysis port never compares the last two rows and columns eastward/southward, so border cells "
+        "get a least-uphill code and can form two-cell cycles (addendum 15, section 3). Fix: pad the grid with at "
+        "least one row/column of NaN on every side so that no valid cell touches the border, or pass "
+        "border='outlets' (every data-edge cell, border included, becomes an outlet with code 0; the second-to-last "
+        "row/column keep the quirk unless the grid is padded), or pass outlets=<mask> covering every valid border "
+        "cell, or border='legacy' to keep the TopoAnalysis behaviour knowingly (the v1/v2 model-surface treatment).")
+
+
+def d8_flow_direction(z_filled: np.ndarray, border: str | None = None, outlets: np.ndarray | None = None,
+                      name: str = "grid") -> np.ndarray:
+    """Exact port of ``FlowDirectionD8._create_from_flooded_dem``, with the border guard.
 
     Parameters
     ----------
     z_filled
         2-D filled elevation (float). NaN cells get code 0.
+    border
+        Treatment of a grid whose valid cells touch the grid border (see the module docstring):
+        ``None`` (default) refuses such a grid with :class:`D8BorderError`; ``"legacy"`` keeps the
+        TopoAnalysis codes everywhere (v1/v2 behaviour); ``"outlets"`` sets code 0 on every data-edge cell
+        (finite cells bordering NaN or the grid edge), the convention of the full-grid routing of addenda 14-15.
+    outlets
+        Optional boolean mask of designated outlet cells (code 0). Counts as the border designation when it
+        covers every valid border cell.
+    name
+        Name of the grid, used in the error message.
 
     Returns
     -------
     np.ndarray of uint8
         D8 codes.
     """
+    check_border(z_filled, border, outlets, name)
     Z = np.asarray(z_filled, dtype=np.float64)
     big = -np.ones_like(Z) * 1e22
 
@@ -95,7 +179,32 @@ def d8_flow_direction(z_filled: np.ndarray) -> np.ndarray:
     fd[im1j == min_sl] = 64
     fd[im1jp1 == min_sl] = 128
     fd[np.isnan(Z)] = 0
+    if border == "outlets":
+        fd[data_edge_cells(Z)] = 0
+    if outlets is not None:
+        fd[np.asarray(outlets, dtype=bool)] = 0
     return fd
+
+
+def d8_area_budget(fd: np.ndarray, area: np.ndarray, z: np.ndarray, dx: float) -> dict[str, float | int | bool]:
+    """Closed-budget check: the area summed over the root cells (valid cells with no valid receiver) must equal
+    the number of valid cells times ``dx**2``; also counts receiver pairs that form two-cell cycles."""
+    valid = np.isfinite(np.asarray(z, dtype=np.float64))
+    ny, nx = valid.shape
+    r_to, c_to, good = d8_receiver_arrays(fd)
+    good = good & valid
+    good[good] &= valid[r_to[good], c_to[good]]
+    roots = valid & ~good
+    flat = np.arange(ny * nx).reshape(ny, nx)
+    tgt = np.full((ny, nx), -1, dtype=np.int64)
+    tgt[good] = flat[r_to[good], c_to[good]]
+    back = np.full(ny * nx, -1, dtype=np.int64)
+    back[good.ravel()] = tgt.ravel()[tgt.ravel()[good.ravel()]]
+    two_cycles = int(np.sum(back == flat.ravel()) // 2)
+    total = float(np.sum(np.asarray(area, dtype=np.float64)[roots]))
+    expected = float(valid.sum()) * float(dx) ** 2
+    return {"n_valid": int(valid.sum()), "n_roots": int(roots.sum()), "root_area_sum": total, "expected": expected,
+            "closed": bool(abs(total - expected) <= 1e-6 * max(expected, 1.0)), "two_cell_cycles": two_cycles}
 
 
 def d8_receiver_arrays(fd: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:

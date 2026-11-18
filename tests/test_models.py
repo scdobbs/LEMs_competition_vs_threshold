@@ -361,7 +361,7 @@ class TestPhase3ChannelNetworkBFS:
 
         z = synthetic_dem(70, 70, 1.0, seed=3)
         zf = priority_flood_fill(np.pad(z, 5, mode="reflect"), 1.0)
-        fd = d8m.d8_flow_direction(zf)
+        fd = d8m.d8_flow_direction(zf, border="legacy")
         a1 = d8m.d8_area(fd, zf, 1.0)
         saved = d8m._accumulate
         try:

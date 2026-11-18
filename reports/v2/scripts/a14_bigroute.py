@@ -133,7 +133,7 @@ def d8_chunked(zf: np.ndarray, block_rows: int = 1500) -> np.ndarray:
         r1 = min(ny, r0 + block_rows)
         s0 = max(0, r0 - halo)
         s1 = min(ny, r1 + halo)
-        sub = d8_flow_direction(zf[s0:s1])
+        sub = d8_flow_direction(zf[s0:s1], border="legacy")   # slab borders: halo rows are dropped, grid-border columns are zeroed by the caller (data-edge rule)
         keep0 = r0 - s0
         keep1 = keep0 + (r1 - r0)
         if s1 < ny:

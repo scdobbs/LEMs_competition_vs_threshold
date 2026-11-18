@@ -213,3 +213,19 @@ stable rule. Where no tie exists the results are bit-identical to Phase 1.
 Addendum 2 (2.5) requires the sweep to be rerun and every changed row reported. Rows
 are expected to change only where ties exist. Results: see
 `reports/v2/02d_phase2_closeout.md`, section 2.5 (filled in from the rerun).
+
+## N13. D8 border guard (addendum 16, section 5; no numerical change)
+
+- **Found:** addendum 15 (section 3) routed the GM 1 m lidar grid, whose valid cells reach the grid
+  border, and the TopoAnalysis port gave 134 two-cell cycles in the last two columns (no east/south
+  comparison there) and an unclosed area budget; a 2-cell nodata pad fixed it.
+- **New:** `lemcvt.hydro.d8.d8_flow_direction(z, border=None, outlets=None, name=...)` refuses, with
+  `D8BorderError`, a grid that has valid cells on its border unless the caller designates the treatment:
+  `border="legacy"` (the TopoAnalysis codes everywhere, as v1 and v2 always ran their tiles and model
+  surfaces), `border="outlets"` (every data-edge cell gets code 0, the convention of the addendum 14-15
+  full-grid routing) or an `outlets` mask covering the border. A grid padded with NaN needs no designation.
+- **Where results differ:** nowhere. Every existing caller (model-surface outputs, the resolution sweep,
+  the profiler, the legacy curvature, the seam and unit checks, the synthetic fixtures) passes
+  `border="legacy"` and produces the same codes as before; the algorithm itself is untouched. The
+  regression of addendum 16 section 5.4 (AD and partitioned forward runs on GM1 and AP1 against the
+  `v2.0.0` runs) is the record.

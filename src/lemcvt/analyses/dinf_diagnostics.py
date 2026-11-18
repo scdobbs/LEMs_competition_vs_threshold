@@ -326,7 +326,8 @@ def _padded_hydro(z: np.ndarray, dx: float, pad: int = 12):
                             np.maximum(pad - xx, 0), np.maximum(xx - (nx + pad - 1), 0)]), axis=0)
     zp = zp - 2.0 * dist * dx
     zf = priority_flood_fill(zp, dx)
-    fd = d8_flow_direction(zf)
+    # border='legacy': the reflect-padded margins are valid to the grid border (they drain outward by construction)
+    fd = d8_flow_direction(zf, border="legacy", name="padded synthetic")
     area = d8_area(fd, zf, dx)
     angles, r_facet, facet_idx = compute_dinf_flow_direction(zf, dx, FD_d8=fd)
     A_dinf = compute_dinf_area(zf, dx, angles, r_facet, facet_idx)

@@ -38,10 +38,10 @@ def mosaic_with_seam(n: int = 200, dx: float = 1.0, seam_row: int = 110, pad: in
     else:
         zm = synthetic_dem(n + 2 * pad, n + 2 * pad, dx, seed)
     zf = priority_flood_fill(zm, dx)
-    fd_true = d8_flow_direction(zf)
+    fd_true = d8_flow_direction(zf, border="legacy")
     area_true = d8_area(fd_true, zf, dx)
     R = seam_row + pad
-    fd_block = d8_flow_direction(zf[: R + 2])          # block A = rows [0, R + 2): its last two rows see no south comparison
+    fd_block = d8_flow_direction(zf[: R + 2], border="legacy")          # block A = rows [0, R + 2): its last two rows see no south comparison
     fd_seam = fd_true.copy()
     c0, c1 = pad + 2, pad + n - 2                       # interior columns of the tile only (as on AP1: columns 2-1010)
     fd_seam[R:R + 2, c0:c1] = fd_block[R:R + 2, c0:c1]
