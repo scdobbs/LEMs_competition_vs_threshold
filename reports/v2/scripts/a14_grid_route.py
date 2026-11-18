@@ -174,13 +174,14 @@ def stage_grid(a, tr, shape, inside, epsg_out):
             rec.update({"class2": n2, "class2_in_lattice": n_in, "seconds": time.time() - t0})
             if has_gps and np.isfinite(gmin):
                 import datetime as dt
-                adjusted = bool(int(h.global_encoding.value) & 1) if hasattr(h.global_encoding, "value") else True
+                flag = bool(int(h.global_encoding.value) & 1) if hasattr(h.global_encoding, "value") else True
+                adjusted = flag or gmax > 7e5          # GPS week seconds never exceed 604,800; larger values are adjusted standard GPS time
                 off = 1e9 if adjusted else 0.0
                 epoch = dt.datetime(1980, 1, 6, tzinfo=dt.timezone.utc)
                 d0 = epoch + dt.timedelta(seconds=gmin + off - 18)
                 d1 = epoch + dt.timedelta(seconds=gmax + off - 18)
                 rec["gps_time_range"] = [gmin, gmax]
-                rec["utc_dates_class2"] = [d0.strftime("%Y-%m-%d %H:%M"), d1.strftime("%Y-%m-%d %H:%M"), "adjusted standard GPS time" if adjusted else "GPS week time (dates not derivable)"]
+                rec["utc_dates_class2"] = [d0.strftime("%Y-%m-%d %H:%M"), d1.strftime("%Y-%m-%d %H:%M"), ("adjusted standard GPS time (header flag)" if flag else "adjusted standard GPS time (inferred from magnitude; header flag unset)") if adjusted else "GPS week time (dates not derivable)"]
         if las_path != path:
             os.remove(las_path)
         recs.append(rec)
@@ -198,18 +199,27 @@ def stage_grid(a, tr, shape, inside, epsg_out):
     t0 = time.time()
     empty = inside & ~has
     dist, (ir, ic) = distance_transform_edt(~has, return_distances=True, return_indices=True)
+    # fill gaps only within MAX_FILL_M of a ground cell; farther cells (water, no lidar) stay nodata and are counted
+    fill_ok = empty & (dist <= a.max_fill)
+    gap = empty & ~fill_ok
     filled = np.zeros((ny, nx), np.uint8)
-    filled[empty] = 1
-    mean[empty] = mean[ir[empty], ic[empty]]
+    filled[fill_ok] = 1
+    filled[gap] = 2
+    mean[fill_ok] = mean[ir[fill_ok], ic[fill_ok]]
+    mean[gap] = NODATA
     nn_dist = np.minimum(dist, 255).astype(np.uint8)
     del dist, ir, ic
     mean[~inside] = NODATA
+    inside_data = inside & ~gap
     stats = {"n_files": len(files), "n_files_ok": sum("error" not in r for r in recs), "lattice_shape": [ny, nx], "transform": list(tr)[:6], "epsg": epsg_out,
              "n_inside_footprint": int(inside.sum()), "n_cells_with_class2": int(has.sum()), "n_cells_with_class2_inside": int((has & inside).sum()),
-             "frac_inside_filled": float(empty.sum() / max(1, inside.sum())), "n_filled": int(empty.sum()),
-             "nn_fill_distance_percentiles_50_95_99_max_m": [float(v) for v in np.percentile(nn_dist[empty], [50, 95, 99, 100])] if empty.any() else None,
-             "class2_density_inside_pts_per_m2": float(cnt[inside].astype(np.float64).sum() / max(1, inside.sum())),
+             "max_fill_distance_m": a.max_fill, "n_filled_within_max": int(fill_ok.sum()), "n_gap_beyond_max_left_nodata": int(gap.sum()),
+             "frac_inside_filled": float(fill_ok.sum() / max(1, inside_data.sum())), "frac_inside_gap_nodata": float(gap.sum() / max(1, inside.sum())),
+             "n_filled": int(fill_ok.sum()), "n_valid_cells_in_grid": int(inside_data.sum()),
+             "nn_fill_distance_percentiles_50_95_99_max_m": [float(v) for v in np.percentile(nn_dist[fill_ok], [50, 95, 99, 100])] if fill_ok.any() else None,
+             "class2_density_inside_pts_per_m2": float(cnt[inside_data].astype(np.float64).sum() / max(1, inside_data.sum())),
              "points_per_cell_percentiles_5_50_95": [int(v) for v in np.percentile(cnt[has & inside], [5, 50, 95])] if (has & inside).any() else None,
+             "frac_data_cells_with_ge1_point": float((has & inside).sum() / max(1, inside_data.sum())),
              "total_class2": int(sum(r.get("class2", 0) for r in recs)), "seconds_total": time.time() - t_all, "seconds_fill": time.time() - t0, "peak_rss_GB": rss_gb()}
     crs = rasterio.crs.CRS.from_epsg(epsg_out)
     write_tif(os.path.join(a.out, f"{a.site}_1m_mean.tif"), mean, tr, crs, nodata=NODATA)
@@ -390,6 +400,7 @@ def main():
     p.add_argument("--stage", default="all", choices=["grid", "route", "check", "all"])
     p.add_argument("--data", default=None)
     p.add_argument("--work", default=None, help="node-local scratch for unzipping (default $L_SCRATCH_JOB)")
+    p.add_argument("--max-fill", type=float, default=10.0, help="nearest-neighbour fill only within this distance (m); farther empty cells stay nodata")
     a = p.parse_args()
     os.makedirs(a.out, exist_ok=True)
     slurm_record(a.out)
