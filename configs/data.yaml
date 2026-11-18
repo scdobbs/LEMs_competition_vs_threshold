@@ -2,4 +2,77 @@
 #   <site>/tile<n>/<name>.tif and <site>/tile<n>/outputs/<name>.tif
 # `lemcvt data fetch` copies from `source` (group storage on Sherlock) into LEMCVT_DATA
 # and verifies sha256 against data/manifest.csv.
+# `versions` (addendum 15, tile expansion stage B): tile sets cut from the re-routed 1 m full grids; files live under
+# $LEMCVT_DATA/<dir>/<tile>/ and are listed in data/manifest.csv (site column = the version name). Data stay outside git.
+# `versions` (addendum 15, tile expansion stage B): tile sets cut from the re-routed 1 m full grids; files live under
+# $LEMCVT_DATA/<dir>/<tile>/ and are listed in data/manifest.csv (site column = the version name). Data stay outside git.
 source: $GROUP_HOME/lemcvt_data/v1
+versions:
+  GM-x:
+    dir: GM-x
+    site: GM
+    crs_epsg: 32610
+    cell_m: 1.0
+    tiles:
+    - GM1
+    - GM2
+    - GM3
+    - GM4
+    - GM5
+    - GM6
+    - GM7
+    n_tiles: 7
+    source: Gabilan_mesa.tif routed as one full grid (addendum 15 section 3)
+    run: 20261118T160326Z_a15_stage_b
+    products:
+    - filled (m, float32)
+    - fd (uint8 lemcvt codes)
+    - area (m^2, float64)
+    - gapfill_mask
+    draw: addendum 15 section 5 (seed 20261118); originals re-cut (GM) or cut from 3DEP (AP<n>_3dep)
+  AP-3DEP-x:
+    dir: AP-3DEP-x
+    site: AP
+    crs_epsg: 6346
+    cell_m: 1.0
+    tiles:
+    - AP1_3dep
+    - AP2_3dep
+    - AP3_3dep
+    - AP4_3dep
+    - AP5_3dep
+    - AP6
+    - AP7
+    - AP8
+    - AP9
+    - AP10
+    - AP11
+    - AP12
+    - AP13
+    - AP14
+    - AP15
+    - AP16
+    - AP17
+    - AP18
+    - AP19
+    - AP20
+    - AP21
+    - AP22
+    - AP23
+    - AP24
+    - AP25
+    - AP26
+    - AP27
+    - AP28
+    - AP29
+    n_tiles: 29
+    source: USGS 3DEP Entwine copy of PA_WesternPA_1_2019, class-2 mean grid, re-routed with the gap rule
+    run: 20261118T160326Z_a15_stage_b
+    products:
+    - filled (m, float32)
+    - fd (uint8 lemcvt codes)
+    - area (m^2, float64)
+    - gapfill_mask
+    - class2_count
+    - nnfill_mask
+    draw: addendum 15 section 5 (seed 20261118); originals re-cut (GM) or cut from 3DEP (AP<n>_3dep)
