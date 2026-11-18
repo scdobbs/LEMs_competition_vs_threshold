@@ -369,7 +369,7 @@ def main():
                     parts = line.split()
                     if len(parts) == 2:
                         man[parts[1]] = parts[0]
-            W(table(["LAZ", "bytes (listing)", "points", "sha256 (16)"], [[r["file"], r["bytes"], r["points"], man.get(r["file"], "pending")[:16]] for r in u["files"]]))
+            W(table(["LAZ", "bytes (listing)", "points", "sha256 (16)"], [[r["file"], r["bytes"], r["points"], man.get(r["file"], "not downloaded (Entwine copy used)")[:40]] for r in u["files"]]))
     if marin:
         W(f'\n**Marin 2019 tiles** (`marin_select/marin_select.json`): pool watersheds {marin["watershed_km2"]:.1f} km2 ({marin["n_terminal_basins"]} terminal basins from {marin["n_candidate_windows"]} candidate windows), buffered {marin["buffered_km2"]:.1f} km2; '
           f'{marin["n_tiles"]} tiles, {marin["n_in_ept_sources"]} in the Entwine source list, {marin["points_total"]:,} points, listed bytes {marin["bytes_listed_total"] / 1e9:.2f} GB, estimate {marin["bytes_estimate_from_points_at_3.5B"] / 1e9:.2f} GB.\n')
