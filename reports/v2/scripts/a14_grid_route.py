@@ -113,10 +113,26 @@ def stage_grid(a, tr, shape, inside, epsg_out):
     files = [line.strip() for line in open(a.files) if line.strip()]
     recs = []
     t_all = time.time()
+    import shutil
+    import zipfile
+    tmpdir = os.path.join(a.work or os.environ.get("L_SCRATCH_JOB", "/tmp"), "unzip")
+    os.makedirs(tmpdir, exist_ok=True)
     for k, path in enumerate(files):
         t0 = time.time()
         rec = {"file": os.path.basename(path), "bytes": os.path.getsize(path)}
-        with laspy.open(path) as f:
+        las_path = path
+        if path.lower().endswith(".zip"):
+            # PASDA delivery: one LAS (+ one XML) per zip; extract the LAS to node-local scratch, delete after use
+            with zipfile.ZipFile(path) as zf:
+                names = [n for n in zf.namelist() if n.lower().endswith((".las", ".laz"))]
+                rec["zip_members"] = zf.namelist()
+                las_path = zf.extract(names[0], tmpdir) if len(names) == 1 else None
+            if las_path is None:
+                rec["error"] = f"zip holds {len(names)} point files"
+                recs.append(rec)
+                continue
+            rec["las_bytes"] = os.path.getsize(las_path)
+        with laspy.open(las_path) as f:
             h = f.header
             crs, horiz, hu, vu = file_crs(h)
             rec.update({"las_version": str(h.version), "point_format": int(h.point_format.id), "points": int(h.point_count),
@@ -133,9 +149,14 @@ def stage_grid(a, tr, shape, inside, epsg_out):
             tf = Transformer.from_crs(horiz, CRS.from_epsg(epsg_out), always_xy=True)
             rec["transformer"] = tf.description[:200]
             n2 = n_in = 0
+            has_gps = "gps_time" in h.point_format.dimension_names
+            gmin, gmax = np.inf, -np.inf
             for pts in f.chunk_iterator(4_000_000):
                 c = np.asarray(pts.classification)
                 g = c == 2
+                if has_gps and g.any():
+                    gt = np.asarray(pts.gps_time)[g]
+                    gmin, gmax = min(gmin, float(gt.min())), max(gmax, float(gt.max()))
                 if not g.any():
                     continue
                 x, y = tf.transform(np.asarray(pts.x)[g], np.asarray(pts.y)[g])
@@ -151,6 +172,17 @@ def stage_grid(a, tr, shape, inside, epsg_out):
                 cc = np.bincount(inv, minlength=u.size)
                 cnt[u] = np.minimum(cnt[u].astype(np.int64) + cc, 65535).astype(np.uint16)
             rec.update({"class2": n2, "class2_in_lattice": n_in, "seconds": time.time() - t0})
+            if has_gps and np.isfinite(gmin):
+                import datetime as dt
+                adjusted = bool(int(h.global_encoding.value) & 1) if hasattr(h.global_encoding, "value") else True
+                off = 1e9 if adjusted else 0.0
+                epoch = dt.datetime(1980, 1, 6, tzinfo=dt.timezone.utc)
+                d0 = epoch + dt.timedelta(seconds=gmin + off - 18)
+                d1 = epoch + dt.timedelta(seconds=gmax + off - 18)
+                rec["gps_time_range"] = [gmin, gmax]
+                rec["utc_dates_class2"] = [d0.strftime("%Y-%m-%d %H:%M"), d1.strftime("%Y-%m-%d %H:%M"), "adjusted standard GPS time" if adjusted else "GPS week time (dates not derivable)"]
+        if las_path != path:
+            os.remove(las_path)
         recs.append(rec)
         if k % 10 == 0:
             print(k, rec["file"], rec.get("class2"), round(rec.get("seconds", 0), 1), "s; rss GB", rss_gb(), flush=True)
@@ -201,6 +233,12 @@ def stage_route(a, tr, shape, epsg_out):
     t1 = rss_gb()
     fd = d8_chunked(Z)
     fd[~valid] = 0
+    # data-edge cells (bordering nodata or the grid edge) are the outlets: no receiver (see a14_pools.route_full_grid)
+    from scipy.ndimage import binary_erosion
+    edge = valid & ~binary_erosion(valid, structure=np.ones((3, 3), bool), border_value=0)
+    fd[edge] = 0
+    n_edge = int(edge.sum())
+    del edge
     write_tif(os.path.join(a.out, f"{a.site}_1m_fd.tif"), fd, tr, crs)
     count, target = d8_area_big(fd, Z, valid)
     write_tif(os.path.join(a.out, f"{a.site}_1m_area_cells.tif"), count, tr, crs)
@@ -210,7 +248,7 @@ def stage_route(a, tr, shape, epsg_out):
     order = np.argsort(-ra)[:20]
     ri = np.nonzero(roots)[0][order]
     ny, nx = shape
-    rec = {"n_valid": int(valid.sum()), "max_area_cells": int(count.max()), "max_area_km2": float(count.max() / 1e6),
+    rec = {"n_valid": int(valid.sum()), "n_edge_cells": n_edge, "max_area_cells": int(count.max()), "max_area_km2": float(count.max() / 1e6),
            "n_roots": int(roots.sum()), "root_area_sum_cells": int(ra.sum()), "root_area_sum_equals_valid": bool(ra.sum() == valid.sum()),
            "largest_roots": [{"row": int(i // nx), "col": int(i % nx), "x": tr.c + (i % nx + 0.5) * tr.a, "y": tr.f + (i // nx + 0.5) * tr.e,
                               "area_cells": int(count.ravel()[i]), "share_of_valid": float(count.ravel()[i] / valid.sum())} for i in ri],
@@ -251,6 +289,9 @@ def stage_check(a, tr, shape, epsg_out):
             v = sample(X, Y)
             zz = zt.ravel()
             ok = np.isfinite(v) & np.isfinite(zz) & (zz != tnod if tnod is not None else True)
+            if ok.sum() < 1000:
+                rec[t] = {"tile": t, "n": int(ok.sum()), "pass": "not covered by this grid"}
+                continue
             dz = v[ok] - zz[ok]
             fit = theil_sen_sub(zz[ok], v[ok])
             med = float(np.median(dz))
@@ -298,6 +339,45 @@ def stage_check(a, tr, shape, epsg_out):
             blocks.append(row)
         rec["rule_5_2"]["block_medians_10x10"] = blocks
         print("rule 5.2", med, fit["theil_sen_slope"], r["pass"], flush=True)
+        # class-2 density over the TTV candidate pool and in hollows (Laplacian at 11 m > +0.02 1/m on the filled 1 m grid)
+        pools_csv = os.path.join(a.out, "..", "pools", "TTV_windows.csv")
+        if os.path.exists(pools_csv):
+            import pandas as pd
+            from lemcvt.measure.hilltop_curvature import total_curvature
+            with rasterio.open(os.path.join(a.out, f"{a.site}_1m_class2_count.tif")) as ds:
+                cnt = ds.read(1)
+            with rasterio.open(os.path.join(a.out, f"{a.site}_1m_filled.tif")) as ds:
+                zf = ds.read(1).astype(np.float64)
+            zf[zf == NODATA] = np.nan
+            dfw = pd.read_csv(pools_csv)
+            dens = []
+            for _, w in dfw.iterrows():
+                c0 = int(round(w.x0 - tr.c))
+                r0 = int(round(tr.f - w.y1))
+                Wc = int(round(w.x1 - w.x0))
+                if r0 < 0 or c0 < 0 or r0 + Wc > ny or c0 + Wc > nx:
+                    continue
+                cw = cnt[r0:r0 + Wc, c0:c0 + Wc]
+                zw = zf[r0:r0 + Wc, c0:c0 + Wc]
+                if not np.isfinite(zw).all():
+                    dens.append({"offset": int(w.offset), "window": int(w.window), "complete": False})
+                    continue
+                lap = -total_curvature(zw, 5, 1.0)          # -C: positive = convex; hollows are concave: lap_grid = C > 0.02
+                hollow = (-lap) > 0.02
+                dens.append({"offset": int(w.offset), "window": int(w.window), "complete": True, "density_pts_m2": float(cw.mean()), "frac_empty_cells": float((cw == 0).mean()),
+                             "hollow_frac": float(np.nanmean(hollow)), "density_hollows": float(cw[hollow].mean()) if hollow.any() else None,
+                             "frac_empty_hollows": float((cw[hollow] == 0).mean()) if hollow.any() else None,
+                             "density_divergent": float(cw[(-lap) < -0.02].mean()) if ((-lap) < -0.02).any() else None})
+            dd = pd.DataFrame(dens)
+            dd.to_csv(os.path.join(a.out, "TTV_pool_density.csv"), index=False)
+            ok_ = dd[dd.complete] if len(dd) else dd
+            rec["pool_density"] = {"n_windows": int(len(dd)), "n_complete": int(len(ok_)),
+                                   "density_pts_m2_percentiles_5_50_95": [float(v) for v in ok_.density_pts_m2.quantile([0.05, 0.5, 0.95])] if len(ok_) else None,
+                                   "density_hollows_percentiles_5_50_95": [float(v) for v in ok_.density_hollows.dropna().quantile([0.05, 0.5, 0.95])] if len(ok_) else None,
+                                   "frac_empty_cells_median": float(ok_.frac_empty_cells.median()) if len(ok_) else None,
+                                   "frac_empty_hollows_median": float(ok_.frac_empty_hollows.dropna().median()) if len(ok_) else None,
+                                   "hollow_definition": "cells with Laplacian (least-squares quadratic, 11 m window) > +0.02 1/m on the filled 1 m grid (the addendum 13 stand-in)"}
+            print("pool density", rec["pool_density"], flush=True)
     dump(rec, os.path.join(a.out, f"{a.site}_checks.json"))
 
 
@@ -309,6 +389,7 @@ def main():
     p.add_argument("--footprint", required=True, help="GeoJSON polygon (any CRS) that bounds the lattice and masks the fill")
     p.add_argument("--stage", default="all", choices=["grid", "route", "check", "all"])
     p.add_argument("--data", default=None)
+    p.add_argument("--work", default=None, help="node-local scratch for unzipping (default $L_SCRATCH_JOB)")
     a = p.parse_args()
     os.makedirs(a.out, exist_ok=True)
     slurm_record(a.out)

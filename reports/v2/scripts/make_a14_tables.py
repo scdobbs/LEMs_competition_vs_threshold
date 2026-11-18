@@ -84,7 +84,16 @@ def main():
     fp = load(os.path.join(R, "footprints", "footprints.json"))
     ti = load(os.path.join(R, "ttv_inventory", "ttv_inventory.json"))
     pools = {s: load(os.path.join(R, "pools", f"{s}_pools.json")) for s in SITES}
-    wins = {s: pd.read_csv(os.path.join(R, "pools", f"{s}_windows.csv")) if os.path.exists(os.path.join(R, "pools", f"{s}_windows.csv")) else None for s in SITES}
+    def read_wins(s):
+        pth = os.path.join(R, "pools", f"{s}_windows.csv")
+        if not os.path.exists(pth):
+            return None
+        try:
+            df = pd.read_csv(pth)
+        except pd.errors.EmptyDataError:
+            return None
+        return df if len(df) else None
+    wins = {s: read_wins(s) for s in SITES}
     conf = {s: load(os.path.join(R, "pools", f"{s}_conflicts.json")) for s in SITES}
     cmp_files = glob.glob(os.path.join(R, "usgs_vs_pasda", "usgs_vs_pasda_*.json"))
     cmp = load(cmp_files[0]) if cmp_files else None
@@ -180,6 +189,35 @@ def main():
                 ["**all three**", int(ta.sum()), int((ta & allm).sum())]]
         per_off = df.assign(e=(ta & allm)).groupby("offset")["e"].sum().to_dict()
         W(table(["tolerance", "windows within (alone)", "within and passing all screens"], rows) + f"\nEligible (all screens and all tolerances) per offset: {per_off}; total candidates {len(df)}.\n")
+
+    # ---------------------------------------------------------------- A4b sensitivity of the eligible count
+    W("\n### A4b. Sensitivity of the eligible count to the reference and the theta tolerance (after all proposed screens)\n")
+    rows = []
+    for s in SITES:
+        df = wins[s]
+        pj = pools[s]
+        if df is None or pj is None:
+            continue
+        M = screen_masks(df, T, s)
+        allm = np.ones(len(df), bool)
+        for m in M.values():
+            allm &= m.fillna(False).to_numpy(bool)
+        th = pd.to_numeric(df["theta_legacy"], errors="coerce").to_numpy()
+        ks = pd.to_numeric(df["ks_ref_median"], errors="coerce").to_numpy()
+        ch = pd.to_numeric(df["C_ht"], errors="coerce").to_numpy()
+        refs = {"legacy / M&D proxy": pj["reference"]}
+        wg = pj.get("whole_grid", {})
+        if s != "TTV" and "theta_legacy" in wg:
+            refs["same code, whole coarse grid"] = {"theta": wg["theta_legacy"], "ks": wg["ks_ref_median"], "C_ht": wg["C_ht"]}
+        for rname, ref in refs.items():
+            for tol_th in (0.05, 0.10, None):
+                for tol_rel in (0.25, 0.50):
+                    ok = (np.abs(ks / ref["ks"] - 1) <= tol_rel) & (np.abs(ch / ref["C_ht"] - 1) <= tol_rel)
+                    if tol_th is not None:
+                        ok &= np.abs(th - ref["theta"]) <= tol_th
+                    rows.append([s, rname, f'{ref["theta"]:.3f} / {ref["ks"]:.2f} / {ref["C_ht"]:.4f}', "none" if tol_th is None else f"+-{tol_th:.2f}", f"+-{100 * tol_rel:.0f} %",
+                                 int(np.nansum(ok)), int(np.nansum(ok & allm)), str(df.assign(e=(ok & allm)).groupby("offset")["e"].sum().to_dict())])
+    W(table(["site", "reference", "theta / k_s / |C_ht|", "theta tolerance", "k_s and C_ht tolerance", "within tolerance (alone)", "eligible (with screens)", "per offset"], rows))
 
     # ---------------------------------------------------------------- A5 original tiles
     W("\n### A5. The original ten tiles against the new rules (section 3.4), from `pools/<site>_pools.json` (`original_tiles`)\n")

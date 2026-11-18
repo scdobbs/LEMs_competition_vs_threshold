@@ -170,34 +170,37 @@ def route_full_grid(z, dx):
     t0 = time.time()
     zf = priority_flood_fill(z, dx)
     fd = d8_flow_direction(zf)
-    area = d8_area(fd, zf, dx)
-    area[~np.isfinite(z)] = np.nan
-    r_to, c_to, good = d8_receiver_arrays(fd)
     ny, nx = z.shape
-    target = np.where(good.ravel(), r_to.ravel() * nx + c_to.ravel(), -1).astype(np.int64)
     valid = np.isfinite(z)
-    target[~valid.ravel()] = -1
-    # receivers that are invalid: treat as roots (flow leaves the valid grid there)
-    tv = target.copy()
-    bad_t = (tv >= 0) & ~valid.ravel()[np.maximum(tv, 0)]
-    tv[bad_t] = -1
-    zff = np.where(valid, zf, -np.inf).ravel()
-    order_desc = np.lexsort((np.arange(zff.size), -zff))
-    order_asc = order_desc[::-1].copy()
-    # edge-adjacent cells: border nodata or the grid edge
+    # data-edge cells (bordering nodata or the grid edge) are the outlets of the priority flood: flow leaves the data there.
+    # TopoAnalysis's D8 gives such cells an inward "least uphill" code, which would turn the flow back; set code 0 (no receiver).
     pad = np.pad(valid, 1, constant_values=False)
     adj = np.zeros_like(valid)
     for dr in (-1, 0, 1):
         for dc in (-1, 0, 1):
             adj |= ~pad[1 + dr:ny + 1 + dr, 1 + dc:nx + 1 + dc]
     adj &= valid
+    fd[adj] = 0
+    fd[~valid] = 0
+    area = d8_area(fd, zf, dx)
+    area[~valid] = np.nan
+    r_to, c_to, good = d8_receiver_arrays(fd)
+    target = np.where(good.ravel(), r_to.ravel() * nx + c_to.ravel(), -1).astype(np.int64)
+    target[~valid.ravel()] = -1
+    tv = target.copy()
+    bad_t = (tv >= 0) & ~valid.ravel()[np.maximum(tv, 0)]
+    tv[bad_t] = -1
+    zff = np.where(valid, zf, -np.inf).ravel()
+    order_desc = np.lexsort((np.arange(zff.size), -zff))
+    order_asc = order_desc[::-1].copy()
     flag = adj.ravel().copy()
     flag = np.asarray(_propagate_down(order_desc, tv, flag)).reshape(ny, nx)
     lab = np.arange(ny * nx, dtype=np.int64)
     lab = np.asarray(_terminal(order_asc, tv, lab)).reshape(ny, nx)
     lab[~valid] = -1
+    n_roots = int(((tv < 0) & valid.ravel()).sum())
     return {"zf": zf, "fd": fd, "area": area, "target": tv, "edge_touched": flag, "terminal": lab, "order_asc": order_asc,
-            "valid": valid, "seconds": time.time() - t0}
+            "valid": valid, "n_edge_cells": int(adj.sum()), "n_roots": n_roots, "seconds": time.time() - t0}
 
 
 def donors_csr(target, n):
@@ -527,6 +530,8 @@ def main():
     # full-grid routing
     R = route_full_grid(z, dx)
     rec["routing_seconds"] = R["seconds"]
+    rec["n_edge_cells"] = R["n_edge_cells"]
+    rec["n_roots"] = R["n_roots"]
     area, fd, _zf = R["area"], R["fd"], R["zf"]
     write_tif(os.path.join(a.out, f"{site}_area_full.tif"), np.where(np.isfinite(area), area, -9999).astype(np.float32), tr, crs, nodata=-9999.0)
     write_tif(os.path.join(a.out, f"{site}_fd_full.tif"), fd.astype(np.uint8), tr, crs)
