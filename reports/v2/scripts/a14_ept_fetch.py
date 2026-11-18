@@ -29,7 +29,8 @@ def boxes_for_footprint(geojson, epsg, box):
     ogr.UseExceptions()
     ds = ogr.Open(geojson)
     lyr = ds.GetLayer()
-    g = lyr.GetNextFeature().GetGeometryRef().Clone()
+    feat = lyr.GetNextFeature()          # keep the feature alive while its geometry is cloned (OGR lifetime rule)
+    g = feat.GetGeometryRef().Clone()
     src = lyr.GetSpatialRef()
     src.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
     dst = osr.SpatialReference()
@@ -86,9 +87,14 @@ def fetch_one(args):
     rec["seconds"] = time.time() - t0
     rec["bytes"] = os.path.getsize(laz) if os.path.exists(laz) else 0
     try:
-        m = json.load(open(meta))["metadata"]
-        rec["points_written"] = m.get("writers.las", {}).get("count")
-        rec["points_read"] = m.get("readers.ept", {}).get("count")
+        em = json.load(open(meta))
+        m = em.get("metadata", em.get("stages", em))
+        wl = m.get("writers.las", {})
+        rd = m.get("readers.ept", {})
+        wl = wl[0] if isinstance(wl, list) and wl else wl
+        rd = rd[0] if isinstance(rd, list) and rd else rd
+        rec["points_written"] = wl.get("count") if isinstance(wl, dict) else None
+        rec["points_read"] = rd.get("count") if isinstance(rd, dict) else None
     except Exception as e:
         rec["meta_error"] = repr(e)
     return rec

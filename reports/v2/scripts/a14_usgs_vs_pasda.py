@@ -46,6 +46,8 @@ def main():
     p.add_argument("--ept-sources", required=True)
     p.add_argument("--listing", required=True)
     p.add_argument("--work", default=os.environ.get("L_SCRATCH_JOB", "/tmp"))
+    p.add_argument("--skip-rockyweb", action="store_true", help="only the EPT (AWS) route")
+    p.add_argument("--tag", default="")
     a = p.parse_args()
     os.makedirs(a.out, exist_ok=True)
     os.makedirs(a.work, exist_ok=True)
@@ -65,17 +67,29 @@ def main():
         if b[0] < qb[2] and b[3] > qb[0] and b[1] < qb[3] and b[4] > qb[1]:
             name = os.path.basename(s["path"])
             tiles.append({"file": name, "points_ept": s.get("points"), "bytes_listed": sizes.get(name)})
+    if a.skip_rockyweb:
+        tiles = []
     rec["usgs_tiles"] = tiles
     print("USGS tiles intersecting the quadrant:", [(x["file"], x["bytes_listed"]) for x in tiles], flush=True)
     # 2. download
     dl = []
     procs = []
     t0 = time.time()
+    def valid_laz(path, size):
+        if not os.path.exists(path):
+            return False
+        if size and os.path.getsize(path) != size:
+            return False
+        with open(path, "rb") as fh:
+            return fh.read(4) == b"LASF"
+
     def start(x):
         dst = os.path.join(a.work, x["file"])
         x["local"] = dst
-        if x["bytes_listed"] and os.path.exists(dst) and os.path.getsize(dst) == x["bytes_listed"]:
+        if valid_laz(dst, x["bytes_listed"]):
             return None
+        if os.path.exists(dst) and (os.path.getsize(dst) < 1000 or open(dst, "rb").read(4) != b"LASF"):
+            os.remove(dst)          # a 429 body or a corrupt partial: start again
         return subprocess.Popen(["curl", "-s", "-L", "-C", "-", "-A", UA, "-m", "9000", "-o", dst, "-w", "%{http_code} %{size_download} %{speed_download}",
                                  ROCKY + x["file"]], stdout=subprocess.PIPE, text=True)
     # two connections at a time (rockyweb answers 429 to bursts of new connections; each connection runs at ~75-120 KB/s)
@@ -107,6 +121,7 @@ def main():
     rec["download"] = dl
     rec["download_wall_seconds"] = time.time() - t0
     # 2b. the AWS Entwine copy (EPSG:3857): read the quadrant with readers.ept, time it, reproject to EPSG:6565
+    poly = f"POLYGON(({E0} {N0},{E1} {N0},{E1} {N1},{E0} {N1},{E0} {N0}))"
     ept = "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/PA_WesternPA_1_2019/ept.json"
     ept_out = os.path.join(a.work, f"ept_{a.quadrant}_6565.laz")
     t0 = time.time()
@@ -123,9 +138,16 @@ def main():
                   "laz_bytes": os.path.getsize(ept_out) if os.path.exists(ept_out) else 0}
     try:
         em = json.load(open(os.path.join(a.work, "ept_meta.json")))
-        rd = em["metadata"].get("readers.ept", {})
+        md = em.get("metadata", em.get("stages", em))
+        rd = md.get("readers.ept", {})
+        if isinstance(rd, list):
+            rd = rd[0] if rd else {}
+        wl = md.get("writers.las", {})
+        if isinstance(wl, list):
+            wl = wl[0] if wl else {}
         rec["ept"]["reader_metadata"] = {k: rd.get(k) for k in ("count", "srs") if k in rd}
-        rec["ept"]["points_read_class2_in_quadrant"] = em["metadata"].get("writers.las", {}).get("count")
+        rec["ept"]["points_read_class2_in_quadrant"] = wl.get("count")
+        rec["ept"]["metadata_keys"] = list(md.keys())[:10]
     except Exception as e:
         rec["ept"]["meta_error"] = repr(e)
     print("EPT read", {k: v for k, v in rec["ept"].items() if k != "reader_metadata"}, flush=True)
@@ -152,7 +174,6 @@ def main():
     print("headers", json.dumps(hdr, indent=1)[:1500], flush=True)
     # 3. class-2 points of both, in EPSG:6565, cropped to the quadrant
     pasda_las = os.path.join(SOURCE, "AP-3DEP", "las", a.quadrant + "_LAS.las")
-    poly = f"POLYGON(({E0} {N0},{E1} {N0},{E1} {N1},{E0} {N1},{E0} {N0}))"
     def class2_xyz(path, reproject):
         out = os.path.join(a.work, os.path.basename(path) + ".c2.txt")
         stages = [{"type": "readers.las", "filename": path}, {"type": "filters.range", "limits": "Classification[2:2]"}]
@@ -169,7 +190,17 @@ def main():
     t0 = time.time()
     P = class2_xyz(pasda_las, reproject=False)
     rec["pasda_class2_in_quadrant"] = int(P.shape[0])
-    U = np.vstack([class2_xyz(x["local"], reproject=True) for x in tiles if os.path.exists(x["local"]) and os.path.getsize(x["local"]) > 1000]) if tiles else np.zeros((0, 3))
+    parts = []
+    for x in tiles:
+        if not valid_laz(x["local"], x["bytes_listed"]):
+            x["skipped"] = "not a complete LAZ after download"
+            continue
+        try:
+            parts.append(class2_xyz(x["local"], reproject=True))
+        except RuntimeError as e:
+            x["error"] = str(e)[-300:]
+    U = np.vstack(parts) if parts else np.zeros((0, 3))
+    rec["usgs_tiles_used"] = len(parts)
     rec["usgs_class2_in_quadrant"] = int(U.shape[0])
     rec["count_equal"] = bool(P.shape[0] == U.shape[0])
     E = class2_xyz(ept_out, reproject=False) if os.path.exists(ept_out) and os.path.getsize(ept_out) > 1000 else np.zeros((0, 3))
@@ -205,12 +236,16 @@ def main():
                                "p95_xy_dist_ft": float(np.percentile(d, 95)), "median_abs_dz_ft_xy_matched_0.1": float(np.median(dz[d <= 0.1])) if (d <= 0.1).any() else None,
                                "frac_z_equal_0.01ft_given_xy_0.1": float(np.mean(dz[d <= 0.1] <= 0.01)) if (d <= 0.1).any() else None,
                                "z_ratio_median_ept_over_pasda": float(np.median(E[i, 2] / samp[:, 2]))}
-        rec["sha256_sorted_xyz_0.01ft"]["ept"] = checksum(E, 2) if rec.get("sha256_sorted_xyz_0.01ft") else None
-        rec["z_range_ftus"]["ept"] = [float(E[:, 2].min()), float(E[:, 2].max())] if rec.get("z_range_ftus") else None
-        rec["z_range_ftus"] = {"pasda": [float(P[:, 2].min()), float(P[:, 2].max())], "usgs": [float(U[:, 2].min()), float(U[:, 2].max())]}
+        rec.setdefault("sha256_sorted_xyz_0.01ft", {}) or rec.__setitem__("sha256_sorted_xyz_0.01ft", {})
+        rec["sha256_sorted_xyz_0.01ft"]["ept"] = checksum(E, 2)
+        rec["sha256_sorted_xyz_0.01ft"]["pasda"] = checksum(P, 2)
+        rec.setdefault("z_range_ftus", {}) or rec.__setitem__("z_range_ftus", {})
+        rec["z_range_ftus"]["ept"] = [float(E[:, 2].min()), float(E[:, 2].max())]
+        rec["z_range_ftus"]["pasda"] = [float(P[:, 2].min()), float(P[:, 2].max())]
+        rec["z_range_ftus"] = {"pasda": [float(P[:, 2].min()), float(P[:, 2].max())] if P.size else None, "usgs": [float(U[:, 2].min()), float(U[:, 2].max())] if U.size else None}
     rec["seconds_compare"] = time.time() - t0
     print(json.dumps({k: v for k, v in rec.items() if k not in ("usgs_tiles", "download", "usgs_headers")}, indent=1), flush=True)
-    dump(rec, os.path.join(a.out, f"usgs_vs_pasda_{a.quadrant}.json"))
+    dump(rec, os.path.join(a.out, f"usgs_vs_pasda_{a.quadrant}{a.tag}.json"))
     rec["laz_kept_at"] = a.work
 
 

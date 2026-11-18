@@ -56,15 +56,42 @@ def pct(df, col, qs=(0.05, 0.25, 0.5, 0.75, 0.95)):
     return [int(s.size), float(s.min())] + [float(s.quantile(q)) for q in qs] + [float(s.max())]
 
 
-def screen_masks(df, T, site):
+def nlcd_fracs(df, R, site, classes):
+    """Per-window fraction of the given NLCD classes, recomputed from the warped NLCD raster of the run (pools/<site>_nlcd2021.tif)."""
+    import rasterio
+    pth = os.path.join(R, "pools", f"{site}_nlcd2021.tif")
+    if not os.path.exists(pth):
+        return None
+    with rasterio.open(pth) as ds:
+        cls = ds.read(1)
+    pj = load(os.path.join(R, "pools", f"{site}_pools.json"))
+    W = int(pj["W_cells"])
+    out = np.full(len(df), np.nan)
+    for i, (r0, c0) in enumerate(zip(df["row0"].astype(int), df["col0"].astype(int), strict=True)):
+        sub = cls[r0:r0 + W, c0:c0 + W]
+        out[i] = np.isin(sub, classes).mean()
+    return out
+
+
+def screen_masks(df, T, site, R=None):
     m = {}
     m["trunk: A_max_inside <= %.0e m2" % T["trunk_A_max_inside_m2_max"]] = df["A_max_inside_m2"] <= T["trunk_A_max_inside_m2_max"]
     m["trunk: largest single edge inflow <= %.0e m2" % T["trunk_A_inflow_max_single_m2_max"]] = df["A_inflow_max_single_m2"] <= T["trunk_A_inflow_max_single_m2_max"]
     m["transient: chi-z R2 (area-weighted) >= %.2f" % T["transient_chi_r2_area_weighted_min"]] = pd.to_numeric(df["chi_r2_area_weighted"], errors="coerce") >= T["transient_chi_r2_area_weighted_min"]
     m["transient: slope-area dBIC (area-weighted) <= %.0f" % T["transient_sa_dbic_area_weighted_max"]] = ~(pd.to_numeric(df["sa_dbic_area_weighted"], errors="coerce") > T["transient_sa_dbic_area_weighted_max"])
-    m["disturbance: NLCD disturbed fraction <= %.2f" % T["disturbance_nlcd_disturbed_frac_max"]] = ~(pd.to_numeric(df["nlcd_disturbed_frac"], errors="coerce") > T["disturbance_nlcd_disturbed_frac_max"])
+    if T.get("disturbance_nlcd_classes") and R is not None:
+        fr = nlcd_fracs(df, R, site, T["disturbance_nlcd_classes"])
+        if fr is not None:
+            m["disturbance: NLCD classes %s fraction <= %.2f" % (T["disturbance_nlcd_classes"], T["disturbance_nlcd_disturbed_frac_max"])] = ~(pd.Series(fr, index=df.index) > T["disturbance_nlcd_disturbed_frac_max"])
+    else:
+        m["disturbance: NLCD disturbed fraction (11, 21-24, 31) <= %.2f" % T["disturbance_nlcd_disturbed_frac_max"]] = ~(pd.to_numeric(df["nlcd_disturbed_frac"], errors="coerce") > T["disturbance_nlcd_disturbed_frac_max"])
     if site == "AP":
-        m["disturbance (AP): mining fraction <= %.2f" % T["disturbance_mining_frac_max"]] = ~(pd.to_numeric(df["mining_frac"], errors="coerce") > T["disturbance_mining_frac_max"])
+        layers = T.get("disturbance_mining_layers")
+        if layers and all(f"{lyr}_frac" in df.columns for lyr in layers):
+            fr = sum(pd.to_numeric(df[f"{lyr}_frac"], errors="coerce").fillna(0) for lyr in layers)
+            m["disturbance (AP): %s fraction <= %.2f" % ("+".join(layers), T["disturbance_mining_frac_max"])] = ~(fr > T["disturbance_mining_frac_max"])
+        elif "mining_frac" in df.columns:
+            m["disturbance (AP): mining fraction (all three layers) <= %.2f" % T["disturbance_mining_frac_max"]] = ~(pd.to_numeric(df["mining_frac"], errors="coerce") > T["disturbance_mining_frac_max"])
     if T["upstream_fully_valid_required"].get(site):
         m["upstream area fully in valid data (decision 7)"] = df["upstream_fully_valid"].astype(str).str.lower() == "true"
     return m
@@ -75,6 +102,7 @@ def main():
     p.add_argument("--run", required=True)
     p.add_argument("--thresholds", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "a14_thresholds.json"))
     p.add_argument("--jobs", default="")
+    p.add_argument("--label", default="A")
     a = p.parse_args()
     R = a.run
     T = json.load(open(a.thresholds))
@@ -144,13 +172,13 @@ def main():
         W(f"**{s}** ({len(df)} candidate windows)\n\n" + table(["statistic", "n", "min", "p05", "p25", "median", "p75", "p95", "max"], rows))
 
     # ---------------------------------------------------------------- A3 thresholds
-    W("\n### A3. Proposed thresholds and the windows each removes (section 3.2), from `scripts/a14_thresholds.json`\n")
+    W(f"\n### A3. Threshold set {a.label} and the windows each screen removes (section 3.2), from `scripts/{os.path.basename(a.thresholds)}`\n")
     W("Thresholds: " + "; ".join(f"{k} = {v}" for k, v in T.items() if not k.startswith("_")) + "\n")
     for s in SITES:
         df = wins[s]
         if df is None:
             continue
-        M = screen_masks(df, T, s)
+        M = screen_masks(df, T, s, R)
         allm = np.ones(len(df), bool)
         rows = []
         for name, m in M.items():
@@ -162,7 +190,7 @@ def main():
         W(f"**{s}** ({len(df)} candidates; passing all screens per offset: {per_off})\n\n" + table(["screen", "windows removed (alone)", "share", "windows kept (alone)"], rows))
 
     # ---------------------------------------------------------------- A4 metrics and tolerances
-    W("\n### A4. Selection metrics against the reference (section 3.3): distributions, tolerance counts alone and jointly with the screens\n")
+    W(f"\n### A4. Selection metrics against the reference (section 3.3): distributions, tolerance counts alone and jointly with the set {a.label} screens\n")
     mcols = [("theta_legacy", "theta by chi (legacy method)"), ("ks_ref_median", "k_s at theta_ref, median of basins"), ("ks_ref_pooled", "k_s at theta_ref, pooled"),
              ("C_ht", "|C_ht| (3x3 Laplacian, convex first-order divides)"), ("n_basins_chi", "basins in the chi fit"), ("C_ht_n_convex", "convex divide pixels")]
     for s in SITES:
@@ -174,7 +202,7 @@ def main():
         rows = [[name] + pct(df, c) for c, name in mcols if c in df.columns]
         W(f"**{s}** reference: theta {fmt(ref.get('theta'))}, k_s {fmt(ref.get('ks'))}, |C_ht| {fmt(ref.get('C_ht'))} ({ref.get('source')})\n\n"
           + table(["metric", "n", "min", "p05", "p25", "median", "p75", "p95", "max"], rows))
-        M = screen_masks(df, T, s)
+        M = screen_masks(df, T, s, R)
         allm = np.ones(len(df), bool)
         for m in M.values():
             allm &= m.fillna(False).to_numpy(bool)
@@ -191,14 +219,14 @@ def main():
         W(table(["tolerance", "windows within (alone)", "within and passing all screens"], rows) + f"\nEligible (all screens and all tolerances) per offset: {per_off}; total candidates {len(df)}.\n")
 
     # ---------------------------------------------------------------- A4b sensitivity of the eligible count
-    W("\n### A4b. Sensitivity of the eligible count to the reference and the theta tolerance (after all proposed screens)\n")
+    W(f"\n### A4b. Sensitivity of the eligible count to the reference and the tolerances (after all set {a.label} screens)\n")
     rows = []
     for s in SITES:
         df = wins[s]
         pj = pools[s]
         if df is None or pj is None:
             continue
-        M = screen_masks(df, T, s)
+        M = screen_masks(df, T, s, R)
         allm = np.ones(len(df), bool)
         for m in M.values():
             allm &= m.fillna(False).to_numpy(bool)
@@ -231,7 +259,7 @@ def main():
                 rows.append([t["tile"], t["error"]] + [""] * 16)
                 continue
             df = wins[s]
-            M = screen_masks(pd.DataFrame([t]), T, s) if df is not None else {}
+            M = screen_masks(pd.DataFrame([t]), T, s, R) if df is not None else {}
             passes = all(bool(m.fillna(False).iloc[0]) for m in M.values()) if M else None
             rows.append([t["tile"], f'{t["row0"]}, {t["col0"]}', t["coarse_all_valid"], t["footprint_full"], t["A_max_inside_m2"], t["A_inflow_max_single_m2"], t["upstream_fully_valid"],
                          t.get("chi_r2_area_weighted"), t.get("sa_dbic_area_weighted"), t.get("nlcd_disturbed_frac"), t.get("mining_frac"), passes,
