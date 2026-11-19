@@ -1,0 +1,61 @@
+# Tile AP23 (AP-3DEP-x, 3DEP 2019-20): written by reports/v2/scripts/a17b_tile_configs.py (addendum 17 Part B).
+# `measured_v1` holds the SITE SELECTION REFERENCE (not a v1 tile value): the loader needs a measured block and the m-profile
+# stage needs starting K0 = U/ks and D0 = U/C_ht; the exponent profile takes the exact box-constrained (K, D) optimum at every
+# (m, A_crit), so these values do not affect it. `model.m` is a placeholder (the v2 site m; the TTV reference theta).
+# The `measured` block (site m from S(m), k_s, C_ht with provenance) is written by addendum 18 from the Part B run.
+tile: AP23
+site: AP
+grids:
+  filled: AP-3DEP-x/AP23/AP23_1m_filled.tif
+  area: AP-3DEP-x/AP23/AP23_1m_area.tif
+  fd: AP-3DEP-x/AP23/AP23_1m_fd.tif
+  sha256:
+    filled: 5c904a40bb73aafcd6a5b3c45309b3a59b75870fa987b6a11d4a28343e2133f4
+    area: 4657ae049b9d8c7452ef050940cb5b46e1b21173fbced68a8edc13b18cc028e8
+    fd: f2098b2d30781e1c61b6a63523bfa2c91d23107facb7ed5dada18cfbe17f7163
+  shape:
+  - 1000
+  - 1000
+  dx: 1.0
+  dy: 1.0
+  crs_epsg: 6346
+units:
+  z_units: m
+  xy_units: m
+  reproduce_v1_units: false
+measured_v1:
+  theta: 0.54
+  ks: 47.2
+  hilltop_curvature: 0.00593
+  units_note: z in metres
+  source: 'legacy TAYLOR_REF (addendum 14, a14_common.LEGACY_REF): the site selection reference, not a v1 tile value'
+model:
+  param_z_units: m
+  m: 0.47
+  S_c: 1.27
+  K0_ad: U/ks
+  K0_partitioned: U/ks
+  D0: U/C_ht
+  K_bounds:
+  - 3.2808333333333335e-12
+  - 0.006561666666666668
+  D_bounds:
+  - 1.3123333333333335e-09
+  - 0.032808333333333335
+  A_crit_0: 5000
+  A_crit_bounds:
+  - 100.0
+  - 100000.0
+  nonlinear_max_iter: 100
+  nonlinear_tol: 1.0e-06
+  methods:
+    ad: L-BFGS-B
+    acrit: Nelder-Mead
+    nonlinear: Nelder-Mead
+    joint: Nelder-Mead
+registration:
+  version: AP-3DEP-x
+  survey: 3DEP 2019-20
+  registered: addendum 17 Part A (TTV-x, GM-FEMA2018-x, GM-FEMA2018-ctrl) or addendum 15 stage B (GM-x, AP-3DEP-x)
+  area_source: full-grid routing of the survey grid (role area)
+  measured_in: addendum 17 Part B

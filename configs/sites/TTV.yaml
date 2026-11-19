@@ -1,0 +1,21 @@
+# Tennessee Valley (Marin County, CA): Marin 2019 QL1 lidar gridded at 1 m on NAD83(2011) / UTM 10N (EPSG:6339), z in metres
+# (NAVD88; addendum 14 rule 5.2). Written by reports/v2/scripts/a17b_tile_configs.py (addendum 17 Part B). The sanity range
+# is the decision-1 unit window (0-800 m); max_median_slope 1.0 admits the Marin Headlands' steep tiles (a units error would
+# give slopes 3.3 x larger; rule 5.2 of addendum 14 established the metre).
+site: TTV
+name: Tennessee Valley (Marin County, CA)
+U: 7.7e-05
+n: 1.0
+S_c: 1.27
+z_range_m:
+- 0.0
+- 800.0
+max_median_slope: 1.0
+crs_epsg: 6339
+regional:
+  source: 'addendum 16 section 2.2: the clipped M&D (1989) polygon on the 10 m NED, the selection reference; E from Heimsath
+    et al. (1997), 77 +- 15 m/Myr'
+  theta: 0.442
+  ks: 26.86
+  hilltop_curvature: 0.0179
+  U: 7.7e-05

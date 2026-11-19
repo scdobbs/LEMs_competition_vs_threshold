@@ -1,0 +1,61 @@
+# Tile TTV15 (TTV-x, Marin 2019): written by reports/v2/scripts/a17b_tile_configs.py (addendum 17 Part B).
+# `measured_v1` holds the SITE SELECTION REFERENCE (not a v1 tile value): the loader needs a measured block and the m-profile
+# stage needs starting K0 = U/ks and D0 = U/C_ht; the exponent profile takes the exact box-constrained (K, D) optimum at every
+# (m, A_crit), so these values do not affect it. `model.m` is a placeholder (the v2 site m; the TTV reference theta).
+# The `measured` block (site m from S(m), k_s, C_ht with provenance) is written by addendum 18 from the Part B run.
+tile: TTV15
+site: TTV
+grids:
+  filled: TTV-x/TTV15/TTV15_1m_filled.tif
+  area: TTV-x/TTV15/TTV15_1m_area.tif
+  fd: TTV-x/TTV15/TTV15_1m_fd.tif
+  sha256:
+    filled: f76f94a8de7794f9f7ac57031f84586c4ac201ee0e18b3d027c55d330d0ef2cd
+    area: 36355c80e1983baa5a13b843ef243108691dba36e392bb840e0417b11e63be3f
+    fd: ffea456c0a8d953e73b280aef4efa579970a08eb05fd51a4edb371a4a7c61dd3
+  shape:
+  - 1000
+  - 1000
+  dx: 1.0
+  dy: 1.0
+  crs_epsg: 6339
+units:
+  z_units: m
+  xy_units: m
+  reproduce_v1_units: false
+measured_v1:
+  theta: 0.442
+  ks: 26.86
+  hilltop_curvature: 0.0179
+  units_note: z in metres
+  source: 'the clipped M&D polygon on the 10 m NED (addendum 16 section 2.2): the site selection reference'
+model:
+  param_z_units: m
+  m: 0.442
+  S_c: 1.27
+  K0_ad: U/ks
+  K0_partitioned: U/ks
+  D0: U/C_ht
+  K_bounds:
+  - 7.0e-12
+  - 0.02
+  D_bounds:
+  - 4.0e-10
+  - 0.05
+  A_crit_0: 5000
+  A_crit_bounds:
+  - 100.0
+  - 100000.0
+  nonlinear_max_iter: 100
+  nonlinear_tol: 1.0e-06
+  methods:
+    ad: L-BFGS-B
+    acrit: Nelder-Mead
+    nonlinear: Nelder-Mead
+    joint: Nelder-Mead
+registration:
+  version: TTV-x
+  survey: Marin 2019
+  registered: addendum 17 Part A (TTV-x, GM-FEMA2018-x, GM-FEMA2018-ctrl) or addendum 15 stage B (GM-x, AP-3DEP-x)
+  area_source: full-grid routing of the survey grid (role area)
+  measured_in: addendum 17 Part B
