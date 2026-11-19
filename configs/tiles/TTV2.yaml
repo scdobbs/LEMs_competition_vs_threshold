@@ -1,8 +1,8 @@
-# Tile TTV2 (TTV-x, Marin 2019): written by reports/v2/scripts/a17b_tile_configs.py (addendum 17 Part B).
-# `measured_v1` holds the SITE SELECTION REFERENCE (not a v1 tile value): the loader needs a measured block and the m-profile
-# stage needs starting K0 = U/ks and D0 = U/C_ht; the exponent profile takes the exact box-constrained (K, D) optimum at every
-# (m, A_crit), so these values do not affect it. `model.m` is a placeholder (the v2 site m; the TTV reference theta).
-# The `measured` block (site m from S(m), k_s, C_ht with provenance) is written by addendum 18 from the Part B run.
+# Tile TTV2 (TTV-x, Marin 2019): grids registered by addendum 15/17; `measured` written by reports/v2/scripts/a18_prep.py --part configs (addendum 18 decision 9) from the addendum 17 Part B run
+# 20261119T002830Z_a17b_measurement (measure/measurement.json): the site m (S(m) argmin over the site's primary set; addendum 18 decision 6),
+# k_s at the site m (pooled through-origin chi-z above A_c = 1e3 m^2; K0 = E/ks), C_ht by option (iii) at L_f = 11 m and at L_w (D0_A, D0_B;
+# decision 2), the hilltop pixel count, and provenance. `measured_v1` holds the SITE SELECTION REFERENCE (not a v1 tile value), kept for the record.
+# model.m is the site m; K0 = U/ks and D0 = U/C_ht resolve from `measured` (metres; the v2 metre bounds).
 tile: TTV2
 site: TTV
 grids:
@@ -31,7 +31,7 @@ measured_v1:
   source: 'the clipped M&D polygon on the 10 m NED (addendum 16 section 2.2): the site selection reference'
 model:
   param_z_units: m
-  m: 0.442
+  m: 0.33
   S_c: 1.27
   K0_ad: U/ks
   K0_partitioned: U/ks
@@ -53,9 +53,110 @@ model:
     acrit: Nelder-Mead
     nonlinear: Nelder-Mead
     joint: Nelder-Mead
+  D0_B: U/C_ht_B
 registration:
   version: TTV-x
   survey: Marin 2019
   registered: addendum 17 Part A (TTV-x, GM-FEMA2018-x, GM-FEMA2018-ctrl) or addendum 15 stage B (GM-x, AP-3DEP-x)
   area_source: full-grid routing of the survey grid (role area)
   measured_in: addendum 17 Part B
+measured:
+  m: 0.33
+  ks: 4.871265973026599
+  C_ht: 0.017261813115865804
+  z_units: m
+  ks_units: m^(2 m) with m = 0.33, A0 = 1 m^2
+  K0: 1.580697921779841e-05
+  D0: 0.0044607133377679315
+  ks_1e4_reported_not_used: 4.75654959517013
+  C_ht_B: 0.016355412110648587
+  L_w_m: 15
+  D0_B: 0.004707921725180333
+  n_hilltop_px: 1995
+  E: 7.7e-05
+  E_source: addendum 17 decision 6 (addendum 18 decision 7)
+  D0_bracket_note: 'addendum 18 decision 2: D0 is carried at both ends everywhere, D0_A = E/C_ht(L_f = 11 m) and D0_B = E/C_ht(L_w) on the same
+    option (iii) pixel set, L_w the largest tested window not exceeding the median crest width; every D statement is made at both ends; the window-stability
+    test (rule 6.1 of addendum 17) is reported, it no longer decides'
+  provenance:
+    m:
+      definition: 'site constant: the minimum of the site exponent profile S(m) over the primary set at the site (addendum 17 Part B, 5.2; addendum
+        18 decision 6)'
+      site_m: 0.33
+      S_interval_1pct:
+      - - 0.28
+        - 0.39
+      S_interval_5pct:
+      - - 0.15
+        - 0.46
+      S_min: 12.045629002186951
+      n_tiles: 11
+      m_profile_run: 20261119T025516Z_tile_run_TTV2_v2_m_profile
+      note: 'TTV: six of eleven per-tile profiles have their optimum at the grid edge m = 0.05 (addendum 18 decision 5)'
+      part_b_run: 20261119T002830Z_a17b_measurement
+      part_b_report: reports/v2/20261118T2045PST_measurement.md
+    ks:
+      definition: pooled through-origin chi-z slope at theta = m over the channel network above A_c = 1e3 m^2 (measurement_methods.md 0)
+      A_c: 1000.0
+      n_basins: 16
+      n_eff_centred: 1.2642504192879502
+      n_eff_through_origin: 1.2002473088384384
+      n_eff_lt_3: true
+      ci68:
+      - 4.772976092412446
+      - 6.267305393792718
+      ci95:
+      - 4.750087349147863
+      - 6.633325265099977
+      bootstrap:
+        unit: basin
+        n_boot: 200
+        usable: false
+      ks_1e4:
+        ks: 4.75654959517013
+        n_basins: 9
+        n_eff_centred: 1.215902793734453
+        ci68:
+        - 4.6644798360627915
+        - 6.105853278487247
+      measure_run: 20261119T012858Z_measure_a17b_t2
+      part_b_run: 20261119T002830Z_a17b_measurement
+      part_b_job: '52881442'
+    C_ht:
+      definition: 'curvature option (iii): median -laplacian at the fixed window L_f on the rollover-network hilltop set with the L_f/2 exclusion'
+      L_f_m: 11.0
+      n_pixels: 1995
+      n_segments: 333
+      A_c_rollover: 56.23413251903499
+      ci68:
+      - 0.016306489401641266
+      - 0.018358417631438004
+      ci95:
+      - 0.014590722803699307
+      - 0.01946018159983614
+      D0_ci68:
+      - 0.004194261267275062
+      - 0.004722046426022873
+      D0_ci95:
+      - 0.003956797607718541
+      - 0.00527732594443351
+      window_test:
+        median_crest_width_m: 16.1245154965971
+        windows_tested_nominal_m:
+        - 11
+        - 15
+        n_windows_tested: 2
+        max_abs_deviation: 0.05250902666673629
+        pass: true
+        only_L_f_in_range: false
+        non_trivial: true
+      measure_run: 20261119T012858Z_measure_a17b_t2
+      part_b_run: 20261119T002830Z_a17b_measurement
+    C_ht_B:
+      definition: median -laplacian at L_w on the option (iii) pixel set
+      L_w_m: 15
+      ci68:
+      - 0.015454719097948749
+      - 0.017349466407264966
+      ratio_to_C_ht_A: 0.9474909733332637
+      part_b_run: 20261119T002830Z_a17b_measurement
