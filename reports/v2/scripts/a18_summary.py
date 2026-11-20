@@ -92,11 +92,11 @@ def collect(specs: dict) -> dict[str, dict]:
                           "D_over_D0A": (o["D"] / D0A) if D0A else None, "D_over_D0B": (o["D"] / D0B) if D0B else None}
                 idt = res["identifiability"].get(n)
                 if idt:
-                    for lev in ("0.01", "0.05"):
+                    for lev, tag in (("0.01", "i1"), ("0.05", "i5")):
                         r = idt[f"level_{lev}"]
-                        rec[n][f"i{lev[2:]}"] = [r["A_crit_min"], r["A_crit_max"]]
-                        rec[n][f"i{lev[2:]}_n_intervals"] = r["n_intervals"]
-                        rec[n][f"i{lev[2:]}_intervals"] = r["intervals"]
+                        rec[n][tag] = [r["A_crit_min"], r["A_crit_max"]]
+                        rec[n][f"{tag}_n_intervals"] = r["n_intervals"]
+                        rec[n][f"{tag}_intervals"] = r["intervals"]
             rec["heldout_part"] = {n: {"mean": h["mse_heldout_mean"], "h1_fit_score_h2": h["fit_h1"]["score_h2"], "h2_fit_score_h1": h["fit_h2"]["score_h1"],
                                        "A_crit_h1": h["fit_h1"]["A_crit"], "A_crit_h2": h["fit_h2"]["A_crit"]} for n, h in res["heldout"].items()}
             sp = pr[1]["split"]
@@ -394,7 +394,7 @@ def figures(fits: dict, out_dir: str) -> list[str]:
         ax.grid(True, color=COL["grid"], lw=0.8)
         ax.set_axisbelow(True)
         prim = [r for r in recs if r["group"] == "primary"]
-        ax.set_title(f"{site}: AD against partitioned MSE (1:1 line); primary tiles: P4 < AD on {sum(r['F1'] for r in prim)}/{len(prim)}, "
+        ax.set_title(f"{site}: AD against partitioned MSE (1:1 line)\nprimary tiles: P4 < AD on {sum(r['F1'] for r in prim)}/{len(prim)}, "
                      f"median R_MSE {np.median([r['R_MSE'] for r in prim]):.2f}", fontsize=8)
         ax.legend(handles=[Line2D([], [], marker=MARK[k][0], color="none", markerfacecolor=COL["part"] if k != "tier2" else "white", markeredgecolor=COL["part"], markersize=6, label=MARK[k][1]) for k in MARK if k in used],
                   fontsize=7, frameon=False, loc="upper left")
