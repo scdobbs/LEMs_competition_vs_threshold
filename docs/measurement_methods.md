@@ -277,6 +277,34 @@ model can be judged on hillslope form as well as on elevation misfit.
 - **Rule (pre-registered)**: a surface reproduces the hillslope form on a tile if the crest curvature, the E*–R* ratio, and
   both gradient statistics each lie within a factor 1.25 of the observed value.
 
+## 12. Crest D on the fixed network and by Perron's estimator (addendum 20)
+
+Addendum 20 (decisions 1 and 2) replaces the rollover-network D₀ of §6–§8 as the D reference for the model comparisons. D = E/|∇²z|,
+with E the bedrock lowering rate and no density ratio (the models' convention and that of Perron et al. 2012).
+
+- **D₀,N (divide-line estimator).** Hilltop pixels are the D8 divide cells between the outlet basins of the fixed A ≥ 10³ m² network
+  on the tile's registered area grid (the network k_s uses), two cells from the tile edge, |∇z| ≤ 0.4, farther than L_f/2 from a network
+  cell; pixels within 10 m of a TIGER/Line 2024 road or trail are dropped; then pixels with C_ht(L_f) ≤ 0. No segment-length filter:
+  D8 divide cells along a crest come in fragments of a median 2–4 pixels, so a minimum segment length removes most of every crest
+  (addendum 19). C_ht is the median of −∇²z of the 11 m square quadratic (§7) over the pixels; uncertainty by the segment bootstrap
+  (2,000 draws). The 20-pixel fragment filter is reported as a sensitivity.
+- **D₀,P (Perron's estimator; Perron, Kirchner & Dietrich 2009, Supplementary Information §2.1).** At every cell of the 1 m grid, the
+  least-squares quadratic z = a + bx + cy + dx² + exy + fy² over all cells whose centres lie within r of the cell centre (r = 7 m
+  primary; 3, 5, 10, 15 m sensitivity); |∇z| = √(b² + c²), ∇²z = 2d + 2f; cells within r + 2 cells of the tile edge or of nodata
+  excluded. Cells are binned in A|∇z| (A the D8 area in m²; log bins, 4 per decade, 10⁻³ to 10⁵ m², cells below 10⁻³ m² in the first
+  bin). Per bin, L_bin = −10^⟨log₁₀(−∇²z)⟩ over the convex cells. The hilltop Laplacian is the geometric mean over the plateau bins,
+  chosen by a fixed rule in place of Perron's choice by eye: start at the lowest bin with ≥ 200 cells; add bins while each has ≥ 200
+  cells, a convex fraction ≥ 0.6, and |L_bin/L_plat − 1| ≤ 0.20 (L_plat the geometric mean of the bins already included); stop at the
+  first failure; fewer than three bins means no plateau (D₀,N is used on that tile). D₀,P = E/|∇²z_h|. Uncertainty by a 100 m × 100 m
+  block bootstrap (2,000 draws) with the plateau rule re-applied in every draw; site values pool the cells of all primary tiles into the
+  same bins. Fixed-range values (convex cells with A|∇z| ≤ 1 and ≤ 3 m²) are reported beside it, and D∞ area in place of D8 on the GM
+  and AP primary tiles.
+- **What each estimator averages.** D₀,P averages every low-A|∇z| cell (the rounded ridge top); D₀,N averages divide-line cells (the
+  sharpest strip). On a parabolic hilltop the two agree; where curvature is concentrated at the crest the divide line is sharper.
+  Addendum 20 reports both with both window shapes (11 m square, 7 m disk) on both pixel sets.
+- **The bracket.** D_C (D₀,P, or D₀,N where no plateau) is the lower reference for a linear model's D; D_R = E L_H²/(2R), traced on D8
+  from the D₀,N pixels to the 10³ network, is the upper reference (addendum 19, decision 12).
+
 ## References
 
 - Evans, I. S. (1980). An integrated system of terrain analysis and slope mapping. Z. Geomorph. Suppl. 36, 274–295.
@@ -285,6 +313,9 @@ model can be judged on hillslope form as well as on elevation misfit.
 - Montgomery, D. R., Foufoula-Georgiou, E. (1993). Channel network source representation using digital elevation models. Water Resour. Res. 29, 3925–3934.
 - Mudd, S. M., Attal, M., Milodowski, D. T., Grieve, S. W. D., Valters, D. A. (2014). A statistical framework to quantify spatial variation in channel gradients using the integral method of channel profile analysis. J. Geophys. Res. Earth Surf. 119, 138–152.
 - Mudd, S. M., Clubb, F. J., Gailleton, B., Hurst, M. D. (2018). How concave are river channels? Earth Surf. Dynam. 6, 505–523.
+- Perron, J. T., Kirchner, J. W., Dietrich, W. E. (2009). Formation of evenly spaced ridges and valleys. Nature 460 (23 July 2009; doi:10.1038/nature08174), Supplementary Information §2.1 for the hilltop curvature method.
+- Perron, J. T., Kirchner, J. W., Dietrich, W. E. (2008). Spectral signatures of characteristic spatial scales and non-fractal structure in landscapes. J. Geophys. Res. 113, F04003, doi:10.1029/2007JF000866.
+- Perron, J. T., Richardson, P. W., Ferrier, K. L., Lapôtre, M. (2012). The root of branching river networks. Nature 492, 100–103 (Supplementary Table S2: GM and AP hilltop curvature).
 - Perron, J. T., Royden, L. (2013). An integral approach to bedrock river profile analysis. Earth Surf. Process. Landforms 38, 570–576.
 - Tarolli, P., Dalla Fontana, G. (2009). Hillslope-to-valley transition morphology: new opportunities from high resolution DTMs. Geomorphology 113, 47–56.
 
