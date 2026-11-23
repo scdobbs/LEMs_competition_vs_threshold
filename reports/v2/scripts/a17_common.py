@@ -74,7 +74,9 @@ def hillshade(z, dx: float, azimuth: float = HILLSHADE["azimuth_deg"], altitude:
     dzdx *= z_factor
     dzdy *= z_factor
     slope = np.arctan(np.hypot(dzdx, dzdy))
-    aspect = np.arctan2(-dzdy, dzdx)        # rows increase southward: -dzdy is the northward gradient component
+    # Esri convention: aspect = atan2(dz/dy, -dz/dx) with dz/dy increasing southward (row index). The earlier atan2(-dzdy, dzdx)
+    # differed by pi and lit the surface from the south-east, which inverts the relief to the eye (Steve, 2026-11-23).
+    aspect = np.arctan2(dzdy, -dzdx)
     zen = np.deg2rad(90.0 - altitude)
     az = np.deg2rad(360.0 - azimuth + 90.0)
     hs = np.cos(zen) * np.cos(slope) + np.sin(zen) * np.sin(slope) * np.cos(az - aspect)
