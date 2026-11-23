@@ -4,7 +4,12 @@
 # give slopes 3.3 x larger; rule 5.2 of addendum 14 established the metre).
 site: TTV
 name: Tennessee Valley (Marin County, CA)
-U: 7.7e-05
+# U: the model's uplift / boundary-lowering rate. Heimsath et al. (1999, Geomorphology 27) Table 1, stream-sediment cosmogenic rates
+# of sub-basin 1 (64 +- 12 and 66 +- 13 m/Myr); addendum 21 decision 1.1 (2026-11-23). The earlier value, 7.7e-5, is Heimsath's
+# soil-production rate under zero soil (P0, eq. 9), not a lowering rate (addendum 20 section 12.2); kept below for the record.
+U: 6.5e-05
+U_legacy_P0: 7.7e-05   # Heimsath 1999 P0, not a lowering rate
+E_ridge: 2.7e-05       # hilltop (soil-covered greywacke nose) lowering rate, Heimsath 1999 Table 1 median (mean 3.5e-5); the physical-D check only
 n: 1.0
 S_c: 1.27
 z_range_m:
