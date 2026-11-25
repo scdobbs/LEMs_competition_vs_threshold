@@ -13,15 +13,17 @@ logger = logging.getLogger(__name__)
 
 
 def partitioned_threshold_model(
-    Z0: np.ndarray, A: np.ndarray, FD: np.ndarray, dx: float, m: float, U: float, K: float,
+    Z0: np.ndarray, A: np.ndarray, FD: np.ndarray, dx: float, m: float, U: float, K: float, *,
+    outlets: np.ndarray | None = None, noflux_outside: bool = False,
 ) -> Callable[..., tuple[np.ndarray, np.ndarray]]:
     """Build ``f(A_crit, D) -> (Z, channel_mask)``.
 
     Channels (``A >= A_crit``, plus the outlet) carry the pre-integrated
     stream-power profile for this ``K``; hillslopes solve ``0 = U + D lap(z)``
-    with Dirichlet values from channels and the tile boundary.
+    with Dirichlet values from channels and the tile boundary (or the ``outlets`` of a domain, with
+    ``noflux_outside`` faces towards NaN: :func:`lemcvt.models.common.extract_grid_data`, addendum 23).
     """
-    gd = extract_grid_data(Z0, A, FD, dx)
+    gd = extract_grid_data(Z0, A, FD, dx, outlets=outlets, noflux_outside=noflux_outside)
     n = gd["n"]
     Ny, Nx = gd["Ny"], gd["Nx"]
     rev_i, rev_j = gd["rev_i"], gd["rev_j"]

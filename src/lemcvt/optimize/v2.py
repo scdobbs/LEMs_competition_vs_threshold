@@ -193,11 +193,14 @@ class Factored:
 class PartitionedProfiler:
     """Reductions of the linear partitioned model for one tile at any A_crit and m."""
 
-    def __init__(self, Z0: np.ndarray, A: np.ndarray, FD: np.ndarray, dx: float, U: float, m_values=(), channel_stat: np.ndarray | None = None):
+    def __init__(self, Z0: np.ndarray, A: np.ndarray, FD: np.ndarray, dx: float, U: float, m_values=(), channel_stat: np.ndarray | None = None,
+                 outlets: np.ndarray | None = None, noflux_outside: bool = False):
         """``channel_stat``: optional per-valid-cell statistic that replaces the drainage area in the channel test
         ``stat >= A_crit`` (addendum 8, 3: the upstream maximum of A S^alpha); the default is the area itself, so every
-        existing profile is unchanged."""
-        self.gd = extract_grid_data(Z0, A, FD, dx)
+        existing profile is unchanged. ``outlets`` and ``noflux_outside``: the domain options of
+        :func:`lemcvt.models.common.extract_grid_data` (addendum 23: fixed outlet cells in place of the grid edge, no-flux
+        faces towards NaN)."""
+        self.gd = extract_grid_data(Z0, A, FD, dx, outlets=outlets, noflux_outside=noflux_outside)
         self.U = U
         self.n = self.gd["n"]
         self.A_flat = self.gd["A_flat"]

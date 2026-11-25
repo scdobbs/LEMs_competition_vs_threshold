@@ -19,7 +19,7 @@ import numpy as np
 from scipy.sparse import coo_matrix, csr_matrix, lil_matrix
 from scipy.sparse.linalg import spsolve
 
-from lemcvt.models.common import D8_OFFSETS, LAPLACIAN_OFFSETS, extract_grid_data, make_boundary_mask
+from lemcvt.models.common import D8_OFFSETS, LAPLACIAN_OFFSETS, boundary_cells, extract_grid_data, make_boundary_mask
 
 
 def _outlet_on_perimeter(A: np.ndarray, valid: np.ndarray) -> tuple[int, int]:
@@ -34,13 +34,17 @@ def _outlet_on_perimeter(A: np.ndarray, valid: np.ndarray) -> tuple[int, int]:
 
 
 def advection_diffusion_model(
-    Z0: np.ndarray, A: np.ndarray, FD: np.ndarray, dx: float, m: float,
+    Z0: np.ndarray, A: np.ndarray, FD: np.ndarray, dx: float, m: float, *, outlets: np.ndarray | None = None,
+    noflux_outside: bool = False,
 ) -> Callable[[float, float, float], np.ndarray]:
     """Build ``F(U, K, D) -> Z`` for the coupled steady-state AD equation (vectorised, Phase 3 step 3).
 
-    Same equations, boundary conditions and solver as v1; see the module docstring.
+    Same equations, boundary conditions and solver as v1; see the module docstring. ``outlets`` and ``noflux_outside`` are the
+    domain options of :func:`lemcvt.models.common.extract_grid_data` (addendum 23): with ``outlets`` the Dirichlet rows are the
+    outlet cells (the largest-area cell must be one) instead of the valid edge cells and the perimeter outlet; with
+    ``noflux_outside`` a NaN or off-grid neighbour adds nothing to the diffusion diagonal.
     """
-    gd = extract_grid_data(Z0, A, FD, dx)
+    gd = extract_grid_data(Z0, A, FD, dx, outlets=outlets, noflux_outside=noflux_outside)
     Z0 = gd["Z0"]
     A = gd["A"]
     FD = gd["FD"]
@@ -66,7 +70,10 @@ def advection_diffusion_model(
         rows.append(ar[ok])
         cols.append(nk[ok])
         vals.append(np.full(int(ok.sum()), w))
-        diag -= w
+        if noflux_outside:
+            diag -= np.where(ok, w, 0.0)
+        else:
+            diag -= w
     rows.append(ar)
     cols.append(ar)
     vals.append(diag)
@@ -94,11 +101,16 @@ def advection_diffusion_model(
     # Dirichlet rows: valid edge cells and the outlet (forced onto the perimeter), imposed once
     b_U = np.full(n, -1.0)
     bc_vals = np.zeros(n)
-    boundary_mask = make_boundary_mask(valid)
+    boundary_mask = boundary_cells(gd)
     jb, ib = np.where(boundary_mask)
     bc_inds = idx_map[jb, ib]
     bc_vals[bc_inds] = Z0[jb, ib]
-    i_out, j_out = _outlet_on_perimeter(A, valid)
+    if outlets is None:
+        i_out, j_out = _outlet_on_perimeter(A, valid)
+    else:
+        j_out, i_out = (int(v) for v in np.unravel_index(np.nanargmax(A), A.shape))
+        if not boundary_mask[j_out, i_out]:
+            raise ValueError(f"the largest-area valid cell (row {j_out}, col {i_out}) is not in the outlets mask; the domain's outlets must include it")
     kout = idx_map[j_out, i_out]
     if kout not in set(bc_inds.tolist()):
         bc_inds = np.append(bc_inds, kout)

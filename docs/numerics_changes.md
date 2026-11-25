@@ -229,3 +229,23 @@ are expected to change only where ties exist. Results: see
   `border="legacy"` and produces the same codes as before; the algorithm itself is untouched. The
   regression of addendum 16 section 5.4 (AD and partitioned forward runs on GM1 and AP1 against the
   `v2.0.0` runs) is the record.
+
+## N14. Domain options: outlet anchors and no-flux faces (addendum 23, decision 2.1; defaults unchanged)
+
+- **Need:** the Tennessee Valley analysis moves from 1 km tiles to one domain cut as the union of the drainage
+  basins above the outlets of the M&D study area, embedded in NaN. The v1/v2 assembly fixes the valid grid-edge
+  cells at their observed elevation (the chi anchors and the Dirichlet rows) and, for a hillslope cell next to a
+  NaN or off-grid cell, subtracts the neighbour weight from the Laplacian diagonal with nothing on the right-hand
+  side: a ghost value of zero. Neither is a drainage divide, and a basin domain has no valid cells on the grid edge.
+- **New:** `lemcvt.models.common.extract_grid_data(..., outlets=None, noflux_outside=False)`, carried by
+  `boundary_cells(gd)`, `_boundary_anchor`, `assemble_hillslope_system`, `advection_diffusion_model`,
+  `partitioned_threshold_model` and `PartitionedProfiler`. With `outlets` (a boolean grid) the fixed cells are
+  exactly those cells (the largest-area valid cell must be one; `_outlet_on_perimeter` is not applied); with
+  `noflux_outside` an invalid neighbour adds nothing to the diagonal (ghost value = the cell's own: zero gradient
+  across the face). The flux form of the Newton solver already treats invalid faces this way; the centre form and
+  the Picard solvers do not take the options.
+- **Where results differ:** nowhere by default (`tests/test_domain.py`: the edge ring as `outlets` is bit-identical
+  to the default for both models and both settings of `noflux_outside`; the v1 bit-identity tests are unchanged).
+  With the options: a NaN-padded tile whose former edge ring is the outlets reproduces the unpadded solution to
+  1e-9 relative; the half of a mirror-symmetric strip with no-flux at the centre line reproduces the full strip's
+  solution on that half (an exact discrete identity), which the ghost value of zero does not.

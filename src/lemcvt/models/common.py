@@ -38,8 +38,21 @@ def make_boundary_mask(valid: np.ndarray) -> np.ndarray:
     return edges & valid
 
 
-def extract_grid_data(Z0: np.ndarray, A: np.ndarray, FD: np.ndarray, dx: float) -> dict:
-    """Flatten the valid cells (``isfinite(A)``) and build index maps (v1 ``_extract_grid_data``)."""
+def extract_grid_data(Z0: np.ndarray, A: np.ndarray, FD: np.ndarray, dx: float, *, outlets: np.ndarray | None = None,
+                      noflux_outside: bool = False) -> dict:
+    """Flatten the valid cells (``isfinite(A)``) and build index maps (v1 ``_extract_grid_data``).
+
+    Domain options (addendum 23, decision 2.1; ``docs/numerics_changes.md`` N14). Both default to the v1/v2 behaviour, bit for bit.
+
+    ``outlets``
+        Boolean grid of the cells held at their observed elevation (the fixed, anchor cells of the chi integration and of the
+        Dirichlet rows) **in place of** the valid grid-edge cells, for a domain (a set of drainage basins) embedded in NaN. Every
+        outlet must be a valid cell, and the largest-area valid cell must be an outlet (checked where the anchor is built).
+    ``noflux_outside``
+        Neighbours that are not valid cells (NaN, or off the grid) carry no flux in the Laplacian (the face is a drainage divide:
+        the ghost value equals the cell's own). The v1 assembly subtracts the neighbour weight from the diagonal regardless, which
+        is a ghost value of zero; that is kept when False.
+    """
     Z0 = np.asarray(Z0)
     A = np.asarray(A)
     FD = np.asarray(FD)
@@ -61,11 +74,29 @@ def extract_grid_data(Z0: np.ndarray, A: np.ndarray, FD: np.ndarray, dx: float) 
     inv_dx2 = 1.0 / dx**2
     inv_dy2 = 1.0 / dy**2
 
+    out_mask = None
+    if outlets is not None:
+        out_mask = np.asarray(outlets, dtype=bool)
+        if out_mask.shape != valid.shape:
+            raise ValueError(f"outlets has shape {out_mask.shape}, expected {valid.shape}")
+        if np.any(out_mask & ~valid):
+            raise ValueError(f"{int(np.sum(out_mask & ~valid))} outlet cells are not valid (finite-area) cells")
+        if not out_mask.any():
+            raise ValueError("outlets is given but empty")
+
     return dict(
         Z0=Z0, A=A, FD=FD, dx=dx, dy=dy, Ny=Ny, Nx=Nx,
         valid=valid, n=n, idx_map=idx_map, rev_i=rev_i, rev_j=rev_j,
         A_flat=A_flat, FD_flat=FD_flat, inv_dx2=inv_dx2, inv_dy2=inv_dy2,
+        outlets=out_mask, noflux_outside=bool(noflux_outside),
     )
+
+
+def boundary_cells(gd: dict) -> np.ndarray:
+    """The fixed (Dirichlet, anchor) cells: the ``outlets`` mask when the grid data carries one, else the valid grid-edge cells."""
+    if gd.get("outlets") is not None:
+        return gd["outlets"] & gd["valid"]
+    return make_boundary_mask(gd["valid"])
 
 
 def find_boundary_value(Z0: np.ndarray, i: int, j: int, Nx: int, Ny: int) -> float:
@@ -168,8 +199,8 @@ except Exception:  # noqa: BLE001
 
 def _boundary_anchor(gd: dict):
     Z0, Ny, Nx = gd["Z0"], gd["Ny"], gd["Nx"]
-    valid, idx_map = gd["valid"], gd["idx_map"]
-    boundary_mask = make_boundary_mask(valid)
+    idx_map = gd["idx_map"]
+    boundary_mask = boundary_cells(gd)
     jb, ib = np.where(boundary_mask)
     bc_boundary_inds = idx_map[jb, ib]
     vals = Z0[jb, ib].astype(float)
@@ -180,6 +211,8 @@ def _boundary_anchor(gd: dict):
     bc_boundary_vals[bc_boundary_inds] = vals
     j_out, i_out = np.unravel_index(np.nanargmax(gd["A"]), (Ny, Nx))
     k_out = int(idx_map[j_out, i_out])
+    if gd.get("outlets") is not None and not boundary_mask[j_out, i_out]:
+        raise ValueError(f"the largest-area valid cell (row {j_out}, col {i_out}) is not in the outlets mask; the domain's outlets must include it")
     return bc_boundary_inds, bc_boundary_vals, k_out
 
 
@@ -376,7 +409,10 @@ def assemble_hillslope_system(
         nk = np.full(n_h, -1, dtype=np.int64)
         nk[inside] = idx_map[nj[inside], ni[inside]]       # -1 where the neighbour is not a valid cell
         valid_n = nk >= 0
-        diag -= w                                          # every case subtracts D_here * inv from the diagonal
+        if gd.get("noflux_outside"):
+            diag -= np.where(valid_n, w, 0.0)              # a NaN or off-grid face is a divide: no flux (addendum 23, N14)
+        else:
+            diag -= w                                      # every case subtracts D_here * inv from the diagonal (v1: ghost value 0)
         nk_safe = np.where(valid_n, nk, 0)
         is_hs = valid_n & hillslope_mask[nk_safe]
         rows.append(ar[is_hs])
